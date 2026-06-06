@@ -1,0 +1,6 @@
+{
+  "name": "독서 다이어리",
+  "description": "최신 온디바이스 카메라 OCR 및 Gemini AI를 활용하여 책의 밑줄 구절을 똑똑하게 수집하고 정리하는 스마트 독서 관리용 나만의 서재 다이어리 앱",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
