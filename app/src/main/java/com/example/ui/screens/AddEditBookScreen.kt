@@ -104,6 +104,7 @@ fun AddEditBookScreen(
     var searchResults by remember { mutableStateOf<List<SearchResultBook>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     var isNaverActive by remember { mutableStateOf(false) }
+    var searchError by remember { mutableStateOf<String?>(null) }
 
     // Determine Naver search API credentials configuration
     LaunchedEffect(Unit) {
@@ -157,7 +158,7 @@ fun AddEditBookScreen(
         if (trimmedQuery.length >= 2) {
             delay(400) // 400ms debounce
             isSearching = true
-            val results = withContext(Dispatchers.IO) {
+            val responseResult = withContext(Dispatchers.IO) {
                 var configClientId = try {
                     SecureKeyManager.getNaverClientId(context)
                 } catch (e: Exception) {
@@ -221,57 +222,69 @@ fun AddEditBookScreen(
                                     list.add(SearchResultBook(cleanTitle, cleanAuthor, 250, cover))
                                 }
                             }
-                            if (list.isNotEmpty()) {
-                                return@withContext list
+                            Pair<List<SearchResultBook>, String?>(list, null)
+                        } else {
+                            val errMsg = when (response.code) {
+                                401 -> "네이버 검색 API 인증에 실패했습니다. (HTTP 401 Unauthorized - 입력하신 Naver Client ID 또는 Client Secret Key 값을 다시 한 번 학인해 주세요.)"
+                                403 -> "네이버 검색 API 호출 권한이 없습니다. (HTTP 403 Forbidden - 네이버 개발자 센터 내 애플리케이션 서비스 API 설정에 '검색(도서)' 서비스가 활성화되어 있는지 확인해 주세요.)"
+                                429 -> "네이버 검색 API 일일 호출 제한 한도를 초과했습니다. (HTTP 429 Too Many Requests - 일일 기본 25,000건 무료 한도가 초과되었습니다.)"
+                                else -> "네이버 API 호출에 실패했습니다. (HTTP 오류 코드: ${response.code})"
                             }
+                            Pair<List<SearchResultBook>, String?>(emptyList(), errMsg)
                         }
                     } catch (e: Exception) {
-                        // Fallback to Google
+                        Pair<List<SearchResultBook>, String?>(emptyList(), "네이버 연결 네트워크 도중 오류가 발생했습니다: ${e.message}")
                     }
-                }
-
-                // Call Google Books API fallback if no Naver keys or query failed/empty
-                try {
-                    val client = OkHttpClient()
-                    val escapedQuery = URLEncoder.encode(trimmedQuery, "UTF-8")
-                    val url = "https://www.googleapis.com/books/v1/volumes?q=$escapedQuery&maxResults=10"
-                    val request = Request.Builder()
-                        .url(url)
-                        .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                        .build()
-                    val response = client.newCall(request).execute()
-                    if (response.isSuccessful) {
-                        val body = response.body?.string() ?: ""
-                        val items = JSONObject(body).optJSONArray("items")
-                        val list = mutableListOf<SearchResultBook>()
-                        if (items != null) {
-                            for (i in 0 until items.length()) {
-                                val item = items.getJSONObject(i)
-                                val volumeInfo = item.optJSONObject("volumeInfo") ?: continue
-                                val titleStr = volumeInfo.optString("title", "알 수 없는 제목")
-                                val authorsArray = volumeInfo.optJSONArray("authors")
-                                val authorStr = if (authorsArray != null && authorsArray.length() > 0) {
-                                    authorsArray.getString(0)
-                                } else "지은이 미상"
-                                val pageCount = volumeInfo.optInt("pageCount", 250)
-                                val imageLinks = volumeInfo.optJSONObject("imageLinks")
-                                val thumb = imageLinks?.optString("thumbnail")?.replace("http://", "https://") 
-                                    ?: imageLinks?.optString("smallThumbnail")?.replace("http://", "https://") ?: ""
-                                list.add(SearchResultBook(titleStr, authorStr, pageCount, thumb))
+                } else {
+                    try {
+                        val client = OkHttpClient()
+                        val escapedQuery = URLEncoder.encode(trimmedQuery, "UTF-8")
+                        val url = "https://www.googleapis.com/books/v1/volumes?q=$escapedQuery&maxResults=10"
+                        val request = Request.Builder()
+                            .url(url)
+                            .addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                            .build()
+                        val response = client.newCall(request).execute()
+                        if (response.isSuccessful) {
+                            val body = response.body?.string() ?: ""
+                            val items = JSONObject(body).optJSONArray("items")
+                            val list = mutableListOf<SearchResultBook>()
+                            if (items != null) {
+                                        for (i in 0 until items.length()) {
+                                    val item = items.getJSONObject(i)
+                                    val volumeInfo = item.optJSONObject("volumeInfo") ?: continue
+                                    val titleStr = volumeInfo.optString("title", "알 수 없는 제목")
+                                    val authorsArray = volumeInfo.optJSONArray("authors")
+                                    val authorStr = if (authorsArray != null && authorsArray.length() > 0) {
+                                        authorsArray.getString(0)
+                                    } else "지은이 미상"
+                                    val pageCount = volumeInfo.optInt("pageCount", 250)
+                                    val imageLinks = volumeInfo.optJSONObject("imageLinks")
+                                    val thumb = imageLinks?.optString("thumbnail")?.replace("http://", "https://") 
+                                        ?: imageLinks?.optString("smallThumbnail")?.replace("http://", "https://") ?: ""
+                                    list.add(SearchResultBook(titleStr, authorStr, pageCount, thumb))
+                                }
                             }
+                            Pair<List<SearchResultBook>, String?>(list, null)
+                        } else {
+                            val googleErrDetail = if (response.code == 429) {
+                                "공용 구글 도서 API 호출 한도가 초과되었습니다 (HTTP 429). 지속적인 고성능 도서 검색 서비스를 원하시면 본인의 고유 '네이버 검색 API Key'를 [설정] 화면에 등록하여 사용하시기 바랍니다."
+                            } else {
+                                "Google Books API Error (HTTP ${response.code})."
+                            }
+                            Pair<List<SearchResultBook>, String?>(emptyList(), googleErrDetail)
                         }
-                        list
-                    } else {
-                        emptyList()
+                    } catch (e: Exception) {
+                        Pair<List<SearchResultBook>, String?>(emptyList(), "네트워크에 연결할 수 없거나 요청 처리 중 오류가 발생했습니다: ${e.localizedMessage}")
                     }
-                } catch (e: Exception) {
-                    emptyList()
                 }
             }
-            searchResults = results
+            searchResults = responseResult.first
+            searchError = responseResult.second
             isSearching = false
         } else {
             searchResults = emptyList()
+            searchError = null
             isSearching = false
         }
     }
@@ -374,127 +387,219 @@ fun AddEditBookScreen(
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator()
                         }
-                    } else if (searchQuery.trim().length < 2) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    imageVector = Icons.Default.MenuBook,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                    modifier = Modifier.size(64.dp)
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    "책 제목이나 지은이의 두 글자 이상 입력해 주세요\n실시간으로 온라인 데이터베이스에서 도서를 찾아옵니다.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                    lineHeight = 20.sp,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                )
-                            }
-                        }
-                    } else if (searchResults.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text(
-                                text = "검색어 '$searchQuery'에 해당하는 도서가 없습니다.\n다른 단어로 정확히 입력해주시거나 직접 등록해주시기 바랍니다.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                                lineHeight = 20.sp,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
-                        }
                     } else {
-                        // High density visual list with covers on the left
                         LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
                             modifier = Modifier.fillMaxSize()
                         ) {
-                            items(searchResults) { result ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                                        .border(
-                                            width = 1.dp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f),
-                                            shape = RoundedCornerShape(12.dp)
+                            // Case A: Query too short - Show guide and sample books
+                            if (searchQuery.trim().length < 2) {
+                                item {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.MenuBook,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                            modifier = Modifier.size(56.dp)
                                         )
-                                        .clickable {
-                                            title = result.title
-                                            author = result.author
-                                            totalPagesStr = result.pageCount.toString()
-                                            coverUrl = result.coverUrl
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            "책 제목이나 지은이의 두 글자 이상 입력해 주세요\n실시간으로 온라인 데이터베이스에서 도서를 찾아옵니다.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                            lineHeight = 18.sp,
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                        )
+                                    }
+                                }
+                                item {
+                                    PopularSampleBooksList(
+                                        onBookSelected = { bTitle, bAuthor, bPages, bCover ->
+                                            title = bTitle
+                                            author = bAuthor
+                                            totalPagesStr = bPages.toString()
+                                            coverUrl = bCover
                                             isSearchActive = false
                                         }
-                                        .padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    // Left: Book Image Cover with round edge and subtle border
-                                    Box(
-                                        modifier = Modifier
-                                            .size(width = 54.dp, height = 78.dp)
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                                            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+                                    )
+                                }
+                            }
+                            // Case B: There is an error (e.g. Quota exceed) or search results empty
+                            else if (searchError != null || searchResults.isEmpty()) {
+                                item {
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
+                                        ),
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = androidx.compose.foundation.BorderStroke(
+                                            1.dp,
+                                            MaterialTheme.colorScheme.error.copy(alpha = 0.2f)
+                                        )
                                     ) {
-                                        if (result.coverUrl.isNotEmpty()) {
-                                            AsyncImage(
-                                                model = ImageRequest.Builder(LocalContext.current)
-                                                    .data(result.coverUrl)
-                                                    .crossfade(true)
-                                                    .build(),
-                                                contentDescription = "SearchResult Cover",
-                                                modifier = Modifier.fillMaxSize(),
-                                                contentScale = ContentScale.Crop
+                                        Column(modifier = Modifier.padding(16.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Warning,
+                                                    contentDescription = "서버 검색 제한 알림",
+                                                    tint = MaterialTheme.colorScheme.error,
+                                                    modifier = Modifier.size(24.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(10.dp))
+                                                Text(
+                                                    text = "도서 검색 연결 안내",
+                                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                                    color = MaterialTheme.colorScheme.error
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = if (searchError != null) {
+                                                    "공용 구글 API 호출 한도가 초과되었습니다.\n오류 정보: $searchError\n\n지속적인 사용을 원하시면 본인의 네이버 ID/Secret 키를 [설정]에 등록해 주세요. 현재는 아래 추천 도서를 클릭하여 바로 추가하시거나, 우측 상단 '직접 입력'을 통해 등록하실 수 있습니다."
+                                                } else {
+                                                    "검색어 '$searchQuery'에 해당하는 도서를 찾지 못했습니다.\n\n정확한 단어로 다시 검색하시거나, 아래의 인기 추천 도서를 원클릭 추가해 보세요. 직접 본인의 Naver API Key를 설정에 추가하시면 고정밀 네이버 도서 검색도 가능합니다."
+                                                },
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                                                lineHeight = 18.sp
                                             )
-                                        } else {
-                                            Icon(
-                                                imageVector = Icons.Default.Book,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(24.dp).align(Alignment.Center),
-                                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                                            )
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                OutlinedButton(
+                                                    onClick = { isSearchActive = false },
+                                                    modifier = Modifier.weight(1f),
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    colors = ButtonDefaults.outlinedButtonColors(
+                                                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                                    ),
+                                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f))
+                                                ) {
+                                                    Text("직접 수동 등록", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                                                }
+                                                Button(
+                                                    onClick = { viewModel.navigateTo(Screen.Settings) },
+                                                    modifier = Modifier.weight(1.2f),
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    colors = ButtonDefaults.buttonColors(
+                                                        containerColor = MaterialTheme.colorScheme.error
+                                                    )
+                                                ) {
+                                                    Text("⚙️ API 설정하기", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
+                                                }
+                                            }
                                         }
                                     }
+                                }
+                                
+                                item {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    PopularSampleBooksList(
+                                        onBookSelected = { bTitle, bAuthor, bPages, bCover ->
+                                            title = bTitle
+                                            author = bAuthor
+                                            totalPagesStr = bPages.toString()
+                                            coverUrl = bCover
+                                            isSearchActive = false
+                                        }
+                                    )
+                                }
+                            }
+                            // Case C: Success display list
+                            else {
+                                items(searchResults) { result ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                            .border(
+                                                width = 1.dp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f),
+                                                shape = RoundedCornerShape(12.dp)
+                                            )
+                                            .clickable {
+                                                title = result.title
+                                                author = result.author
+                                                totalPagesStr = result.pageCount.toString()
+                                                coverUrl = result.coverUrl
+                                                isSearchActive = false
+                                            }
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // Left: Book Image Cover with round edge and subtle border
+                                        Box(
+                                            modifier = Modifier
+                                                .size(width = 54.dp, height = 78.dp)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                                .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+                                        ) {
+                                            if (result.coverUrl.isNotEmpty()) {
+                                                AsyncImage(
+                                                    model = ImageRequest.Builder(LocalContext.current)
+                                                        .data(result.coverUrl)
+                                                        .crossfade(true)
+                                                        .build(),
+                                                    contentDescription = "SearchResult Cover",
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentScale = ContentScale.Crop
+                                                )
+                                            } else {
+                                                Icon(
+                                                    imageVector = Icons.Default.Book,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(24.dp).align(Alignment.Center),
+                                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                                                )
+                                            }
+                                        }
 
-                                    Spacer(modifier = Modifier.width(16.dp))
+                                        Spacer(modifier = Modifier.width(16.dp))
 
-                                    // Right: Details with Highlighted characters in Title
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = getHighlightedText(
-                                                text = result.title,
-                                                query = searchQuery.trim(),
-                                                highlightColor = MaterialTheme.colorScheme.primary
-                                            ),
-                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = "저자 / 작가: ${result.author}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = "${result.pageCount} 쪽 분량",
-                                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                                            color = MaterialTheme.colorScheme.primary
+                                        // Right: Details with Highlighted characters in Title
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = getHighlightedText(
+                                                    text = result.title,
+                                                    query = searchQuery.trim(),
+                                                    highlightColor = MaterialTheme.colorScheme.primary
+                                                ),
+                                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = "저자 / 작가: ${result.author}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = "${result.pageCount} 쪽 분량",
+                                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(8.dp))
+
+                                        // Chevron navigation-like arrow
+                                        Icon(
+                                            imageVector = Icons.Default.ChevronRight,
+                                            contentDescription = "선택",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                         )
                                     }
-
-                                    Spacer(modifier = Modifier.width(8.dp))
-
-                                    // Chevron navigation-like arrow
-                                    Icon(
-                                        imageVector = Icons.Default.ChevronRight,
-                                        contentDescription = "선택",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                    )
                                 }
                             }
                         }
@@ -828,3 +933,135 @@ data class SearchResultBook(
     val pageCount: Int,
     val coverUrl: String
 )
+
+data class PopularSampleBook(
+    val title: String,
+    val author: String,
+    val pageCount: Int,
+    val coverUrl: String,
+    val description: String
+)
+
+@Composable
+fun PopularSampleBooksList(
+    onBookSelected: (title: String, author: String, pageCount: Int, coverUrl: String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val samplePopularBooks = listOf(
+        PopularSampleBook(
+            "사피엔스 (Sapiens)",
+            "유발 하라리",
+            630,
+            "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=200",
+            "인류 문명의 역사적 진화를 설명하는 고전적 베스트셀러"
+        ),
+        PopularSampleBook(
+            "돈의 속성",
+            "김승호",
+            390,
+            "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&q=80&w=200",
+            "최상위 부자가 이야기하는 지혜와 도덕적 자산 관리"
+        ),
+        PopularSampleBook(
+            "불편한 편의점",
+            "김호연",
+            268,
+            "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=200",
+            "청파동 편의점 점원과 손님 사이의 다정하고 따뜻한 위로"
+        ),
+        PopularSampleBook(
+            "세이노의 가르침",
+            "세이노",
+            736,
+            "https://images.unsplash.com/photo-1506880018603-83d5b814b5a6?auto=format&fit=crop&q=80&w=200",
+            "피가 되고 살이 되는 실용적 지식과 자립에 대한 조언"
+        ),
+        PopularSampleBook(
+            "아몬드",
+            "손원평",
+            264,
+            "https://images.unsplash.com/photo-1476275466078-4007374efbbe?auto=format&fit=crop&q=80&w=200",
+            "타인의 감정을 공감하지 못하는 소년의 성장과 희망"
+        )
+    )
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(
+            text = "📚 추천 샘플 도서 (클릭 시 원클릭 정보 자동 입력)",
+            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(vertical = 4.dp)
+        )
+        samplePopularBooks.forEach { book ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onBookSelected(book.title, book.author, book.pageCount, book.coverUrl) },
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 46.dp, height = 66.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(book.coverUrl)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = book.title,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = book.title,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "${book.author} | 전체 ${book.pageCount}쪽",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = book.description,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "선택 추가",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
+                            .padding(4.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
