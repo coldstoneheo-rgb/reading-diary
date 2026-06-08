@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 sealed class Screen {
     object Dashboard : Screen()
     data class BookDetail(val bookId: Int) : Screen()
-    data class AddEditBook(val bookId: Int? = null) : Screen()
+    data class AddEditBook(val bookId: Int? = null, val startWithSearch: Boolean = false) : Screen()
     data class AddDiary(val bookId: Int) : Screen()
     object Settings : Screen()
 }
@@ -48,6 +48,7 @@ class ReadingViewModel(application: Application) : AndroidViewModel(application)
 
     // Active Navigation / State Controllers
     val currentScreenState = MutableStateFlow<Screen>(Screen.Dashboard)
+    private val backStack = mutableListOf<Screen>()
     val selectedFilter = MutableStateFlow("ALL") // "ALL", "READING", "TO_READ", "COMPLETED"
     val selectedBookcaseId = MutableStateFlow<Int?>(null) // null = all bookcases
     val currentThemeId = MutableStateFlow(1) // 1: Warm, 2: Midnight, 3: Swiss, 4: Pastel, 5: Classic
@@ -82,11 +83,28 @@ class ReadingViewModel(application: Application) : AndroidViewModel(application)
     val ocrState = MutableStateFlow<OcrState>(OcrState.Idle)
 
     // Navigation triggers
-    fun navigateTo(screen: Screen) {
+    fun navigateTo(screen: Screen, addToBackStack: Boolean = true) {
+        if (addToBackStack) {
+            val current = currentScreenState.value
+            if (current != screen) {
+                if (backStack.isEmpty() || backStack.last() != current) {
+                    backStack.add(current)
+                }
+            }
+        }
         currentScreenState.value = screen
         // If navigating to BookDetail, fetch content
         if (screen is Screen.BookDetail) {
             loadBookDetail(screen.bookId)
+        }
+    }
+
+    fun navigateBack() {
+        if (backStack.isNotEmpty()) {
+            val previousScreen = backStack.removeAt(backStack.lastIndex)
+            navigateTo(previousScreen, addToBackStack = false)
+        } else {
+            navigateTo(Screen.Dashboard, addToBackStack = false)
         }
     }
 

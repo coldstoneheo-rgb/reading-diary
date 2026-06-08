@@ -3,6 +3,7 @@ package com.example
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.*
@@ -62,6 +63,11 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
     val currentScreen by viewModel.currentScreenState.collectAsState()
     val bookcases by viewModel.bookcases.collectAsState()
     val selectedBookcaseId by viewModel.selectedBookcaseId.collectAsState()
+
+    // Intercept system/device back button press to navigate back internal pages
+    BackHandler(enabled = currentScreen != Screen.Dashboard) {
+        viewModel.navigateBack()
+    }
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
@@ -230,7 +236,7 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                                 Icon(
                                     imageVector = if (bookcase.isSystem) Icons.Default.Folder else Icons.Outlined.FolderSpecial,
                                     contentDescription = null,
-                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
@@ -325,11 +331,11 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         val themeList = listOf(
-                            Triple(1, "아날로그", Color(0xFF3E5C4E)),
-                            Triple(2, "미드나잇", Color(0xFF00FFCC)),
-                            Triple(3, "스위스", Color(0xFF111111)),
-                            Triple(4, "파스텔", Color(0xFF8E24AA)),
-                            Triple(5, "클래식", Color(0xFFD4AF37))
+                            Triple(1, "올리브그린", Color(0xFF3E5C4E)),
+                            Triple(2, "미드나잇블루", Color(0xFF5AB9FF)),
+                            Triple(3, "스위스레드", Color(0xFFE53935)),
+                            Triple(4, "라벤더퍼플", Color(0xFF8E24AA)),
+                            Triple(5, "샴페인골드", Color(0xFFE5C158))
                         )
                         items(themeList) { (id, name, color) ->
                             val isSelected = currentThemeId == id
@@ -444,7 +450,8 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                         is Screen.AddEditBook -> {
                             AddEditBookScreen(
                                 viewModel = viewModel,
-                                bookId = screen.bookId
+                                bookId = screen.bookId,
+                                startWithSearch = screen.startWithSearch
                             )
                         }
                         is Screen.AddDiary -> {

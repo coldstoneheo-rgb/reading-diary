@@ -1,10 +1,15 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -46,6 +51,7 @@ fun DashboardScreen(
     val bookcases by viewModel.bookcases.collectAsState()
     val selectedFilter by viewModel.selectedFilter.collectAsState()
     val selectedBookcaseId by viewModel.selectedBookcaseId.collectAsState()
+    var showFabMenu by remember { mutableStateOf(false) }
 
     val currentBookcaseName = bookcases.find { it.id == selectedBookcaseId }?.name ?: "전체 내역"
 
@@ -109,61 +115,155 @@ fun DashboardScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { viewModel.navigateTo(Screen.AddEditBook()) },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier
-                    .navigationBarsPadding()
-                    .testTag("add_book_fab")
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.navigationBarsPadding().padding(bottom = 8.dp)
             ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "책 등록")
+                if (showFabMenu) {
+                    // Option 1: Search & Add Book
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.clickable {
+                            showFabMenu = false
+                            viewModel.navigateTo(Screen.AddEditBook(startWithSearch = true))
+                        }
+                    ) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = RoundedCornerShape(8.dp),
+                            shadowElevation = 4.dp
+                        ) {
+                            Text(
+                                text = "검색해서 책 추가",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                        FloatingActionButton(
+                            onClick = {
+                                showFabMenu = false
+                                viewModel.navigateTo(Screen.AddEditBook(startWithSearch = true))
+                            },
+                            modifier = Modifier.size(48.dp),
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        ) {
+                            Icon(imageVector = Icons.Default.Search, contentDescription = "검색해서 책 추가")
+                        }
+                    }
+
+                    // Option 2: Direct Input
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.clickable {
+                            showFabMenu = false
+                            viewModel.navigateTo(Screen.AddEditBook(startWithSearch = false))
+                        }
+                    ) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            shape = RoundedCornerShape(8.dp),
+                            shadowElevation = 4.dp
+                        ) {
+                            Text(
+                                text = "직접 입력해서 책 추가",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                        FloatingActionButton(
+                            onClick = {
+                                showFabMenu = false
+                                viewModel.navigateTo(Screen.AddEditBook(startWithSearch = false))
+                            },
+                            modifier = Modifier.size(48.dp),
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        ) {
+                            Icon(imageVector = Icons.Default.Edit, contentDescription = "직접 입력해서 책 추가")
+                        }
+                    }
+                }
+
+                // Main FAB
+                val rotationAngle by animateFloatAsState(
+                    targetValue = if (showFabMenu) 45f else 0f,
+                    label = "fab_rotation"
+                )
+                FloatingActionButton(
+                    onClick = { showFabMenu = !showFabMenu },
+                    containerColor = if (showFabMenu) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primary,
+                    contentColor = if (showFabMenu) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.testTag("add_book_fab")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "책 등록 옵션 열기",
+                        modifier = Modifier.rotate(rotationAngle)
+                    )
+                }
             }
         }
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .background(MaterialTheme.colorScheme.background)
-        ) {
-            // Stats Indicator Row
-            DashboardStatsRow(books = books)
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .background(MaterialTheme.colorScheme.background)
+            ) {
+                // Stats Indicator Row
+                DashboardStatsRow(books = books)
 
-            Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-            // State Category Selector (Chips)
-            FilterChipRow(
-                currentFilter = selectedFilter,
-                onFilterSelected = { viewModel.selectedFilter.value = it }
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Grid of Books
-            if (books.isEmpty()) {
-                EmptyStateView(
-                    filter = selectedFilter,
-                    bookcaseName = currentBookcaseName,
-                    onAddClick = { viewModel.navigateTo(Screen.AddEditBook()) }
+                // State Category Selector (Chips)
+                FilterChipRow(
+                    currentFilter = selectedFilter,
+                    onFilterSelected = { viewModel.selectedFilter.value = it }
                 )
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .testTag("books_grid")
-                ) {
-                    items(books, key = { it.id }) { book ->
-                        BookCardItem(
-                            book = book,
-                            onClick = { viewModel.navigateTo(Screen.BookDetail(book.id)) }
-                        )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Grid of Books
+                if (books.isEmpty()) {
+                    EmptyStateView(
+                        filter = selectedFilter,
+                        bookcaseName = currentBookcaseName,
+                        onAddClick = { viewModel.navigateTo(Screen.AddEditBook(startWithSearch = true)) }
+                    )
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag("books_grid")
+                    ) {
+                        items(books, key = { it.id }) { book ->
+                            BookCardItem(
+                                book = book,
+                                onClick = { viewModel.navigateTo(Screen.BookDetail(book.id)) }
+                            )
+                        }
                     }
                 }
+            }
+
+            if (showFabMenu) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .clickable { showFabMenu = false }
+                )
             }
         }
     }
@@ -214,6 +314,7 @@ fun StatItem(label: String, count: Int, imageVector: androidx.compose.ui.graphic
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FilterChipRow(
     currentFilter: String,
@@ -222,8 +323,10 @@ fun FilterChipRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
             .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         val filters = listOf(
             Triple("ALL", "전체 책", Icons.Outlined.FormatListBulleted),
@@ -234,36 +337,43 @@ fun FilterChipRow(
 
         filters.forEach { (tag, label, icon) ->
             val isSelected = currentFilter == tag
-            FilterChip(
-                selected = isSelected,
+            
+            val backgroundColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+            val contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+            val iconColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+            val borderColor = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
+
+            Surface(
                 onClick = { onFilterSelected(tag) },
-                label = { 
-                    Text(
-                        text = label, 
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    ) 
-                },
-                leadingIcon = {
+                shape = RoundedCornerShape(20.dp),
+                color = backgroundColor,
+                contentColor = contentColor,
+                border = if (isSelected) null else BorderStroke(1.dp, borderColor),
+                modifier = Modifier
+                    .testTag("filter_chip_$tag")
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = label,
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(15.dp),
+                        tint = iconColor
                     )
-                },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                    selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                    iconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                ),
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag("filter_chip_$tag")
-            )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        ),
+                        maxLines = 1
+                    )
+                }
+            }
         }
     }
 }

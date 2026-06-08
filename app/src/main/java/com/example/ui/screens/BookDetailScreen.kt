@@ -157,7 +157,7 @@ fun BookDetailScreen(
             TopAppBar(
                 title = { Text("도서 상세 정보", style = MaterialTheme.typography.titleMedium) },
                 navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateTo(Screen.Dashboard) }) {
+                    IconButton(onClick = { viewModel.navigateBack() }) {
                         Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "뒤로가기")
                     }
                 },
@@ -339,6 +339,11 @@ fun BookDetailScreen(
                         Slider(
                             value = sliderPage,
                             onValueChange = { sliderPage = it },
+                            onValueChangeFinished = {
+                                viewModel.updateBookProgress(currentBook.id, sliderPage.toInt()) {
+                                    Toast.makeText(context, "독서 진척도 ${sliderPage.toInt()}쪽으로 실시간 저장 완료!", Toast.LENGTH_SHORT).show()
+                                }
+                            },
                             valueRange = 0f..currentBook.totalPages.toFloat(),
                             steps = if (currentBook.totalPages > 1) currentBook.totalPages - 1 else 0,
                             colors = SliderDefaults.colors(
@@ -374,28 +379,31 @@ fun BookDetailScreen(
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
 
-                        // Save changed progress button
-                        val isProgressChanged = sliderPage.toInt() != currentBook.currentPage
-                        Button(
-                            onClick = {
-                                viewModel.updateBookProgress(currentBook.id, sliderPage.toInt()) {
-                                    Toast.makeText(context, "독서 진척도가 업데이트 되었습니다.", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            enabled = isProgressChanged,
+                        // Real-time auto-saving feedback banner
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .testTag("save_progress_button"),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                            )
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.05f))
+                                .testTag("save_progress_button")
+                                .padding(vertical = 10.dp, horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
                         ) {
-                            Icon(imageVector = Icons.Default.Save, contentDescription = null)
+                            Icon(
+                                imageVector = Icons.Default.CloudDone,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("진척도 상태 저장")
+                            Text(
+                                text = "실시간 자동 저장 완료 (변경 시 즉시 동기화)",
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary
+                            )
                         }
                     }
                 }

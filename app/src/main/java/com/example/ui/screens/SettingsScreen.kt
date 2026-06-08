@@ -53,7 +53,7 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                 title = { Text("시스템 및 API 설정", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(
-                        onClick = { viewModel.navigateTo(Screen.Dashboard) },
+                        onClick = { viewModel.navigateBack() },
                         modifier = Modifier.testTag("settings_back_button")
                     ) {
                         Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "뒤로 가기")
@@ -293,7 +293,7 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                         SecureKeyManager.saveNaverClientId(context, naverId.trim())
                         SecureKeyManager.saveNaverClientSecret(context, naverSecret.trim())
                         Toast.makeText(context, "API Key 정보가 암호화되어 안전하게 저장되었습니다!", Toast.LENGTH_SHORT).show()
-                        viewModel.navigateTo(Screen.Dashboard)
+                        viewModel.navigateBack()
                     },
                     modifier = Modifier.weight(1f).testTag("settings_save_button"),
                     shape = RoundedCornerShape(8.dp)
