@@ -32,7 +32,8 @@ data class Book(
     val bookcaseId: Int,
     val status: String, // "READING", "TO_READ", "COMPLETED"
     val startDate: String = "",
-    val endDate: String? = null
+    val endDate: String? = null,
+    val rating: Int = 0
 ) {
     val progressPercent: Float
         get() = if (totalPages > 0) (currentPage.toFloat() / totalPages.toFloat()) else 0f

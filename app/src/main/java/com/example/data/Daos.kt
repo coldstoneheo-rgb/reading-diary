@@ -23,6 +23,9 @@ interface BookcaseDao {
 
     @Query("SELECT COUNT(*) FROM bookcases")
     suspend fun getCount(): Int
+
+    @Query("SELECT * FROM bookcases ORDER BY isSystem DESC, id ASC")
+    suspend fun getAllBookcasesOneShot(): List<Bookcase>
 }
 
 @Dao

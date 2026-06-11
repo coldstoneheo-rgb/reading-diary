@@ -47,6 +47,17 @@ fun BookDetailScreen(
     val diaries by viewModel.activeBookDiaries.collectAsState()
     val bookcases by viewModel.bookcases.collectAsState()
 
+    val diarySortNewestFirst by viewModel.diarySortNewestFirst.collectAsState()
+    val diaryFontSize by viewModel.diaryFontSize.collectAsState()
+
+    val sortedDiaries = remember(diaries, diarySortNewestFirst) {
+        if (diarySortNewestFirst) {
+            diaries.sortedByDescending { it.createdAt }
+        } else {
+            diaries.sortedBy { it.createdAt }
+        }
+    }
+
     var showMenu by remember { mutableStateOf(false) }
     var showDeleteAlert by remember { mutableStateOf(false) }
     var showBookcaseTransferDialog by remember { mutableStateOf(false) }
@@ -340,9 +351,7 @@ fun BookDetailScreen(
                             value = sliderPage,
                             onValueChange = { sliderPage = it },
                             onValueChangeFinished = {
-                                viewModel.updateBookProgress(currentBook.id, sliderPage.toInt()) {
-                                    Toast.makeText(context, "독서 진척도 ${sliderPage.toInt()}쪽으로 실시간 저장 완료!", Toast.LENGTH_SHORT).show()
-                                }
+                                viewModel.updateBookProgress(currentBook.id, sliderPage.toInt())
                             },
                             valueRange = 0f..currentBook.totalPages.toFloat(),
                             steps = if (currentBook.totalPages > 1) currentBook.totalPages - 1 else 0,
@@ -381,29 +390,53 @@ fun BookDetailScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Real-time auto-saving feedback banner
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.05f))
-                                .testTag("save_progress_button")
-                                .padding(vertical = 10.dp, horizontal = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CloudDone,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
+                        if (currentBook.status == "COMPLETED" || (sliderPage.toInt() >= currentBook.totalPages)) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 14.dp),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "실시간 자동 저장 완료 (변경 시 즉시 동기화)",
-                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "✨ 나의 도서 평가 ✨",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val bookRating = currentBook.rating
+                                    repeat(5) { index ->
+                                        val starIndex = index + 1
+                                        val isSelected = starIndex <= bookRating
+                                        IconButton(
+                                            onClick = {
+                                                viewModel.updateBookRating(currentBook.id, starIndex) {
+                                                    Toast.makeText(context, "${starIndex}점으로 별점을 반영했습니다.", Toast.LENGTH_SHORT).show()
+                                                }
+                                            },
+                                            modifier = Modifier.size(40.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isSelected) Icons.Default.Star else Icons.Default.StarBorder,
+                                                contentDescription = "$starIndex stars",
+                                                tint = if (isSelected) Color(0xFFFFD54F) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
+                                                modifier = Modifier.size(32.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = if (currentBook.rating > 0) "${currentBook.rating}점 주었습니다" else "별을 클릭해서 평점을 기록해보세요",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                                )
+                            }
                         }
                     }
                 }
@@ -478,12 +511,16 @@ fun BookDetailScreen(
                     }
                 }
             } else {
-                items(diaries, key = { it.id }) { diary ->
+                items(sortedDiaries, key = { it.id }) { diary ->
                     DiaryItemCard(
                         diary = diary,
+                        fontSize = diaryFontSize,
                         onDeleteClick = {
                             viewModel.deleteDiary(diary.id, currentBook.id)
                             Toast.makeText(context, "기록이 삭제되었습니다.", Toast.LENGTH_SHORT).show()
+                        },
+                        onEditClick = {
+                            viewModel.navigateTo(Screen.AddDiary(currentBook.id, diary.id))
                         }
                     )
                 }
@@ -495,7 +532,9 @@ fun BookDetailScreen(
 @Composable
 fun DiaryItemCard(
     diary: Diary,
-    onDeleteClick: () -> Unit
+    fontSize: Float,
+    onDeleteClick: () -> Unit,
+    onEditClick: () -> Unit
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
@@ -552,16 +591,33 @@ fun DiaryItemCard(
                     )
                 }
 
-                IconButton(
-                    onClick = { showDeleteConfirm = true },
-                    modifier = Modifier.size(24.dp)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Delete entry",
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                        modifier = Modifier.size(16.dp)
-                    )
+                    IconButton(
+                        onClick = onEditClick,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit entry",
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { showDeleteConfirm = true },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Delete entry",
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
 
@@ -587,7 +643,8 @@ fun DiaryItemCard(
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontStyle = FontStyle.Italic,
                             fontWeight = FontWeight.Medium,
-                            lineHeight = 20.sp
+                            fontSize = fontSize.sp,
+                            lineHeight = (fontSize * 1.4f).sp
                         ),
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f)
@@ -600,7 +657,10 @@ fun DiaryItemCard(
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = diary.notes,
-                    style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 21.sp),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = fontSize.sp,
+                        lineHeight = (fontSize * 1.4f).sp
+                    ),
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
                 )
             }

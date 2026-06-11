@@ -76,6 +76,62 @@ private val ClassicColorScheme = darkColorScheme(
     outlineVariant = ClassicSecondary.copy(alpha = 0.25f)
 )
 
+private val PinkColorScheme = lightColorScheme(
+    primary = PinkPrimary,
+    secondary = PinkSecondary,
+    tertiary = PinkTertiary,
+    background = PinkBackground,
+    surface = PinkSurface,
+    onPrimary = Color.White,
+    onSecondary = Color.White,
+    onBackground = Color(0xFF880E4F),
+    onSurface = Color(0xFF880E4F),
+    outline = PinkSecondary.copy(alpha = 0.5f),
+    outlineVariant = PinkSecondary.copy(alpha = 0.25f)
+)
+
+private val GreyColorScheme = lightColorScheme(
+    primary = GreyPrimary,
+    secondary = GreySecondary,
+    tertiary = GreyTertiary,
+    background = GreyBackground,
+    surface = GreySurface,
+    onPrimary = Color.White,
+    onSecondary = Color.White,
+    onBackground = Color(0xFF263238),
+    onSurface = Color(0xFF263238),
+    outline = GreySecondary.copy(alpha = 0.5f),
+    outlineVariant = GreySecondary.copy(alpha = 0.25f)
+)
+
+private val ForestColorScheme = lightColorScheme(
+    primary = ForestPrimary,
+    secondary = ForestSecondary,
+    tertiary = ForestTertiary,
+    background = ForestBackground,
+    surface = ForestSurface,
+    onPrimary = Color.White,
+    onSecondary = Color.White,
+    onBackground = Color(0xFF1B5E20),
+    onSurface = Color(0xFF1B5E20),
+    outline = ForestSecondary.copy(alpha = 0.5f),
+    outlineVariant = ForestSecondary.copy(alpha = 0.25f)
+)
+
+private val DarkColorScheme = darkColorScheme(
+    primary = DarkPrimary,
+    secondary = DarkSecondary,
+    tertiary = DarkTertiary,
+    background = DarkBackground,
+    surface = DarkSurface,
+    onPrimary = Color.Black,
+    onSecondary = Color.Black,
+    onBackground = Color(0xFFE0E0E0),
+    onSurface = Color(0xFFE0E0E0),
+    outline = DarkSecondary.copy(alpha = 0.5f),
+    outlineVariant = DarkSecondary.copy(alpha = 0.25f)
+)
+
 @Composable
 fun MyApplicationTheme(
     themeId: Int = 1,
@@ -87,8 +143,13 @@ fun MyApplicationTheme(
         3 -> SwissColorScheme
         4 -> PastelColorScheme
         5 -> ClassicColorScheme
+        6 -> PinkColorScheme
+        7 -> GreyColorScheme
+        8 -> ForestColorScheme
+        9 -> DarkColorScheme
         else -> WarmBookstoreColorScheme
     }
+
 
     MaterialTheme(
         colorScheme = colorScheme,

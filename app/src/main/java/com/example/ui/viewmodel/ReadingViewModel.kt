@@ -21,8 +21,10 @@ sealed class Screen {
     object Dashboard : Screen()
     data class BookDetail(val bookId: Int) : Screen()
     data class AddEditBook(val bookId: Int? = null, val startWithSearch: Boolean = false) : Screen()
-    data class AddDiary(val bookId: Int) : Screen()
+    data class AddDiary(val bookId: Int, val diaryId: Int? = null) : Screen()
     object Settings : Screen()
+    object Statistics : Screen()
+    object KnowledgeDrawer : Screen()
 }
 
 sealed class OcrState {
@@ -35,6 +37,26 @@ sealed class OcrState {
 class ReadingViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getDatabase(application)
     private val repository = ReadingRepository(database)
+
+    init {
+        viewModelScope.launch {
+            val bookcaseDao = database.bookcaseDao()
+            val existing = bookcaseDao.getAllBookcasesOneShot()
+            val defaults = listOf("기본 책장", "소설", "재테크", "자기계발", "인문")
+            if (existing.isEmpty()) {
+                defaults.forEach { name ->
+                    bookcaseDao.insert(Bookcase(name = name, isSystem = true))
+                }
+            } else {
+                val existingNames = existing.map { it.name }
+                defaults.forEach { name ->
+                    if (!existingNames.contains(name)) {
+                        bookcaseDao.insert(Bookcase(name = name, isSystem = true))
+                    }
+                }
+            }
+        }
+    }
 
     // Flow listings from Database
     val bookcases: StateFlow<List<Bookcase>> = repository.allBookcases
@@ -53,8 +75,30 @@ class ReadingViewModel(application: Application) : AndroidViewModel(application)
     val selectedBookcaseId = MutableStateFlow<Int?>(null) // null = all bookcases
     val currentThemeId = MutableStateFlow(1) // 1: Warm, 2: Midnight, 3: Swiss, 4: Pastel, 5: Classic
 
+    // On-device persistent general settings (SharedPreferences backed)
+    private val prefs = application.getSharedPreferences("diary_general_settings", android.content.Context.MODE_PRIVATE)
+    
+    val diarySortNewestFirst = MutableStateFlow(prefs.getBoolean("diary_sort_newest_first", true))
+    val diaryFontSize = MutableStateFlow(prefs.getFloat("diary_font_size", 14f))
+    val readingGoalYearly = MutableStateFlow(prefs.getInt("reading_goal_yearly", 30))
+
     fun selectTheme(id: Int) {
         currentThemeId.value = id
+    }
+
+    fun setDiarySortNewestFirst(newestFirst: Boolean) {
+        diarySortNewestFirst.value = newestFirst
+        prefs.edit().putBoolean("diary_sort_newest_first", newestFirst).apply()
+    }
+
+    fun setDiaryFontSize(size: Float) {
+        diaryFontSize.value = size
+        prefs.edit().putFloat("diary_font_size", size).apply()
+    }
+
+    fun setReadingGoalYearly(goal: Int) {
+        readingGoalYearly.value = goal.coerceIn(1, 999)
+        prefs.edit().putInt("reading_goal_yearly", goal).apply()
     }
 
     // Dynamic filtering combined state of books
@@ -185,6 +229,16 @@ class ReadingViewModel(application: Application) : AndroidViewModel(application)
         onComplete: () -> Unit
     ) {
         viewModelScope.launch {
+            // Safely resolve bookcaseId before saving to prevent SQLiteConstraintException (ForeignKey failed)
+            var resolvedBookcaseId = bookcaseId
+            val existingBookcases = database.bookcaseDao().getAllBookcasesOneShot()
+            if (existingBookcases.isEmpty()) {
+                val defaultId = database.bookcaseDao().insert(Bookcase(name = "기본 책장", isSystem = true)).toInt()
+                resolvedBookcaseId = defaultId
+            } else if (resolvedBookcaseId <= 0 || !existingBookcases.any { it.id == resolvedBookcaseId }) {
+                resolvedBookcaseId = existingBookcases.first().id
+            }
+
             if (id == null) {
                 repository.insertBook(
                     Book(
@@ -193,7 +247,7 @@ class ReadingViewModel(application: Application) : AndroidViewModel(application)
                         totalPages = totalPages,
                         currentPage = currentPage,
                         coverUrl = coverUrl,
-                        bookcaseId = bookcaseId,
+                        bookcaseId = resolvedBookcaseId,
                         status = status,
                         startDate = if (currentPage > 0) java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else ""
                     )
@@ -201,6 +255,7 @@ class ReadingViewModel(application: Application) : AndroidViewModel(application)
             } else {
                 val currentBook = repository.getBookByIdOneShot(id)
                 val existingStartDate = currentBook?.startDate ?: ""
+                val existingRating = currentBook?.rating ?: 0
                 repository.updateBook(
                     Book(
                         id = id,
@@ -209,14 +264,27 @@ class ReadingViewModel(application: Application) : AndroidViewModel(application)
                         totalPages = totalPages,
                         currentPage = currentPage,
                         coverUrl = coverUrl,
-                        bookcaseId = bookcaseId,
+                        bookcaseId = resolvedBookcaseId,
                         status = status,
                         startDate = existingStartDate,
-                        endDate = if (status == "COMPLETED") java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else null
+                        endDate = if (status == "COMPLETED") java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else null,
+                        rating = existingRating
                     )
                 )
             }
             onComplete()
+        }
+    }
+
+    fun updateBookRating(bookId: Int, rating: Int, onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            val book = repository.getBookByIdOneShot(bookId)
+            if (book != null) {
+                val updated = book.copy(rating = rating.coerceIn(0, 5))
+                repository.updateBook(updated)
+                activeBook.value = updated
+                onComplete()
+            }
         }
     }
 
@@ -228,14 +296,16 @@ class ReadingViewModel(application: Application) : AndroidViewModel(application)
     }
 
     // Diary CRUD Operations
-    fun saveDiary(bookId: Int, page: Int, selectedText: String, notes: String, onComplete: () -> Unit) {
+    fun saveDiary(bookId: Int, page: Int, selectedText: String, notes: String, id: Int? = null, createdAt: Long? = null, onComplete: () -> Unit) {
         viewModelScope.launch {
             repository.insertDiary(
                 Diary(
+                    id = id ?: 0,
                     bookId = bookId,
                     page = page,
                     selectedText = selectedText,
-                    notes = notes
+                    notes = notes,
+                    createdAt = createdAt ?: System.currentTimeMillis()
                 )
             )
             onComplete()

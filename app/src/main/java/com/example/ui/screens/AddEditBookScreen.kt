@@ -108,26 +108,7 @@ fun AddEditBookScreen(
 
     // Determine Naver search API credentials configuration
     LaunchedEffect(Unit) {
-        val configClientId = try {
-            SecureKeyManager.getNaverClientId(context)
-        } catch (e: Exception) {
-            ""
-        }.ifBlank { BuildConfig.NAVER_CLIENT_ID }
-
-        val configClientSecret = try {
-            SecureKeyManager.getNaverClientSecret(context)
-        } catch (e: Exception) {
-            ""
-        }.ifBlank { BuildConfig.NAVER_CLIENT_SECRET }
-
-        isNaverActive = configClientId.isNotBlank() && 
-                configClientSecret.isNotBlank() && 
-                configClientId != "MY_NAVER_CLIENT_ID" && 
-                configClientId != "NAVER_CLIENT_ID" &&
-                configClientId != "NAVER_CLIENT_ID_PLACEHOLDER" &&
-                configClientSecret != "MY_NAVER_CLIENT_SECRET" && 
-                configClientSecret != "NAVER_CLIENT_SECRET" &&
-                configClientSecret != "NAVER_CLIENT_SECRET_PLACEHOLDER"
+        isNaverActive = true
     }
 
     // Sync state if editing
@@ -163,13 +144,19 @@ fun AddEditBookScreen(
                     SecureKeyManager.getNaverClientId(context)
                 } catch (e: Exception) {
                     ""
-                }.ifBlank { BuildConfig.NAVER_CLIENT_ID }
+                }.ifBlank { 
+                    try { BuildConfig.ENV_NAVER_CLIENT_ID } catch (t: Throwable) { "" }
+                        .ifBlank { try { BuildConfig.NAVER_CLIENT_ID } catch (t: Throwable) { "" } }
+                }.trim().removeSurrounding("\"").removeSurrounding("'")
 
                 var configClientSecret = try {
                     SecureKeyManager.getNaverClientSecret(context)
                 } catch (e: Exception) {
                     ""
-                }.ifBlank { BuildConfig.NAVER_CLIENT_SECRET }
+                }.ifBlank { 
+                    try { BuildConfig.ENV_NAVER_CLIENT_SECRET } catch (t: Throwable) { "" }
+                        .ifBlank { try { BuildConfig.NAVER_CLIENT_SECRET } catch (t: Throwable) { "" } }
+                }.trim().removeSurrounding("\"").removeSurrounding("'")
 
                 val hasNaverKeys = configClientId.isNotBlank() && 
                         configClientSecret.isNotBlank() && 
@@ -181,6 +168,12 @@ fun AddEditBookScreen(
                         configClientSecret != "NAVER_CLIENT_SECRET_PLACEHOLDER"
 
                 if (hasNaverKeys) {
+                    // Auto-recovery: if user swapped Naver Client ID and Client Secret in settings or Secrets panel
+                    if (configClientId.length < configClientSecret.length) {
+                        val temp = configClientId
+                        configClientId = configClientSecret
+                        configClientSecret = temp
+                    }
                     try {
                         val client = OkHttpClient()
                         val escapedQuery = URLEncoder.encode(trimmedQuery, "UTF-8")
@@ -321,29 +314,12 @@ fun AddEditBookScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // API Status Indicator
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = (if (isNaverActive) Color(0xFF03C75A) else Color(0xFFFFB300)).copy(alpha = 0.08f),
-                    shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(
-                        width = 1.dp,
-                        color = (if (isNaverActive) Color(0xFF03C75A) else Color(0xFFFFB300)).copy(alpha = 0.25f)
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (isNaverActive) "🟢 네이버 도서 검색 API 활성화" else "🟡 구글 글로벌 도서 검색 연동 중",
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = if (isNaverActive) Color(0xFF028A3E) else Color(0xFFB37400)
-                            )
-                        )
-                    }
-                }
+                Text(
+                    text = "📚 실시간 도서 데이터베이스 검색",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
 
                 // Sleek Search Input Field
                 OutlinedTextField(

@@ -34,6 +34,8 @@ import com.example.ui.screens.BookDetailScreen
 import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.OcrDiaryScreen
 import com.example.ui.screens.SettingsScreen
+import com.example.ui.screens.StatisticsScreen
+import com.example.ui.screens.KnowledgeDrawerScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.ReadingViewModel
 import com.example.ui.viewmodel.Screen
@@ -152,34 +154,38 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                     .fillMaxHeight()
                     .testTag("drawer_menu")
             ) {
-                Spacer(modifier = Modifier.height(30.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 
-                // Drawer Logo and Header
-                Column(
+                // Compact Horizontal Drawer Logo and Header
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 16.dp)
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Default.MenuBook,
                         contentDescription = null,
-                        modifier = Modifier.size(54.dp),
+                        modifier = Modifier.size(36.dp),
                         tint = MaterialTheme.colorScheme.primary
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "나만의 서재 다이어리",
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "기록으로 이뤄낸 독서의 가치",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "나만의 서재 다이어리",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 16.sp),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            lineHeight = 18.sp
+                        )
+                        Text(
+                            text = "기록으로 이뤄낸 독서의 가치",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                    }
                 }
 
-                Divider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                Divider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
 
                 // Custom Bookcases (내 책장 리스트)
                 LazyColumn(
@@ -308,98 +314,55 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                     }
                 }
 
-                // Bottom utilities section (Theme Switcher and Cloud Backup)
+                // Bottom utilities section (Cloud Backup and Utilities)
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp)
-                        .navigationBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .navigationBarsPadding(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        text = "🎨 서재 테마 인테리어",
+                        text = "⚙️ 독서 다이어리 유틸리티",
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
                     )
-                    
-                    val currentThemeId by viewModel.currentThemeId.collectAsState()
-                    
-                    androidx.compose.foundation.lazy.LazyRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        val themeList = listOf(
-                            Triple(1, "올리브그린", Color(0xFF3E5C4E)),
-                            Triple(2, "미드나잇블루", Color(0xFF5AB9FF)),
-                            Triple(3, "스위스레드", Color(0xFFE53935)),
-                            Triple(4, "라벤더퍼플", Color(0xFF8E24AA)),
-                            Triple(5, "샴페인골드", Color(0xFFE5C158))
-                        )
-                        items(themeList) { (id, name, color) ->
-                            val isSelected = currentThemeId == id
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(
-                                        if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                                        else Color.Transparent
-                                    )
-                                    .border(
-                                        width = if (isSelected) 1.5.dp else 1.dp,
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-                                        shape = RoundedCornerShape(8.dp)
-                                    )
-                                    .clickable {
-                                        viewModel.selectTheme(id)
-                                    }
-                                    .padding(horizontal = 8.dp, vertical = 6.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(18.dp)
-                                        .background(color, androidx.compose.foundation.shape.CircleShape)
-                                        .border(
-                                            width = 1.dp, 
-                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f), 
-                                            shape = androidx.compose.foundation.shape.CircleShape
-                                        )
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = name,
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontSize = 10.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    ),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), modifier = Modifier.padding(bottom = 12.dp))
-                    
+
                     Button(
                         onClick = {
                             coroutineScope.launch { drawerState.close() }
-                            viewModel.navigateTo(Screen.Settings)
+                            viewModel.navigateTo(Screen.Statistics)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 6.dp)
-                            .testTag("drawer_settings_button"),
+                            .testTag("drawer_statistics_button"),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     ) {
-                        Icon(imageVector = Icons.Default.Settings, contentDescription = null)
+                        Icon(imageVector = Icons.Default.Analytics, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("설정 및 API 인증키 관리", fontWeight = FontWeight.Bold)
+                        Text("독서 통계", fontWeight = FontWeight.Bold)
+                    }
+
+                    Button(
+                        onClick = {
+                            coroutineScope.launch { drawerState.close() }
+                            viewModel.navigateTo(Screen.KnowledgeDrawer)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("drawer_knowledgedrawer_button"),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    ) {
+                        Icon(imageVector = Icons.Default.Link, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("기억 서랍 ( Obsidian & RAG )", fontWeight = FontWeight.Bold)
                     }
 
                     Button(
@@ -408,10 +371,11 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                             .fillMaxWidth()
                             .testTag("backup_button"),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
                         )
                     ) {
-                        Icon(imageVector = Icons.Default.CloudUpload, contentDescription = null)
+                        Icon(imageVector = Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("클라우드 백업 및 복원", fontWeight = FontWeight.Bold)
                     }
@@ -437,9 +401,9 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                         is Screen.Dashboard -> {
                             DashboardScreen(
                                 viewModel = viewModel,
-                                onMenuClick = {
-                                    coroutineScope.launch { drawerState.open() }
-                                }
+                                    onMenuClick = {
+                                        coroutineScope.launch { drawerState.open() }
+                                    }
                             )
                         }
                         is Screen.BookDetail -> {
@@ -457,11 +421,22 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                         is Screen.AddDiary -> {
                             OcrDiaryScreen(
                                 viewModel = viewModel,
-                                bookId = screen.bookId
+                                bookId = screen.bookId,
+                                diaryId = screen.diaryId
                             )
                         }
                         is Screen.Settings -> {
                             SettingsScreen(
+                                viewModel = viewModel
+                            )
+                        }
+                        is Screen.Statistics -> {
+                            StatisticsScreen(
+                                viewModel = viewModel
+                            )
+                        }
+                        is Screen.KnowledgeDrawer -> {
+                            KnowledgeDrawerScreen(
                                 viewModel = viewModel
                             )
                         }

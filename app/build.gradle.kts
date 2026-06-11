@@ -18,6 +18,11 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    val naverClientIdEnv = System.getenv("NAVER_CLIENT_ID") ?: ""
+    val naverClientSecretEnv = System.getenv("NAVER_CLIENT_SECRET") ?: ""
+    buildConfigField("String", "ENV_NAVER_CLIENT_ID", "\"$naverClientIdEnv\"")
+    buildConfigField("String", "ENV_NAVER_CLIENT_SECRET", "\"$naverClientSecretEnv\"")
   }
 
   signingConfigs {

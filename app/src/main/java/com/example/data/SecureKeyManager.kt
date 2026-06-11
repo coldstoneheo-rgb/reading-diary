@@ -6,7 +6,6 @@ import androidx.security.crypto.MasterKeys
 
 object SecureKeyManager {
     private const val PREFS_FILE = "secure_user_prefs"
-    private const val KEY_GEMINI_API = "gemini_api_key"
     private const val KEY_NAVER_CLIENT_ID = "naver_client_id"
     private const val KEY_NAVER_CLIENT_SECRET = "naver_client_secret"
 
@@ -21,14 +20,6 @@ object SecureKeyManager {
         )
     } catch (e: Exception) {
         context.getSharedPreferences(PREFS_FILE, Context.MODE_PRIVATE)
-    }
-
-    fun saveGeminiApiKey(context: Context, key: String) {
-        getEncryptedPrefs(context).edit().putString(KEY_GEMINI_API, key).apply()
-    }
-
-    fun getGeminiApiKey(context: Context): String {
-        return getEncryptedPrefs(context).getString(KEY_GEMINI_API, "") ?: ""
     }
 
     fun saveNaverClientId(context: Context, clientId: String) {

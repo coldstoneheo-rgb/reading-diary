@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
@@ -239,9 +240,9 @@ fun DashboardScreen(
                     )
                 } else {
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        columns = GridCells.Fixed(3),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         modifier = Modifier
                             .fillMaxSize()
@@ -384,37 +385,51 @@ fun BookCardItem(
     book: Book,
     onClick: () -> Unit
 ) {
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(
-                elevation = 6.dp,
-                shape = RoundedCornerShape(12.dp),
-                ambientColor = Color.Black.copy(alpha = 0.05f),
-                spotColor = Color.Black.copy(alpha = 0.08f)
-            )
-            .clip(RoundedCornerShape(12.dp))
-            .combinedClickable(
-                onClick = onClick
-            )
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { onClick() }
             .testTag("book_card_${book.id}"),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column {
+        // 3D Physical Book Cover Container
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp)
+                .aspectRatio(0.72f)
+        ) {
+            // Pages stack background simulation (pages stacked on the right and bottom)
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-                    .background(
-                        brush = Brush.verticalGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.surfaceVariant,
-                                MaterialTheme.colorScheme.surface
-                            )
-                        )
+                    .fillMaxSize()
+                    .padding(start = 5.dp, top = 2.dp)
+                    .shadow(
+                        elevation = 2.dp,
+                        shape = RoundedCornerShape(topEnd = 3.dp, bottomEnd = 3.dp),
+                        clip = false
                     )
+                    .background(Color.White, shape = RoundedCornerShape(topEnd = 3.dp, bottomEnd = 3.dp))
+                    .border(
+                        width = 0.5.dp,
+                        color = Color(0xFFD6CEB5).copy(alpha = 0.8f),
+                        shape = RoundedCornerShape(topEnd = 3.dp, bottomEnd = 3.dp)
+                    )
+            )
+
+            // The actual book cover on top, slightly offset to left/top
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(end = 5.dp, bottom = 4.dp)
+                    .shadow(
+                        elevation = 4.dp,
+                        shape = RoundedCornerShape(topStart = 1.dp, bottomStart = 1.dp, topEnd = 2.dp, bottomEnd = 2.dp),
+                        clip = false
+                    )
+                    .clip(RoundedCornerShape(topStart = 1.dp, bottomStart = 1.dp, topEnd = 2.dp, bottomEnd = 2.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
@@ -426,116 +441,92 @@ fun BookCardItem(
                     contentScale = ContentScale.Crop
                 )
 
-                // Banner indicating status tag
-                val badgeColor = when (book.status) {
-                    "READING" -> MaterialTheme.colorScheme.primary
-                    "COMPLETED" -> Color(0xFF4CAF50)
-                    else -> MaterialTheme.colorScheme.secondary
-                }
-                val badgeText = when (book.status) {
-                    "READING" -> "읽는 중"
-                    "COMPLETED" -> "완독"
-                    else -> "대기"
-                }
-
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(badgeColor)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = badgeText,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
-                        color = Color.White
-                    )
-                }
-            }
-
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    text = book.title,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = book.author,
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                if (book.status == "READING" || book.currentPage > 0) {
-                    // Reading Progress Visual Indicator
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                // Complete Badge: Yellow shiny medal icon sticker overlay
+                if (book.status == "COMPLETED") {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = 1.dp, y = (-1).dp)
+                            .shadow(1.5.dp, shape = androidx.compose.foundation.shape.CircleShape)
+                            .background(Color(0xFFFFF9C4), shape = androidx.compose.foundation.shape.CircleShape)
+                            .border(0.8.dp, Color(0xFFFBC02D), shape = androidx.compose.foundation.shape.CircleShape)
+                            .padding(horizontal = 6.dp, vertical = 4.dp)
                     ) {
-                        LinearProgressIndicator(
-                            progress = book.progressPercent,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp)),
-                            color = MaterialTheme.colorScheme.primary,
-                            trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                        Text(
+                            text = "완독",
+                            color = Color(0xFFE65100),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 8.sp,
+                                lineHeight = 8.sp
+                            )
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                }
+
+                // Shaded Bottom Overlay with Progress % (only for reading status with some progress, or non-completed active reading)
+                if (book.status == "READING" || (book.currentPage >= 0 && book.status != "COMPLETED" && book.status != "TO_READ")) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.BottomCenter)
+                            .background(Color.Black.copy(alpha = 0.55f))
+                            .padding(horizontal = 6.dp, vertical = 3.dp)
+                    ) {
                         Text(
                             text = "${(book.progressPercent * 100).toInt()}%",
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            ),
-                            fontSize = 11.sp
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "${book.currentPage} / ${book.totalPages} 쪽",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                    )
-                } else if (book.status == "COMPLETED") {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = Color(0xFF4CAF50)
-                        )
-                        Text(
-                            text = "전체 ${book.totalPages}쪽 읽음",
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                color = Color(0xFF4CAF50),
-                                fontWeight = FontWeight.Medium,
+                                color = Color.White,
                                 fontSize = 11.sp
-                            )
+                            ),
+                            modifier = Modifier.align(Alignment.Center)
                         )
                     }
-                } else {
-                    Text(
-                        text = "대기 (${book.totalPages}쪽 분량)",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                            fontSize = 11.sp
-                        )
-                    )
                 }
             }
         }
+
+        // Ratings or indicator row (fixed height to align book titles on a horizontal line)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(18.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if (book.status == "COMPLETED") {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(1.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    repeat(5) { index ->
+                        val isFilled = index < book.rating
+                        Icon(
+                            imageVector = if (isFilled) Icons.Default.Star else Icons.Default.StarBorder,
+                            contentDescription = null,
+                            modifier = Modifier.size(11.dp),
+                            tint = if (isFilled) Color(0xFFFFD54F) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Centered Book Title only
+        Text(
+            text = book.title,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onBackground
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 1.dp)
+        )
     }
 }
 

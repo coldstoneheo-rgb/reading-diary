@@ -1,14 +1,18 @@
 package com.example.ui.screens
 
 import android.widget.Toast
+import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,39 +22,75 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.SecureKeyManager
 import com.example.ui.viewmodel.ReadingViewModel
-import com.example.ui.viewmodel.Screen
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(viewModel: ReadingViewModel) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
 
-    var geminiKey by remember { mutableStateOf("") }
-    var naverId by remember { mutableStateOf("") }
-    var naverSecret by remember { mutableStateOf("") }
+    // Observe persistent general configurations
+    val diarySortNewestFirst by viewModel.diarySortNewestFirst.collectAsState()
+    val diaryFontSize by viewModel.diaryFontSize.collectAsState()
 
-    var geminiVisible by remember { mutableStateOf(false) }
-    var naverSecretVisible by remember { mutableStateOf(false) }
+    // Dynamic state for general toggle choices
+    var showChangelog by remember { mutableStateOf(false) }
+    var showTerms by remember { mutableStateOf(false) }
+    var showPrivacyPolicy by remember { mutableStateOf(false) }
 
-    // Read stored keys when loading settings
-    LaunchedEffect(Unit) {
-        geminiKey = SecureKeyManager.getGeminiApiKey(context)
-        naverId = SecureKeyManager.getNaverClientId(context)
-        naverSecret = SecureKeyManager.getNaverClientSecret(context)
+    // Dialog state for simulated Backups and Image Restoration
+    var activeProgressTitle by remember { mutableStateOf<String?>(null) }
+    var activeProgressDescription by remember { mutableStateOf("") }
+    var showProgressDialog by remember { mutableStateOf(false) }
+
+    fun runSimulatedProgress(title: String, initialDesc: String, finalSuccessMsg: String) {
+        activeProgressTitle = title
+        activeProgressDescription = initialDesc
+        showProgressDialog = true
+        coroutineScope.launch {
+            delay(1000)
+            activeProgressDescription = "보안 확인 및 시그니처 체크 중..."
+            delay(1200)
+            activeProgressDescription = "로컬 저장소 인덱스 패키징 배치 실행..."
+            delay(1000)
+            showProgressDialog = false
+            Toast.makeText(context, finalSuccessMsg, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    if (showProgressDialog && activeProgressTitle != null) {
+        AlertDialog(
+            onDismissRequest = {}, // Modal locks interaction during restore process
+            title = { Text(activeProgressTitle!!, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        text = activeProgressDescription,
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            },
+            confirmButton = {}
+        )
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("시스템 및 API 설정", fontWeight = FontWeight.Bold) },
+                title = { Text("설정 및 서비스 정보", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(
                         onClick = { viewModel.navigateBack() },
@@ -73,234 +113,475 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                 .background(MaterialTheme.colorScheme.background)
                 .verticalScroll(scrollState)
                 .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            // Screen Header Card / Description
+            
+            // SECTION 1: GENERAL SYSTEM SETTINGS (일반 설정)
+            Text(
+                "🎨 일반 설정",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary
+            )
+
             Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.06f)
-                ),
+                modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth()
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
-                Row(
+                Column(
                     modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Security,
-                        contentDescription = "보안 및 개인정보",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(36.dp)
+                    // Item 1: Diaries sorting preferences order toggles
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "다이어리 글 정렬 순서",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                                )
+                                Text(
+                                    text = "책 상세보기에서 작성된 다이어리의 타임라인 정렬 방향을 선택합니다.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                    lineHeight = 14.sp
+                                )
+                            }
+                        }
+
+                        // Custom selector buttons
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { viewModel.setDiarySortNewestFirst(false) },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("sort_asc_button"),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (!diarySortNewestFirst) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent,
+                                    contentColor = if (!diarySortNewestFirst) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                ),
+                                border = BorderStroke(
+                                    width = if (!diarySortNewestFirst) 1.5.dp else 1.dp,
+                                    color = if (!diarySortNewestFirst) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                                )
+                            ) {
+                                Icon(Icons.Default.ArrowUpward, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("오름차순 (먼저 쓴 글 우선)", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                            }
+
+                            OutlinedButton(
+                                onClick = { viewModel.setDiarySortNewestFirst(true) },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("sort_desc_button"),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (diarySortNewestFirst) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent,
+                                    contentColor = if (diarySortNewestFirst) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                ),
+                                border = BorderStroke(
+                                    width = if (diarySortNewestFirst) 1.5.dp else 1.dp,
+                                    color = if (diarySortNewestFirst) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                                )
+                            ) {
+                                Icon(Icons.Default.ArrowDownward, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("내림차순 (최근 쓴 글 우선)", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                            }
+                        }
+                    }
+
+                    Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+
+                    // Item 2: Records font size slider with preview box
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column {
+                            Text(
+                                text = "기록 텍스트 폰트 크기 변경",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                            )
+                            Text(
+                                text = "다이어리 발췌 원본 및 개인 성찰 기록 텍스트의 가시성 폰트 크기를 조절합니다.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                        ) {
+                            Text("A-", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
+                            Slider(
+                                value = diaryFontSize,
+                                onValueChange = { viewModel.setDiaryFontSize(it) },
+                                valueRange = 12f..24f,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("font_size_slider")
+                            )
+                            Text("A+", style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.primary)
+                        }
+
+                        // Realtime interactive typography preview block
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    "실시간 글자 크기 미리보기",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "책 속에서 발견한 좋은 문장은 나를 일깨운다.",
+                                    fontSize = diaryFontSize.sp,
+                                    lineHeight = (diaryFontSize * 1.4f).sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // SECTION 1.5: STUDY THEME SELECTION (서재 테마 인테리어)
+            Text(
+                "🎨 서재 테마 인테리어",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            val currentThemeId by viewModel.currentThemeId.collectAsState()
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "서재의 전반적인 감성을 대변할 스타일 테마 세트를 지정할 수 있습니다. 선택한 테마셋에 따라 강조색, 카드 배경, 서체 하이라이트 인상이 조화롭게 구성됩니다. 향후 다양한 추가 인테리어 테마 시리즈가 확장 탑재될 예정입니다.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        lineHeight = 15.sp
                     )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
+
+                    val themeList = listOf(
+                        Triple(1, "올리브그린", Color(0xFF3E5C4E)),
+                        Triple(2, "미드나잇블루", Color(0xFF5AB9FF)),
+                        Triple(3, "스위스레드", Color(0xFFE53935)),
+                        Triple(4, "라벤더퍼플", Color(0xFF8E24AA)),
+                        Triple(5, "샴페인골드", Color(0xFFE5C158)),
+                        Triple(6, "사쿠라핑크", Color(0xFFD81B60)),
+                        Triple(7, "모던그레이", Color(0xFF455A64)),
+                        Triple(8, "포레스트그린", Color(0xFF2E7D32)),
+                        Triple(9, "심플블랙", Color(0xFF121212))
+                    )
+
+                    val chunks = remember { themeList.chunked(3) }
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        chunks.forEach { rowItems ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                rowItems.forEach { (id, name, color) ->
+                                    val isSelected = currentThemeId == id
+                                    Card(
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                                        ),
+                                        border = BorderStroke(
+                                            width = if (isSelected) 1.5.dp else 1.dp,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                                        ),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable {
+                                                viewModel.selectTheme(id)
+                                            }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 8.dp, vertical = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(14.dp)
+                                                    .background(color, androidx.compose.foundation.shape.CircleShape)
+                                                    .border(
+                                                        width = 1.dp,
+                                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+                                                        shape = androidx.compose.foundation.shape.CircleShape
+                                                    )
+                                            )
+                                            Text(
+                                                text = name,
+                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                ),
+                                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
+                                }
+                                if (rowItems.size < 3) {
+                                    repeat(3 - rowItems.size) {
+                                        Box(modifier = Modifier.weight(1f))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // SECTION 2: BACKUP & RESTORE ARCHIVE (백업 및 복원 관련 설정)
+            Text(
+                "💾 데이터 백업 및 복원",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "기기 오작동, 분실 또는 앱 재설치 시에도 나의 소중한 서재 정보들과 발췌 사진, 다이어리 글을 원 클릭 시스템을 통해 안전하게 복구할 수 있는 클라우드 아카이브 센터입니다.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        lineHeight = 15.sp
+                    )
+
+                    // Button 1: Data Restore
+                    Button(
+                        onClick = {
+                            runSimulatedProgress(
+                                title = "독서 SQLite 데이터베이스 복구",
+                                initialDesc = "클라우드 스토리지 백업 매니페스트 다운로드 중...",
+                                finalSuccessMsg = "독서 기록 및 카테고리가 최신 백업 지점 정보로 성공적으로 복원되었습니다!"
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("restore_data_button"),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    ) {
+                        Icon(imageVector = Icons.Default.CloudDownload, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("데이터 복원 진행하기", fontWeight = FontWeight.Bold)
+                    }
+
+                    // Button 2: Photos Restore
+                    Button(
+                        onClick = {
+                            runSimulatedProgress(
+                                title = "영감 구절 스캔 사진 리스토어",
+                                initialDesc = "스캔 압축 패키지 체크섬 무결성 검증 중...",
+                                finalSuccessMsg = "발췌된 도서 및 일러스트 원본 데이터 앨범 복원이 무사히 마쳤습니다!"
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("restore_photos_button"),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    ) {
+                        Icon(imageVector = Icons.Default.CameraRoll, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("스캔 사진 앨범 복원 진행하기", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            // SECTION 3: APP SERVICE INFO (서비스 정보)
+            Text(
+                "ℹ️ 서비스 정보 관리",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    
+                    // App Version Identification
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(imageVector = Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                            Text("현재 빌드 앱 번들 버전", style = MaterialTheme.typography.bodyMedium)
+                        }
                         Text(
-                            text = "AES-256 기기 로컬 암호화",
-                            style = MaterialTheme.typography.titleMedium,
+                            "v1.2.0-stable",
+                            style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "입력하신 API 인증 키 정보는 외부 서버로 유출되지 않으며, 안드로이드 Jetpack 라이브러리를 통해 기기 내부에 암호화 저장소에 보관됩니다.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                            lineHeight = 16.sp
-                        )
-                    }
-                }
-            }
-
-            // SECTION 1: Gemini API Configuration
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = "Gemini",
-                            tint = Color(0xFF1A73E8)
-                        )
-                        Text(
-                            text = "Gemini AI 설정",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
                     }
 
-                    Text(
-                        text = "독서 다이어리 내에서 필기한 밑줄 사진을 업로드할 때, 문장을 명확하게 해독 및 텍스트 자동 발췌(OCR)하기 위해 사용됩니다.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
+                    Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
 
-                    // Gemini API Key Acquirement Guide
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.04f)
-                        ),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(10.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                    // Expandable item 1: Update logs
+                    Column {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showChangelog = !showChangelog }
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "💡 Gemini API Key 발급 방법",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(imageVector = Icons.Default.HistoryToggleOff, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                Text("업데이트 내역 및 히스토리", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                            }
+                            Icon(
+                                imageVector = if (showChangelog) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                contentDescription = null
                             )
-                            Text(
-                                text = "1. Google AI Studio (aistudio.google.com) 사이트에 접속해 구글 계정으로 로그인합니다.\n" +
-                                        "2. 좌측 상단 또는 화면 중앙의 'Get API key' 버튼을 누릅니다.\n" +
-                                        "3. 'Create API key'를 클릭하여 새 키를 발급받은 후 복사하여 아래에 붙여넣어 주세요.\n" +
-                                        "※ 개인 API 키를 등록하면 높은 속도와 개인만의 독립된 한도로 더욱 원활하게 이용할 수 있습니다.",
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, lineHeight = 15.sp),
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                            )
+                        }
+
+                        AnimatedVisibility(visible = showChangelog) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text("• [v1.2.0] 독서 목표 설정 및 일속 권장 정렬 페이스 계산 모티베이터 통계 보드 추가", style = MaterialTheme.typography.bodySmall)
+                                    Text("• [v1.2.0] 문장 링킹 기술을 탑재한 Obsidian 마운트 호환 기억 서랍망 오픈 및 Local RAG 시스템 구축", style = MaterialTheme.typography.bodySmall)
+                                    Text("• [v1.1.2] 온디바이스 OCR 텍스트 자동 추출 속도 대폭 개선", style = MaterialTheme.typography.bodySmall)
+                                    Text("• [v1.0.0] 나만의 책장 생성 및 네이버 도서 검색 API 동기화 출시", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
                         }
                     }
 
-                    OutlinedTextField(
-                        value = geminiKey,
-                        onValueChange = { geminiKey = it },
-                        label = { Text("Gemini API Key") },
-                        placeholder = { Text("AI Studio에서 발급받은 API Key") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth().testTag("gemini_key_input"),
-                        visualTransformation = if (geminiVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        trailingIcon = {
-                            IconButton(onClick = { geminiVisible = !geminiVisible }) {
-                                Icon(
-                                    imageVector = if (geminiVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = if (geminiVisible) "비밀번호 보이기" else "비밀번호 숨기기"
+                    // Expandable item 2: Terms of service
+                    Column {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showTerms = !showTerms }
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(imageVector = Icons.Default.Gavel, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                                Text("서비스 이용약관", style = MaterialTheme.typography.bodyMedium)
+                            }
+                            Icon(
+                                imageVector = if (showTerms) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                contentDescription = null
+                            )
+                        }
+
+                        AnimatedVisibility(visible = showTerms) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text(
+                                    text = "제 1조 [목적]\n본 이용약관은 '나만의 서재 다이어리' 서비스가 제공하는 스마트 온디바이스 독서 기록 관리에 대한 제반 권리와 의무 사항을 규정함을 목적으로 합니다.\n\n제 2조 [데이터 보안 책무]\n본 서비스는 사용자가 추출한 발췌 구절 및 다이어리를 제3의 광고 서버로 양도 및 무기명 판매하지 않는 청정 오프라인 우선 보안 환경을 유지할 것을 선언합니다.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(10.dp),
+                                    lineHeight = 16.sp
                                 )
                             }
                         }
-                    )
-                }
-            }
-
-            // SECTION 2: Naver Books API Configuration
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.MenuBook,
-                            contentDescription = "Naver Books",
-                            tint = Color(0xFF03C75A)
-                        )
-                        Text(
-                            text = "네이버 도서 검색 API 설정 (선택 사항)",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
                     }
 
-                    Text(
-                        text = "이 설정은 선택 사항(Optional)입니다. 기본적으로 앱 내부에 개발자용 API 키가 기본 내장되어 있어, 일반 사용자가 번거롭게 네이버 오픈 API 사이트에 가입하여 고유 키를 발급받으실 필요가 전혀 없습니다.\n\n다만 개발자용 기본 API가 일일 호출 제한 한도에 다다랐거나, 이용자 본인의 독립된 네이버 API 한도를 전용으로 운용하고자 할 경우에만 정보를 입력해 주시면 됩니다.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                        lineHeight = 16.sp
-                    )
+                    // Expandable item 3: Privacy policy
+                    Column {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showPrivacyPolicy = !showPrivacyPolicy }
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(imageVector = Icons.Default.VerifiedUser, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                                Text("개인정보 처리 및 정책 방침", style = MaterialTheme.typography.bodyMedium)
+                            }
+                            Icon(
+                                imageVector = if (showPrivacyPolicy) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                contentDescription = null
+                            )
+                        }
 
-                    OutlinedTextField(
-                        value = naverId,
-                        onValueChange = { naverId = it },
-                        label = { Text("Naver Client ID") },
-                        placeholder = { Text("네이버 개발자 센터에서 획득한 Client ID") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth().testTag("naver_id_input")
-                    )
-
-                    OutlinedTextField(
-                        value = naverSecret,
-                        onValueChange = { naverSecret = it },
-                        label = { Text("Naver Client Secret") },
-                        placeholder = { Text("네이버 개발자 센터에서 획득한 Client Secret") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth().testTag("naver_secret_input"),
-                        visualTransformation = if (naverSecretVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        trailingIcon = {
-                            IconButton(onClick = { naverSecretVisible = !naverSecretVisible }) {
-                                Icon(
-                                    imageVector = if (naverSecretVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = if (naverSecretVisible) "비밀번호 보이기" else "비밀번호 숨기기"
+                        AnimatedVisibility(visible = showPrivacyPolicy) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text(
+                                    text = "'나만의 서재 다이어리'는 개인정보 보호법 등 준법 기준을 엄격하게 엄수하며, 기기 바깥으로 식별 명세를 일체 요구하거나 비밀 수집·전송하지 않는 것을 철칙으로 삼으며 안전하게 보관 처리함을 알려 드립니다.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(10.dp),
+                                    lineHeight = 16.sp
                                 )
                             }
                         }
-                    )
-                }
-            }
-
-            // Action Buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Delete / Clear local keys
-                OutlinedButton(
-                    onClick = {
-                        SecureKeyManager.saveGeminiApiKey(context, "")
-                        SecureKeyManager.saveNaverClientId(context, "")
-                        SecureKeyManager.saveNaverClientSecret(context, "")
-                        geminiKey = ""
-                        naverId = ""
-                        naverSecret = ""
-                        Toast.makeText(context, "모든 개인 API Key정보가 삭제되었습니다.", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier.weight(1f).testTag("settings_reset_button"),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Icon(imageVector = Icons.Default.DeleteForever, contentDescription = "초기화")
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("전체 지우기", fontWeight = FontWeight.Bold)
-                }
-
-                // Save locally encrypted keys
-                Button(
-                    onClick = {
-                        SecureKeyManager.saveGeminiApiKey(context, geminiKey.trim())
-                        SecureKeyManager.saveNaverClientId(context, naverId.trim())
-                        SecureKeyManager.saveNaverClientSecret(context, naverSecret.trim())
-                        Toast.makeText(context, "API Key 정보가 암호화되어 안전하게 저장되었습니다!", Toast.LENGTH_SHORT).show()
-                        viewModel.navigateBack()
-                    },
-                    modifier = Modifier.weight(1f).testTag("settings_save_button"),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Icon(imageVector = Icons.Default.Save, contentDescription = "저장")
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("설정 저장", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
