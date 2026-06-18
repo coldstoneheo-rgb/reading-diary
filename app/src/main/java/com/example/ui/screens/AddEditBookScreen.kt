@@ -243,7 +243,7 @@ fun AddEditBookScreen(
                             val items = JSONObject(body).optJSONArray("items")
                             val list = mutableListOf<SearchResultBook>()
                             if (items != null) {
-                                        for (i in 0 until items.length()) {
+                                for (i in 0 until items.length()) {
                                     val item = items.getJSONObject(i)
                                     val volumeInfo = item.optJSONObject("volumeInfo") ?: continue
                                     val titleStr = volumeInfo.optString("title", "알 수 없는 제목")
@@ -328,7 +328,12 @@ fun AddEditBookScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("search_book_input"),
-                    placeholder = { Text("도서 제목 또는 저자의 일부를 입력해주세요") },
+                    placeholder = { 
+                        Text(
+                            text = "도서 제목 또는 저자", 
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        ) 
+                    },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
@@ -368,7 +373,7 @@ fun AddEditBookScreen(
                             verticalArrangement = Arrangement.spacedBy(16.dp),
                             modifier = Modifier.fillMaxSize()
                         ) {
-                            // Case A: Query too short - Show guide and sample books
+                            // Case A: Query too short - Show guide
                             if (searchQuery.trim().length < 2) {
                                 item {
                                     Column(
@@ -390,17 +395,6 @@ fun AddEditBookScreen(
                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                         )
                                     }
-                                }
-                                item {
-                                    PopularSampleBooksList(
-                                        onBookSelected = { bTitle, bAuthor, bPages, bCover ->
-                                            title = bTitle
-                                            author = bAuthor
-                                            totalPagesStr = bPages.toString()
-                                            coverUrl = bCover
-                                            isSearchActive = false
-                                        }
-                                    )
                                 }
                             }
                             // Case B: There is an error (e.g. Quota exceed) or search results empty
@@ -435,9 +429,9 @@ fun AddEditBookScreen(
                                             Spacer(modifier = Modifier.height(8.dp))
                                             Text(
                                                 text = if (searchError != null) {
-                                                    "공용 구글 API 호출 한도가 초과되었습니다.\n오류 정보: $searchError\n\n지속적인 사용을 원하시면 본인의 네이버 ID/Secret 키를 [설정]에 등록해 주세요. 현재는 아래 추천 도서를 클릭하여 바로 추가하시거나, 우측 상단 '직접 입력'을 통해 등록하실 수 있습니다."
+                                                    "공용 구글 API 호출 한도가 초과되었습니다.\n오류 정보: $searchError\n\n지속적인 사용을 원하시면 본인의 네이버 ID/Secret 키를 [설정]에 등록해 주세요. 현재는 우측 상단 '직접 입력' 버튼 또는 아래 '직접 수동 등록'버튼을 통해 등록하실 수 있습니다."
                                                 } else {
-                                                    "검색어 '$searchQuery'에 해당하는 도서를 찾지 못했습니다.\n\n정확한 단어로 다시 검색하시거나, 아래의 인기 추천 도서를 원클릭 추가해 보세요. 직접 본인의 Naver API Key를 설정에 추가하시면 고정밀 네이버 도서 검색도 가능합니다."
+                                                    "검색어 '$searchQuery'에 해당하는 도서를 찾지 못했습니다.\n\n정확한 단어로 다시 검색하시거나, 본인의 Naver API Key를 설정에 추가하시면 고정밀 네이버 도서 검색도 가능합니다."
                                                 },
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
@@ -465,26 +459,13 @@ fun AddEditBookScreen(
                                                     shape = RoundedCornerShape(8.dp),
                                                     colors = ButtonDefaults.buttonColors(
                                                         containerColor = MaterialTheme.colorScheme.error
-                                                    )
+                                                     )
                                                 ) {
                                                     Text("⚙️ API 설정하기", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
                                                 }
                                             }
                                         }
                                     }
-                                }
-                                
-                                item {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    PopularSampleBooksList(
-                                        onBookSelected = { bTitle, bAuthor, bPages, bCover ->
-                                            title = bTitle
-                                            author = bAuthor
-                                            totalPagesStr = bPages.toString()
-                                            coverUrl = bCover
-                                            isSearchActive = false
-                                        }
-                                    )
                                 }
                             }
                             // Case C: Success display list
@@ -910,134 +891,5 @@ data class SearchResultBook(
     val coverUrl: String
 )
 
-data class PopularSampleBook(
-    val title: String,
-    val author: String,
-    val pageCount: Int,
-    val coverUrl: String,
-    val description: String
-)
 
-@Composable
-fun PopularSampleBooksList(
-    onBookSelected: (title: String, author: String, pageCount: Int, coverUrl: String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val samplePopularBooks = listOf(
-        PopularSampleBook(
-            "사피엔스 (Sapiens)",
-            "유발 하라리",
-            630,
-            "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=200",
-            "인류 문명의 역사적 진화를 설명하는 고전적 베스트셀러"
-        ),
-        PopularSampleBook(
-            "돈의 속성",
-            "김승호",
-            390,
-            "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&q=80&w=200",
-            "최상위 부자가 이야기하는 지혜와 도덕적 자산 관리"
-        ),
-        PopularSampleBook(
-            "불편한 편의점",
-            "김호연",
-            268,
-            "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=200",
-            "청파동 편의점 점원과 손님 사이의 다정하고 따뜻한 위로"
-        ),
-        PopularSampleBook(
-            "세이노의 가르침",
-            "세이노",
-            736,
-            "https://images.unsplash.com/photo-1506880018603-83d5b814b5a6?auto=format&fit=crop&q=80&w=200",
-            "피가 되고 살이 되는 실용적 지식과 자립에 대한 조언"
-        ),
-        PopularSampleBook(
-            "아몬드",
-            "손원평",
-            264,
-            "https://images.unsplash.com/photo-1476275466078-4007374efbbe?auto=format&fit=crop&q=80&w=200",
-            "타인의 감정을 공감하지 못하는 소년의 성장과 희망"
-        )
-    )
-
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Text(
-            text = "📚 추천 샘플 도서 (클릭 시 원클릭 정보 자동 입력)",
-            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(vertical = 4.dp)
-        )
-        samplePopularBooks.forEach { book ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onBookSelected(book.title, book.author, book.pageCount, book.coverUrl) },
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(width = 46.dp, height = 66.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(LocalContext.current)
-                                .data(book.coverUrl)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = book.title,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(14.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = book.title,
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "${book.author} | 전체 ${book.pageCount}쪽",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = book.description,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "선택 추가",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .size(28.dp)
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
-                            .padding(4.dp)
-                    )
-                }
-            }
-        }
-    }
-}
 

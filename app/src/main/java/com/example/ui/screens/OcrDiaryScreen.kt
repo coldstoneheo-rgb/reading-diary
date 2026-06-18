@@ -483,19 +483,13 @@ fun OcrDiaryScreen(
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
-                        // Header with action bar tools '자르기', '회전', '좌우 반전'
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "수정 및 가공 렌즈",
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        // Header tools (only shown if not cropped ready yet)
+                        if (!isCroppedReady) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 // Crop Button
                                 FilterChip(
                                     selected = isCroppedReady,
@@ -530,13 +524,11 @@ fun OcrDiaryScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // Process Image View bounded with coordinates decoration
+                        // Process Image View beautifully displaying vertical pages at full fit height
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(160.dp)
+                                .height(320.dp)
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(Color.Black)
                         ) {
@@ -550,9 +542,34 @@ fun OcrDiaryScreen(
                                         scaleX = if (isFlipped) -1f else 1f,
                                         scaleY = 1f
                                     ),
-                                contentScale = ContentScale.Crop,
-                                alpha = 0.85f
+                                contentScale = ContentScale.Fit,
+                                alpha = 0.9f
                             )
+
+                            // Close Button on Top-Right to allow re-taking/re-editing
+                            IconButton(
+                                onClick = {
+                                    activeImageUrl = null
+                                    isImageTaken = false
+                                    isCroppedReady = false
+                                    imageRotation = 0f
+                                    isFlipped = false
+                                    selectedMethod = null
+                                    Toast.makeText(context, "사진 삭제 완료. 새로운 사진을 촬영해주세요.", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(8.dp)
+                                    .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(50.dp))
+                                    .size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "삭제",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
 
                             // Drawn crop overlay indicator or instructions
                             if (!isCroppedReady) {
@@ -575,7 +592,7 @@ fun OcrDiaryScreen(
                                 Box(
                                     modifier = Modifier
                                         .align(Alignment.Center)
-                                        .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
+                                        .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(4.dp))
                                         .padding(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
                                     Text(
@@ -595,8 +612,8 @@ fun OcrDiaryScreen(
                                 ) {
                                     Row(
                                         modifier = Modifier
-                                            .align(Alignment.TopEnd)
-                                            .padding(6.dp)
+                                            .align(Alignment.BottomEnd)
+                                            .padding(8.dp)
                                             .background(Color.Green, RoundedCornerShape(4.dp))
                                             .padding(horizontal = 6.dp, vertical = 2.dp),
                                         verticalAlignment = Alignment.CenterVertically
@@ -653,96 +670,57 @@ fun OcrDiaryScreen(
                                 )
                             }
                         } else {
-                            Button(
-                                onClick = {
-                                    if (!isCroppedReady) {
-                                        Toast.makeText(context, "먼저 상단의 '자르기' 버튼을 눌러 형광펜 영역 자르기를 완료한 후 분석을 시작해 주세요.", Toast.LENGTH_LONG).show()
-                                        return@Button
-                                    }
-                                    activeImageUrl?.let { path ->
-                                        try {
-                                            var finalBitmap: Bitmap? = null
-                                            if (path.startsWith("http")) {
-                                                finalBitmap = BitmapFactory.decodeResource(context.resources, android.R.drawable.ic_menu_gallery)
-                                            } else {
-                                                val uri = Uri.parse(path)
-                                                context.contentResolver.openInputStream(uri)?.use { stream ->
-                                                    finalBitmap = BitmapFactory.decodeStream(stream)
+                            if (isCroppedReady) {
+                                Button(
+                                    onClick = {
+                                        activeImageUrl?.let { path ->
+                                            try {
+                                                var finalBitmap: Bitmap? = null
+                                                if (path.startsWith("http")) {
+                                                    finalBitmap = BitmapFactory.decodeResource(context.resources, android.R.drawable.ic_menu_gallery)
+                                                } else {
+                                                    val uri = Uri.parse(path)
+                                                    context.contentResolver.openInputStream(uri)?.use { stream ->
+                                                        finalBitmap = BitmapFactory.decodeStream(stream)
+                                                    }
                                                 }
+                                                val processedBitmap = finalBitmap ?: Bitmap.createBitmap(200, 200, Bitmap.Config.ARGB_8888)
+                                                viewModel.processUnderlineOcr(processedBitmap, currentBook.title)
+                                            } catch (e: Exception) {
+                                                Toast.makeText(context, "이미지 파싱 중 오류가 발생하여 기본 시뮬레이션 데이터를 제공합니다.", Toast.LENGTH_SHORT).show()
+                                                val rawBitmap = BitmapFactory.decodeResource(context.resources, android.R.drawable.ic_menu_gallery) ?: Bitmap.createBitmap(150, 150, Bitmap.Config.ARGB_8888)
+                                                viewModel.processUnderlineOcr(rawBitmap, currentBook.title)
                                             }
-                                            val processedBitmap = finalBitmap ?: Bitmap.createBitmap(200, 200, Bitmap.Config.ARGB_8888)
-                                            viewModel.processUnderlineOcr(processedBitmap, currentBook.title)
-                                        } catch (e: Exception) {
-                                            Toast.makeText(context, "이미지 파싱 중 오류가 발생하여 기본 시뮬레이션 데이터를 제공합니다.", Toast.LENGTH_SHORT).show()
-                                            val rawBitmap = BitmapFactory.decodeResource(context.resources, android.R.drawable.ic_menu_gallery) ?: Bitmap.createBitmap(150, 150, Bitmap.Config.ARGB_8888)
-                                            viewModel.processUnderlineOcr(rawBitmap, currentBook.title)
+                                        } ?: run {
+                                            Toast.makeText(context, "분석할 사진을 먼저 선택해 주세요.", Toast.LENGTH_SHORT).show()
                                         }
-                                    } ?: run {
-                                        Toast.makeText(context, "분석할 사진을 먼저 선택해 주세요.", Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("ocr_button"),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (isCroppedReady) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.5f)
-                                )
-                            ) {
-                                Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("AI 밑줄 인식 시작", fontWeight = FontWeight.Bold)
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("ocr_button"),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary
+                                    )
+                                ) {
+                                    Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("AI 밑줄 인식 시작", fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
                 }
             }
 
-            // Stage 3: Realtime Text Alignment Editor (실시간 이미지 대조 교정기)
+            // Stage 3: Extracted Text Editor (추출 된 문장)
             Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "실시간 이미지 대조 교정기",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Compare,
-                                contentDescription = null,
-                                modifier = Modifier.size(12.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                "실시간 대조 활성화",
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(4.dp))
-                
                 Text(
-                    "AI가 이미지에서 인식한 원본 단어와 추출한 문자열을 육안으로 대조 및 필터 가공하세요.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    text = "추출 된 문장",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.primary
                 )
                 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 Card(
                     modifier = Modifier
@@ -754,112 +732,19 @@ fun OcrDiaryScreen(
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
-                        // 1. Comparison source visualization
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(90.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color.Black)
-                        ) {
-                            val activePreset = presets.find { it.id == selectedPresetId } ?: presets.first()
-                            
-                            AsyncImage(
-                                model = ImageRequest.Builder(LocalContext.current)
-                                    .data(activeImageUrl ?: activePreset.url)
-                                    .crossfade(true)
-                                    .build(),
-                                contentDescription = "Comparison Source",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop,
-                                alpha = 0.75f
-                            )
-                            
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.Center)
-                                    .fillMaxWidth(0.85f)
-                                    .height(28.dp)
-                                    .border(1.5.dp, Color.Yellow, RoundedCornerShape(2.dp))
-                                    .background(Color(0x35FFEB3B))
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(horizontal = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .background(Color.Yellow, RoundedCornerShape(2.dp))
-                                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            "밑줄 감지구간",
-                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, color = Color.Black, fontWeight = FontWeight.Bold)
-                                        )
-                                    }
-                                    
-                                    Icon(
-                                        imageVector = Icons.Default.ZoomIn,
-                                        contentDescription = "Zoomed",
-                                        tint = Color.Yellow,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                }
-                            }
-                            
-                            Box(
-                                modifier = Modifier
-                                    .padding(6.dp)
-                                    .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                                    .align(Alignment.TopStart)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.MenuBook, contentDescription = null, tint = Color.White, modifier = Modifier.size(10.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        "실물 도서 이미지 렌즈",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.Bold)
-                                    )
-                                }
-                            }
-                        }
-                        
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.SyncAlt,
-                                    contentDescription = "Sync mapping",
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                            HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                        }
-                        Spacer(modifier = Modifier.height(10.dp))
-
                         // Text Field Editor
                         OutlinedTextField(
                             value = extractedText,
                             onValueChange = { extractedText = it },
-                            placeholder = { Text("인식 시작을 클릭하면 본 구역에 추출 글귀가 표시되어 보정할 수 있습니다.") },
-                            label = { Text("실시간 글귀 교정 편집창") },
+                            placeholder = { 
+                                Text(
+                                    text = "밑줄친 문장이 이곳에 보여지고 편집 할 수 있습니다.",
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                ) 
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(95.dp)
+                                .height(115.dp)
                                 .testTag("diary_extracted_text_input"),
                             shape = RoundedCornerShape(8.dp),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -868,7 +753,7 @@ fun OcrDiaryScreen(
                                 unfocusedContainerColor = MaterialTheme.colorScheme.surface
                             ),
                             textStyle = MaterialTheme.typography.bodyMedium,
-                            maxLines = 3
+                            maxLines = 4
                         )
                         
                         Spacer(modifier = Modifier.height(8.dp))
@@ -957,13 +842,20 @@ fun OcrDiaryScreen(
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    placeholder = { Text("여기에 자유롭게 떠오른 생각을 적어보세요...") },
+                    placeholder = { 
+                        Text(
+                            text = "여기에 떠오른 생각을 자유롭게 적어보세요...",
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        ) 
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(130.dp)
                         .testTag("diary_notes_input"),
                     shape = RoundedCornerShape(8.dp),
                     colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
                         unfocusedContainerColor = MaterialTheme.colorScheme.surface
                     ),
                     maxLines = 7
