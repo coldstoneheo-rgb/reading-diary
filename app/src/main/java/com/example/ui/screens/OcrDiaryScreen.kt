@@ -8,6 +8,8 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import android.content.pm.PackageManager
 import androidx.core.content.FileProvider
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -143,6 +145,22 @@ fun OcrDiaryScreen(
             }
         } else {
             Toast.makeText(context, "사진 촬영이 취소되었습니다.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            try {
+                val uri = createCameraTempUri()
+                cameraTempUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                Toast.makeText(context, "카메라 실행 중 오류가 발생했습니다: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(context, "사진 촬영을 위해 카메라 권한이 필요합니다.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -367,12 +385,25 @@ fun OcrDiaryScreen(
             ) {
                 Button(
                     onClick = {
-                        try {
-                            val uri = createCameraTempUri()
-                            cameraTempUri = uri
-                            cameraLauncher.launch(uri)
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "카메라 실행 중 오류가 발생했습니다: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                        val hasCameraPermission = ContextCompat.checkSelfPermission(
+                            context,
+                            android.Manifest.permission.CAMERA
+                        ) == PackageManager.PERMISSION_GRANTED
+                        
+                        if (hasCameraPermission) {
+                            try {
+                                val uri = createCameraTempUri()
+                                cameraTempUri = uri
+                                cameraLauncher.launch(uri)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "카메라 실행 중 오류가 발생했습니다: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            try {
+                                permissionLauncher.launch(android.Manifest.permission.CAMERA)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "카메라 권한 요청에 실패했습니다: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     },
                     modifier = Modifier.weight(1f),
