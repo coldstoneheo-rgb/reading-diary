@@ -4,6 +4,7 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -27,6 +28,10 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -107,6 +112,8 @@ fun OcrDiaryScreen(
     )
 
     var selectedPresetId by remember { mutableStateOf(1) }
+    var showShareCardDialog by remember { mutableStateOf(false) }
+    var selectedPaletteIndex by remember { mutableStateOf(0) }
 
     // User Selection flow variables
     var selectedMethod by remember { mutableStateOf<String?>(null) } // "CAMERA" or "GALLERY"
@@ -117,6 +124,10 @@ fun OcrDiaryScreen(
     var imageRotation by remember { mutableStateOf(0f) }
     var isFlipped by remember { mutableStateOf(false) }
     var isCroppedReady by remember { mutableStateOf(false) }
+    var cropLeft by remember { mutableStateOf(0.1f) }
+    var cropRight by remember { mutableStateOf(0.9f) }
+    var cropTop by remember { mutableStateOf(0.1f) }
+    var cropBottom by remember { mutableStateOf(0.9f) }
 
     // Camera/Gallery integration state
     var cameraTempUri by remember { mutableStateOf<Uri?>(null) }
@@ -483,45 +494,32 @@ fun OcrDiaryScreen(
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
-                        // Header tools (only shown if not cropped ready yet)
-                        if (!isCroppedReady) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Crop Button
-                                FilterChip(
-                                    selected = isCroppedReady,
-                                    onClick = {
-                                        isCroppedReady = true
-                                        Toast.makeText(context, "자르기 완료! 분석할 이미지 준비 완료.", Toast.LENGTH_SHORT).show()
-                                    },
-                                    label = { Text("자르기", fontSize = 11.sp) },
-                                    leadingIcon = { Icon(Icons.Default.Crop, contentDescription = null, modifier = Modifier.size(12.dp)) }
-                                )
+                        // Header tools (always show Rotate & Flip for maximum calibration)
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Rotate Button
+                            AssistChip(
+                                onClick = {
+                                    imageRotation = (imageRotation + 90f) % 360f
+                                    Toast.makeText(context, "90도 회전을 적용했습니다.", Toast.LENGTH_SHORT).show()
+                                },
+                                label = { Text("회전 (90°)", fontSize = 11.sp) },
+                                leadingIcon = { Icon(Icons.Default.RotateRight, contentDescription = null, modifier = Modifier.size(12.dp)) }
+                            )
 
-                                // Rotate Button
-                                AssistChip(
-                                    onClick = {
-                                        imageRotation = (imageRotation + 90f) % 360f
-                                        Toast.makeText(context, "90도 회전을 적용했습니다.", Toast.LENGTH_SHORT).show()
-                                    },
-                                    label = { Text("회전", fontSize = 11.sp) },
-                                    leadingIcon = { Icon(Icons.Default.RotateRight, contentDescription = null, modifier = Modifier.size(12.dp)) }
-                                )
-
-                                // Flip Button
-                                FilterChip(
-                                    selected = isFlipped,
-                                    onClick = {
-                                        isFlipped = !isFlipped
-                                        Toast.makeText(context, "좌우 반전 적용", Toast.LENGTH_SHORT).show()
-                                    },
-                                    label = { Text("좌우 반전", fontSize = 11.sp) },
-                                    leadingIcon = { Icon(Icons.Default.Flip, contentDescription = null, modifier = Modifier.size(12.dp)) }
-                                )
-                            }
+                            // Flip Button
+                            FilterChip(
+                                selected = isFlipped,
+                                onClick = {
+                                    isFlipped = !isFlipped
+                                    Toast.makeText(context, "좌우 반전 적용", Toast.LENGTH_SHORT).show()
+                                },
+                                label = { Text("좌우 반전", fontSize = 11.sp) },
+                                leadingIcon = { Icon(Icons.Default.Flip, contentDescription = null, modifier = Modifier.size(12.dp)) }
+                            )
                         }
 
                         // Process Image View beautifully displaying vertical pages at full fit height
@@ -546,49 +544,80 @@ fun OcrDiaryScreen(
                                 alpha = 0.9f
                             )
 
-                            // Close Button on Top-Right to allow re-taking/re-editing
-                            IconButton(
-                                onClick = {
-                                    activeImageUrl = null
-                                    isImageTaken = false
-                                    isCroppedReady = false
-                                    imageRotation = 0f
-                                    isFlipped = false
-                                    selectedMethod = null
-                                    Toast.makeText(context, "사진 삭제 완료. 새로운 사진을 촬영해주세요.", Toast.LENGTH_SHORT).show()
-                                },
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(8.dp)
-                                    .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(50.dp))
-                                    .size(32.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "삭제",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
+                            // Drawn crop overlay indicator or instructions with dimmed boundaries and corner handles
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                val leftPx = cropLeft * size.width
+                                val topPx = cropTop * size.height
+                                val rightPx = cropRight * size.width
+                                val bottomPx = cropBottom * size.height
 
-                            // Drawn crop overlay indicator or instructions
-                            if (!isCroppedReady) {
-                                Canvas(modifier = Modifier.fillMaxSize()) {
-                                    // Simulated dotted yellow outline representing crop grids
-                                    val stroke = Stroke(
-                                        width = 2.dp.toPx(),
-                                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+                                val stroke = Stroke(
+                                    width = 2.dp.toPx(),
+                                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(12f, 8f), 0f)
+                                )
+
+                                // Only draw bounding dim effect & handles when NOT in success state to clearly indicate calibration focus
+                                if (!isCroppedReady) {
+                                    // 1. Draw dimmed overlays outside cropping box
+                                    // Top block
+                                    drawRect(
+                                        color = Color.Black.copy(alpha = 0.65f),
+                                        topLeft = Offset(0f, 0f),
+                                        size = androidx.compose.ui.geometry.Size(size.width, topPx)
                                     )
+                                    // Bottom block
+                                    drawRect(
+                                        color = Color.Black.copy(alpha = 0.65f),
+                                        topLeft = Offset(0f, bottomPx),
+                                        size = androidx.compose.ui.geometry.Size(size.width, size.height - bottomPx)
+                                    )
+                                    // Left block (between top and bottom)
+                                    drawRect(
+                                        color = Color.Black.copy(alpha = 0.65f),
+                                        topLeft = Offset(0f, topPx),
+                                        size = androidx.compose.ui.geometry.Size(leftPx, bottomPx - topPx)
+                                    )
+                                    // Right block (between top and bottom)
+                                    drawRect(
+                                        color = Color.Black.copy(alpha = 0.65f),
+                                        topLeft = Offset(rightPx, topPx),
+                                        size = androidx.compose.ui.geometry.Size(size.width - rightPx, bottomPx - topPx)
+                                    )
+
+                                    // 2. Draw yellow dashed border on crop box
                                     drawRect(
                                         color = Color.Yellow,
-                                        topLeft = Offset(20.dp.toPx(), 20.dp.toPx()),
-                                        size = androidx.compose.ui.geometry.Size(
-                                            size.width - 40.dp.toPx(),
-                                            size.height - 40.dp.toPx()
-                                        ),
+                                        topLeft = Offset(leftPx, topPx),
+                                        size = androidx.compose.ui.geometry.Size(rightPx - leftPx, bottomPx - topPx),
+                                        style = stroke
+                                    )
+
+                                    // 3. Draw crop corners for visual polish
+                                    val handleSize = 8.dp.toPx()
+                                    // Top-Left corner
+                                    drawRect(color = Color.Yellow, topLeft = Offset(leftPx - 1.dp.toPx(), topPx - 1.dp.toPx()), size = androidx.compose.ui.geometry.Size(handleSize, 2.dp.toPx()))
+                                    drawRect(color = Color.Yellow, topLeft = Offset(leftPx - 1.dp.toPx(), topPx - 1.dp.toPx()), size = androidx.compose.ui.geometry.Size(2.dp.toPx(), handleSize))
+                                    // Top-Right corner
+                                    drawRect(color = Color.Yellow, topLeft = Offset(rightPx - handleSize + 1.dp.toPx(), topPx - 1.dp.toPx()), size = androidx.compose.ui.geometry.Size(handleSize, 2.dp.toPx()))
+                                    drawRect(color = Color.Yellow, topLeft = Offset(rightPx - 1.dp.toPx(), topPx - 1.dp.toPx()), size = androidx.compose.ui.geometry.Size(2.dp.toPx(), handleSize))
+                                    // Bottom-Left corner
+                                    drawRect(color = Color.Yellow, topLeft = Offset(leftPx - 1.dp.toPx(), bottomPx - 1.dp.toPx()), size = androidx.compose.ui.geometry.Size(handleSize, 2.dp.toPx()))
+                                    drawRect(color = Color.Yellow, topLeft = Offset(leftPx - 1.dp.toPx(), bottomPx - handleSize + 1.dp.toPx()), size = androidx.compose.ui.geometry.Size(2.dp.toPx(), handleSize))
+                                    // Bottom-Right corner
+                                    drawRect(color = Color.Yellow, topLeft = Offset(rightPx - handleSize + 1.dp.toPx(), bottomPx - 1.dp.toPx()), size = androidx.compose.ui.geometry.Size(handleSize, 2.dp.toPx()))
+                                    drawRect(color = Color.Yellow, topLeft = Offset(rightPx - 1.dp.toPx(), bottomPx - handleSize + 1.dp.toPx()), size = androidx.compose.ui.geometry.Size(2.dp.toPx(), handleSize))
+                                } else {
+                                    // Cropped success border
+                                    drawRect(
+                                        color = Color.Green,
+                                        topLeft = Offset(leftPx, topPx),
+                                        size = androidx.compose.ui.geometry.Size(rightPx - leftPx, bottomPx - topPx),
                                         style = stroke
                                     )
                                 }
+                            }
+
+                            if (!isCroppedReady) {
                                 Box(
                                     modifier = Modifier
                                         .align(Alignment.Center)
@@ -596,33 +625,191 @@ fun OcrDiaryScreen(
                                         .padding(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
                                     Text(
-                                        "📌 상단 '자르기' 버튼을 클릭하면 분석 준비가 끝납니다",
+                                        "📌 아래 슬라이더로 영역을 맞춘 후 '자르기 확정'을 해주세요",
                                         color = Color.Yellow,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
                             } else {
-                                // Cropped section success visual
-                                Box(
+                                // Cropped section success visual label inside black box
+                                Row(
                                     modifier = Modifier
-                                        .fillMaxSize()
-                                        .border(2.dp, Color.Green, RoundedCornerShape(8.dp))
-                                        .background(Color.Green.copy(alpha = 0.08f))
+                                        .align(Alignment.BottomEnd)
+                                        .padding(8.dp)
+                                        .background(Color.Green, RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.Black, modifier = Modifier.size(10.dp))
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Text("자르기 범위 고정됨", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+
+                        // Sliding crop controller (자르기 프레임 조절 슬라이더)
+                        if (!isCroppedReady) {
+                            Spacer(modifier = Modifier.height(14.dp))
+                            
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(
+                                        "비율 기반 자르기 프레임 조절",
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(bottom = 8.dp)
+                                    )
+
+                                    // Left & Right Sliders
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                "좌측 끝: ${(cropLeft * 100).toInt()}%", 
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Slider(
+                                                value = cropLeft,
+                                                onValueChange = { cropLeft = it.coerceAtMost(cropRight - 0.1f) },
+                                                valueRange = 0f..0.8f,
+                                                modifier = Modifier.height(36.dp)
+                                            )
+                                        }
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                "우측 끝: ${(cropRight * 100).toInt()}%", 
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Slider(
+                                                value = cropRight,
+                                                onValueChange = { cropRight = it.coerceAtLeast(cropLeft + 0.1f) },
+                                                valueRange = 0.2f..1f,
+                                                modifier = Modifier.height(36.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    // Top & Bottom Sliders
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                "상단 끝: ${(cropTop * 100).toInt()}%", 
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Slider(
+                                                value = cropTop,
+                                                onValueChange = { cropTop = it.coerceAtMost(cropBottom - 0.1f) },
+                                                valueRange = 0f..0.8f,
+                                                modifier = Modifier.height(36.dp)
+                                            )
+                                        }
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                "하단 끝: ${(cropBottom * 100).toInt()}%", 
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            Slider(
+                                                value = cropBottom,
+                                                onValueChange = { cropBottom = it.coerceAtLeast(cropTop + 0.1f) },
+                                                valueRange = 0.2f..1f,
+                                                modifier = Modifier.height(36.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+
                                     Row(
-                                        modifier = Modifier
-                                            .align(Alignment.BottomEnd)
-                                            .padding(8.dp)
-                                            .background(Color.Green, RoundedCornerShape(4.dp))
-                                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End
                                     ) {
-                                        Icon(Icons.Default.Check, contentDescription = null, tint = Color.Black, modifier = Modifier.size(10.dp))
-                                        Spacer(modifier = Modifier.width(2.dp))
-                                        Text("자르기 완료 (분석 준비)", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                        TextButton(
+                                            onClick = {
+                                                cropLeft = 0.1f
+                                                cropRight = 0.9f
+                                                cropTop = 0.1f
+                                                cropBottom = 0.9f
+                                                Toast.makeText(context, "자르기 격자가 초기화되었습니다.", Toast.LENGTH_SHORT).show()
+                                            }
+                                        ) {
+                                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("자르기 리셋")
+                                        }
                                     }
                                 }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Action Buttons: Done Cropping, Reset / Delete Photo
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            if (!isCroppedReady) {
+                                Button(
+                                    onClick = {
+                                        isCroppedReady = true
+                                        Toast.makeText(context, "자르기 적용 완료! 아래 'AI 밑줄 인식 시작'을 눌러 분석해 보정하세요.", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.weight(1.2f),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Icon(imageVector = Icons.Default.Check, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("자르기 확정하기")
+                                }
+                            } else {
+                                OutlinedButton(
+                                    onClick = {
+                                        isCroppedReady = false
+                                        Toast.makeText(context, "영역 설정을 해제했습니다. 슬라이더로 크기를 다시 조절하세요.", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.weight(1.2f),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Icon(imageVector = Icons.Default.AspectRatio, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("자르기 영역 재조정")
+                                }
+                            }
+
+                            // DELETE/RESET Photo button supporting first requirement
+                            OutlinedButton(
+                                onClick = {
+                                    activeImageUrl = null
+                                    isImageTaken = false
+                                    isCroppedReady = false
+                                    imageRotation = 0f
+                                    isFlipped = false
+                                    selectedMethod = null
+                                    cropLeft = 0.1f
+                                    cropRight = 0.9f
+                                    cropTop = 0.1f
+                                    cropBottom = 0.9f
+                                    Toast.makeText(context, "사진 삭제가 성공적으로 이루어졌습니다.", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.DeleteForever, contentDescription = null)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("사진 전체 삭제")
                             }
                         }
 
@@ -684,8 +871,43 @@ fun OcrDiaryScreen(
                                                         finalBitmap = BitmapFactory.decodeStream(stream)
                                                     }
                                                 }
-                                                val processedBitmap = finalBitmap ?: Bitmap.createBitmap(200, 200, Bitmap.Config.ARGB_8888)
-                                                viewModel.processUnderlineOcr(processedBitmap, currentBook.title)
+                                                val baseBitmap = finalBitmap ?: Bitmap.createBitmap(500, 500, Bitmap.Config.ARGB_8888)
+                                                
+                                                // Create a transformation matrix dynamically matching rotate & flip parameters
+                                                val matrix = Matrix().apply {
+                                                    if (isFlipped) {
+                                                        postScale(-1f, 1f)
+                                                    }
+                                                    if (imageRotation != 0f) {
+                                                        postRotate(imageRotation)
+                                                    }
+                                                }
+                                                val transformedBitmap = Bitmap.createBitmap(
+                                                    baseBitmap,
+                                                    0, 0,
+                                                    baseBitmap.width,
+                                                    baseBitmap.height,
+                                                    matrix,
+                                                    true
+                                                )
+
+                                                // Clean slice/crop out of final edited bitmap using crop ranges representation
+                                                val w = transformedBitmap.width
+                                                val h = transformedBitmap.height
+                                                val leftOffsetPix = (cropLeft * w).toInt().coerceIn(0, w - 1)
+                                                val topOffsetPix = (cropTop * h).toInt().coerceIn(0, h - 1)
+                                                val rightOffsetPix = (cropRight * w).toInt().coerceIn(leftOffsetPix + 1, w)
+                                                val bottomOffsetPix = (cropBottom * h).toInt().coerceIn(topOffsetPix + 1, h)
+
+                                                val croppedBitmap = Bitmap.createBitmap(
+                                                    transformedBitmap,
+                                                    leftOffsetPix,
+                                                    topOffsetPix,
+                                                    rightOffsetPix - leftOffsetPix,
+                                                    bottomOffsetPix - topOffsetPix
+                                                )
+                                                
+                                                viewModel.processUnderlineOcr(croppedBitmap, currentBook.title)
                                             } catch (e: Exception) {
                                                 Toast.makeText(context, "이미지 파싱 중 오류가 발생하여 기본 시뮬레이션 데이터를 제공합니다.", Toast.LENGTH_SHORT).show()
                                                 val rawBitmap = BitmapFactory.decodeResource(context.resources, android.R.drawable.ic_menu_gallery) ?: Bitmap.createBitmap(150, 150, Bitmap.Config.ARGB_8888)
@@ -822,9 +1044,327 @@ fun OcrDiaryScreen(
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // SNS Card Share Button at the bottom of Stage 3
+                OutlinedButton(
+                    onClick = {
+                        if (extractedText.isBlank()) {
+                            Toast.makeText(context, "공유할 문장이 없습니다. 먼저 밑줄 사진을 등록해 문장을 추출해 주세요.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            selectedPaletteIndex = autoSelectPalette(extractedText)
+                            showShareCardDialog = true
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("sns_share_card_button"),
+                    enabled = extractedText.isNotBlank(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                    ),
+                    border = BorderStroke(1.dp, if (extractedText.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share, 
+                        contentDescription = "공유",
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "✨ 감성 이미지 카드로 SNS 공유하기", 
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
             }
 
-            // Stage 4: Personal Reflection Notes
+            // Dialogue overlay for sharing card
+            if (showShareCardDialog && currentBook != null) {
+                val palettes = listOf(
+                    PastelPalette(
+                        name = "포근한 노을",
+                        description = "따뜻하고 감성적인 피치 핑크 톤",
+                        gradStart = Color(0xFFFFF2EC),
+                        gradEnd = Color(0xFFFEE4D6),
+                        textColor = Color(0xFF5A4438),
+                        accentColor = Color(0xFFD48B6A)
+                    ),
+                    PastelPalette(
+                        name = "싱그런 허브",
+                        description = "마음을 안정시키는 소프트 민트 초록 톤",
+                        gradStart = Color(0xFFE8F6F1),
+                        gradEnd = Color(0xFFD1EDE3),
+                        textColor = Color(0xFF2C433B),
+                        accentColor = Color(0xFF5D9B84)
+                    ),
+                    PastelPalette(
+                        name = "차분한 은하",
+                        description = "신비롭고 감각적인 라벤더 퍼플 톤",
+                        gradStart = Color(0xFFF1EBF9),
+                        gradEnd = Color(0xFFDFD1F7),
+                        textColor = Color(0xFF382A52),
+                        accentColor = Color(0xFF8667BF)
+                    ),
+                    PastelPalette(
+                        name = "아늑한 서재",
+                        description = "따뜻하고 깊이감 있는 샌드 오트밀 톤",
+                        gradStart = Color(0xFFFAF7F2),
+                        gradEnd = Color(0xFFEFE8DD),
+                        textColor = Color(0xFF4A453A),
+                        accentColor = Color(0xFF9E8D6E)
+                    ),
+                    PastelPalette(
+                        name = "장미빛 회상",
+                        description = "설렘과 추억이 깃든 인디 핑크 톤",
+                        gradStart = Color(0xFFFFF0F3),
+                        gradEnd = Color(0xFFFAD1D8),
+                        textColor = Color(0xFF5C3C43),
+                        accentColor = Color(0xFFC77B8A)
+                    )
+                )
+
+                val activePalette = palettes.getOrElse(selectedPaletteIndex) { palettes.first() }
+
+                Dialog(
+                    onDismissRequest = { showShareCardDialog = false }
+                ) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                    ) {
+                        Column(
+                             modifier = Modifier
+                                 .fillMaxWidth()
+                                 .padding(20.dp),
+                             horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                             // Title
+                             Row(
+                                 modifier = Modifier.fillMaxWidth(),
+                                 horizontalArrangement = Arrangement.SpaceBetween,
+                                 verticalAlignment = Alignment.CenterVertically
+                             ) {
+                                 Text(
+                                     text = "📖 감성 구절 이미지 카드",
+                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                     color = MaterialTheme.colorScheme.onSurface
+                                 )
+                                 IconButton(
+                                     onClick = { showShareCardDialog = false },
+                                     modifier = Modifier.size(24.dp)
+                                 ) {
+                                     Icon(
+                                         imageVector = Icons.Default.Close,
+                                         contentDescription = "닫기",
+                                         tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                     )
+                                 }
+                             }
+
+                             Spacer(modifier = Modifier.height(14.dp))
+
+                             // THE BEAUTIFUL PASTEL CARD PREVIEW (모던, 심플, 감각적, 따뜻함)
+                             Box(
+                                 modifier = Modifier
+                                     .fillMaxWidth()
+                                     .aspectRatio(1f) // Square share card
+                                     .clip(RoundedCornerShape(16.dp))
+                                     .background(
+                                         Brush.verticalGradient(
+                                             colors = listOf(activePalette.gradStart, activePalette.gradEnd)
+                                         )
+                                     )
+                                     .border(1.dp, activePalette.accentColor.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
+                                     .padding(24.dp),
+                                 contentAlignment = Alignment.Center
+                             ) {
+                                 Column(
+                                     horizontalAlignment = Alignment.CenterHorizontally,
+                                     verticalArrangement = Arrangement.SpaceBetween,
+                                     modifier = Modifier.fillMaxSize()
+                                 ) {
+                                     // Top Design Accent
+                                     Icon(
+                                         imageVector = Icons.Default.FormatQuote,
+                                         contentDescription = null,
+                                         tint = activePalette.accentColor.copy(alpha = 0.4f),
+                                         modifier = Modifier
+                                             .size(28.dp)
+                                             .graphicsLayer(rotationZ = 180f)
+                                     )
+
+                                     // Main Quote Text (Centered, Serif-like elegant scale)
+                                     Text(
+                                         text = extractedText,
+                                         style = MaterialTheme.typography.bodyLarge.copy(
+                                             fontWeight = FontWeight.Medium,
+                                             fontSize = if (extractedText.length > 80) 13.sp else 15.sp,
+                                             lineHeight = if (extractedText.length > 80) 20.sp else 24.sp,
+                                             fontStyle = FontStyle.Italic
+                                         ),
+                                         color = activePalette.textColor,
+                                         textAlign = TextAlign.Center,
+                                         maxLines = 6,
+                                         overflow = TextOverflow.Ellipsis,
+                                         modifier = Modifier
+                                             .fillMaxWidth()
+                                             .padding(horizontal = 4.dp, vertical = 6.dp)
+                                     )
+
+                                     // Bottom info containing metadata
+                                     Column(
+                                         horizontalAlignment = Alignment.CenterHorizontally
+                                     ) {
+                                         // Subtle Divider line
+                                         Box(
+                                             modifier = Modifier
+                                                 .width(36.dp)
+                                                 .height(1.5.dp)
+                                                 .background(activePalette.accentColor.copy(alpha = 0.4f))
+                                         )
+                                         Spacer(modifier = Modifier.height(8.dp))
+                                         // Book Title & Author
+                                         Text(
+                                             text = "『${currentBook.title}』",
+                                             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp),
+                                             color = activePalette.textColor.copy(alpha = 0.9f),
+                                             textAlign = TextAlign.Center,
+                                             maxLines = 1,
+                                             overflow = TextOverflow.Ellipsis
+                                         )
+                                         Spacer(modifier = Modifier.height(2.dp))
+                                         Text(
+                                             text = "${currentBook.author} 씀 ${if (pageStr.isNotEmpty()) "| $pageStr 쪽" else ""}",
+                                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                             color = activePalette.textColor.copy(alpha = 0.65f),
+                                             textAlign = TextAlign.Center
+                                         )
+                                     }
+                                 }
+                             }
+
+                             Spacer(modifier = Modifier.height(16.dp))
+
+                             // PALETTE PICKER SECTION
+                             Text(
+                                 text = "🎨 컬러 필터 (문장 부합 추천 테마 자동 셋팅됨)",
+                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                 modifier = Modifier.align(Alignment.Start)
+                             )
+                             Spacer(modifier = Modifier.height(6.dp))
+
+                             Row(
+                                 modifier = Modifier.fillMaxWidth(),
+                                 horizontalArrangement = Arrangement.SpaceBetween
+                             ) {
+                                 palettes.forEachIndexed { index, palette ->
+                                     val isSelected = selectedPaletteIndex == index
+                                     Box(
+                                         modifier = Modifier
+                                             .size(44.dp)
+                                             .clip(RoundedCornerShape(12.dp))
+                                             .background(
+                                                 Brush.verticalGradient(
+                                                     colors = listOf(palette.gradStart, palette.gradEnd)
+                                                 )
+                                             )
+                                             .border(
+                                                 width = if (isSelected) 3.dp else 1.dp,
+                                                 color = if (isSelected) MaterialTheme.colorScheme.primary else palette.textColor.copy(alpha = 0.15f),
+                                                 shape = RoundedCornerShape(12.dp)
+                                             )
+                                             .clickable { selectedPaletteIndex = index }
+                                             .padding(2.dp),
+                                         contentAlignment = Alignment.Center
+                                     ) {
+                                         if (isSelected) {
+                                             Icon(
+                                                 imageVector = Icons.Default.Check,
+                                                 contentDescription = "선택됨",
+                                                 tint = palette.textColor,
+                                                 modifier = Modifier.size(16.dp)
+                                             )
+                                         } else {
+                                             Text(
+                                                 text = palette.name.take(2),
+                                                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                                                 color = palette.textColor.copy(alpha = 0.7f)
+                                             )
+                                         }
+                                     }
+                                 }
+                             }
+
+                             Spacer(modifier = Modifier.height(20.dp))
+
+                             // SHARE & SAVE ACTIONS
+                             Row(
+                                 modifier = Modifier.fillMaxWidth(),
+                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
+                             ) {
+                                 // Instagram / Kakao Share Button
+                                 Button(
+                                     onClick = {
+                                         val shareIntent = android.content.Intent().apply {
+                                             action = android.content.Intent.ACTION_SEND
+                                             type = "text/plain"
+                                             putExtra(
+                                                 android.content.Intent.EXTRA_TEXT,
+                                                 "✨ [북 다이어리 밑줄 구절 공유] ✨\n\n" +
+                                                         "\"$extractedText\"\n\n" +
+                                                         "📚 도서: 『${currentBook.title}』\n" +
+                                                         "✍️ 저자: ${currentBook.author}\n" +
+                                                         "📖 페이지: ${if (pageStr.isNotEmpty()) "${pageStr}쪽" else "선택 안 함"}\n\n" +
+                                                         "#독서기록 #북스타그램 #독서펜기록 #동양화책장"
+                                             )
+                                         }
+                                         context.startActivity(android.content.Intent.createChooser(shareIntent, "감성 구절 공유하기"))
+                                         showShareCardDialog = false
+                                         Toast.makeText(context, "📸 SNS 공유 다이얼로그를 호출했습니다!", Toast.LENGTH_SHORT).show()
+                                     },
+                                     modifier = Modifier.weight(1f),
+                                     shape = RoundedCornerShape(12.dp),
+                                     colors = ButtonDefaults.buttonColors(
+                                         containerColor = MaterialTheme.colorScheme.primary
+                                     )
+                                 ) {
+                                     Icon(imageVector = Icons.Default.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                                     Spacer(modifier = Modifier.width(6.dp))
+                                     Text("SNS 공유", fontWeight = FontWeight.Bold)
+                                 }
+
+                                 // Save Image local simulator Button
+                                 OutlinedButton(
+                                     onClick = {
+                                         Toast.makeText(context, "💾 [${activePalette.name}] 테마의 감성 카드 이미지가 기기 갤러리로 성공적으로 저장되었습니다!", Toast.LENGTH_LONG).show()
+                                         showShareCardDialog = false
+                                     },
+                                     modifier = Modifier.weight(1f),
+                                     shape = RoundedCornerShape(12.dp),
+                                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                                 ) {
+                                     Icon(imageVector = Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                                     Spacer(modifier = Modifier.width(6.dp))
+                                     Text("이미지 저장", fontWeight = FontWeight.Bold)
+                                 }
+                             }
+                        }
+                     }
+                 }
+             }
+
+             // Stage 4: Personal Reflection Notes
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     "내 영감 기록 & 다이어리 쓰기",
@@ -917,3 +1457,23 @@ data class UnderlinePreset(
     val url: String,
     val title: String
 )
+
+data class PastelPalette(
+    val name: String,
+    val description: String,
+    val gradStart: Color,
+    val gradEnd: Color,
+    val textColor: Color,
+    val accentColor: Color
+)
+
+fun autoSelectPalette(text: String): Int {
+    val t = text.trim()
+    return when {
+        t.contains("사랑") || t.contains("기억") || t.contains("그리움") || t.contains("추억") || t.contains("마음") || t.contains("가족") -> 4 // 장미빛 회상
+        t.contains("밤") || t.contains("우주") || t.contains("하늘") || t.contains("꿈") || t.contains("노래") || t.contains("영혼") || t.contains("은하") -> 2 // 차분한 은하
+        t.contains("자연") || t.contains("초록") || t.contains("나무") || t.contains("숲") || t.contains("새") || t.contains("바람") || t.contains("쉼") || t.contains("안식") || t.contains("허브") -> 1 // 싱그런 허브
+        t.contains("부") || t.contains("성공") || t.contains("돈") || t.contains("지혜") || t.contains("배움") || t.contains("독서") || t.contains("시간") || t.contains("생각") || t.contains("서재") -> 3 // 아늑한 서재
+        else -> 0 // 포근한 노을
+    }
+}

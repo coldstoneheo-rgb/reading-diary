@@ -331,7 +331,7 @@ fun AddEditBookScreen(
                     placeholder = { 
                         Text(
                             text = "도서 제목 또는 저자", 
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f)
                         ) 
                     },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
