@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(git push*--force*)",
+      "Bash(git push* -f*)",
+      "Bash(git push* +*)",
+      "PowerShell(git push*--force*)",
+      "PowerShell(git push* -f*)",
+      "PowerShell(git push* +*)",
+      "Bash(*gradle*assembleRelease*)",
+      "Bash(*gradle*bundleRelease*)",
+      "PowerShell(*gradle*assembleRelease*)",
+      "PowerShell(*gradle*bundleRelease*)",
+      "Read(./.env)",
+      "Read(./my-upload-key.jks)",
+      "Read(./debug.keystore)"
+    ]
+  }
+}
