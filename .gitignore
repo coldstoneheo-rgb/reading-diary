@@ -16,3 +16,10 @@
 local.properties
 .env
 debug.keystore
+
+# Claude Code harness
+.claude/worktrees/
+.claude/settings.local.json
+scratch/
+.codebase-memory/
+my-upload-key.jks
