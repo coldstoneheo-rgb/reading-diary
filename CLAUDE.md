@@ -2,9 +2,10 @@
 
 독서 다이어리 — Android(Kotlin + Jetpack Compose + Room) 단일 모듈 앱.
 책/책장/독서일기(밑줄 구절)를 온디바이스에 저장하고, 네이버 책 검색으로 서지를 채우며,
-촬영한 책 페이지에서 Gemini Vision OCR로 밑줄 구절을 추출한다.
+촬영한 책 페이지에서 밑줄 구절을 추출한다(사용자가 자기 Gemini 키를 등록한 경우에만 실제 분석, 아니면 예시 문장).
 이 파일은 **작업 원칙**만 담는다. 운영 메커니즘은 [.claude/HARNESS.md](.claude/HARNESS.md),
-작업 루프는 [.claude/skills/standard-workflow/SKILL.md](.claude/skills/standard-workflow/SKILL.md).
+작업 루프는 [.claude/skills/standard-workflow/SKILL.md](.claude/skills/standard-workflow/SKILL.md),
+아키텍처 결정은 [docs/adr/](docs/adr/).
 
 ## 구조 한눈에
 
@@ -13,9 +14,9 @@ app/src/main/java/com/example/
   MainActivity.kt          # 단일 Activity. Screen(sealed) 기반 자체 백스택 내비게이션
   data/Entities.kt         # Room 엔티티: Bookcase → Book → Diary (CASCADE)
   data/Daos.kt, AppDatabase.kt, ReadingRepository.kt
-  data/api/GeminiApiClient.kt   # BuildConfig.GEMINI_API_KEY가 유효하면 generativelanguage.googleapis.com에
-                                #   페이지 이미지를 POST(키는 URL 쿼리). 키가 placeholder면 제목 기반 시뮬레이션으로 폴백
-  data/SecureKeyManager.kt # EncryptedSharedPreferences에 네이버 키 저장(실패 시 평문 prefs 폴백)
+  data/api/GeminiApiClient.kt   # SecureKeyManager에 사용자 Gemini 키가 있으면 generativelanguage.googleapis.com에
+                                #   페이지 이미지를 POST(키는 x-goog-api-key 헤더). 키가 없으면 제목 기반 시뮬레이션으로 폴백
+  data/SecureKeyManager.kt # EncryptedSharedPreferences에 네이버·Gemini 키 저장(실패 시 평문 prefs 폴백)
   ui/viewmodel/ReadingViewModel.kt  # 상태·내비·CRUD 전부 여기 (AndroidViewModel)
   ui/screens/*Screen.kt    # Dashboard/BookDetail/AddEditBook/OcrDiary/Settings/Statistics/KnowledgeDrawer
   ui/screens/AddEditBookScreen.kt   # 네이버 책 검색(OkHttp 직접, openapi.naver.com)이 화면 코드 안에 있음
@@ -66,11 +67,17 @@ gradle :app:assembleDebug            # 디버그 빌드 — 루트에 debug.keys
 
 ## 안전 규칙
 
-- **비밀 3종**: `GEMINI_API_KEY`(secrets 플러그인이 `.env`→`BuildConfig`로 굽는다), `NAVER_CLIENT_ID/SECRET`(SecureKeyManager),
-  릴리스 키스토어(`STORE_PASSWORD`/`KEY_PASSWORD`/`KEYSTORE_PATH`). 코드·로그·PR 본문·테스트 픽스처에 쓰지 않는다.
-  특히 Gemini 요청 URL은 쿼리에 키가 들어가므로 **URL을 로그에 남기지 않는다**(logging-interceptor 의존성 주의).
+- **유료 API 키는 앱 바이너리에 절대 넣지 않는다** ([ADR-001](docs/adr/ADR-001-gemini-key-and-ocr-cost-model.md)).
+  `GEMINI_API_KEY`는 secrets 플러그인 `ignoreList`로 `BuildConfig`에서 제외되며, 유일한 출처는 사용자가 등록한
+  `SecureKeyManager`다. `BuildConfig.GEMINI_API_KEY`를 다시 참조하는 코드는 리뷰에서 거부한다.
+- **비밀 3종**: Gemini 키(SecureKeyManager 전용, 평문 폴백 없음), `NAVER_CLIENT_ID/SECRET`, 릴리스 키스토어
+  (`STORE_PASSWORD`/`KEY_PASSWORD`/`KEYSTORE_PATH`). 코드·로그·PR 본문·테스트 픽스처에 쓰지 않는다.
+  네이버 키의 출처와 우선순위: ① SecureKeyManager → ② 빌드 셸 환경변수(`BuildConfig.ENV_NAVER_*`, `app/build.gradle.kts`가 굽는다)
+  → ③ `.env`→`BuildConfig.NAVER_*`. **셸에 `NAVER_CLIENT_SECRET`을 export한 채 빌드하면 APK에 박힌다.**
+  Gemini 키는 URL 쿼리가 아니라 `x-goog-api-key` 헤더로 보낸다. 헤더·예외 메시지를 통째로 로그에 남기지 않는다.
+  `logging-interceptor` 의존성이 남아 있다(미사용). 쓰게 되면 `redactHeader("x-goog-api-key")`가 필수이며, 제거가 우선 후보다.
 - **릴리스 서명은 사용자만.** `assembleRelease`/`bundleRelease`는 에이전트가 실행하지 않고 사용자가 `!`로 직접 실행한다.
-- `.env`에 실제 `GEMINI_API_KEY`가 있으면 OCR 화면 조작·테스트가 **유료 외부 호출**을 일으킨다. 테스트는 placeholder 키로 돌린다.
+- 기기에 실제 Gemini 키가 등록돼 있으면 OCR 화면 조작이 **유료 외부 호출**을 일으킨다. 자동 테스트는 키 없이 돌린다.
 - Room 스키마 변경은 🔴 고위험: 마이그레이션 전략 없이 엔티티 필드를 바꾸지 않는다(기존 설치 데이터 소실).
 
 ---

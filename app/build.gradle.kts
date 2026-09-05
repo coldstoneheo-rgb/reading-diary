@@ -68,6 +68,8 @@ android {
 secrets {
   propertiesFileName = ".env"
   defaultPropertiesFileName = ".env.example"
+  // 유료 API 키는 앱 바이너리에 굽지 않는다(docs/adr/ADR-001). .env에 있어도 BuildConfig에 들어가지 않는다.
+  ignoreList.add("GEMINI_API_KEY")
 }
 
 // Some unused dependencies are commented out below instead of being removed.

@@ -29,8 +29,9 @@ model: opus
 3. 다음 축으로 평가한다:
    - **정확성** — 요구사항 충족? Flow/코루틴 수명(viewModelScope, Dispatchers) 오용? null/빈 문자열 엣지케이스?
    - **데이터 안전** — Room 엔티티 변경 시 마이그레이션/`fallbackToDestructiveMigration` 여부. 기존 사용자 데이터 소실 가능성.
-   - **비밀 안전** — `GEMINI_API_KEY`(BuildConfig, Gemini 요청 URL 쿼리에 포함), `NAVER_CLIENT_ID/SECRET`, 키스토어 비밀번호가
-     코드/로그(요청 URL 로깅 포함)/BuildConfig 평문/PR 본문/테스트 픽스처에 노출되는가.
+   - **비밀 안전** — Gemini 키(SecureKeyManager 전용, `x-goog-api-key` 헤더), `NAVER_CLIENT_ID/SECRET`, 키스토어 비밀번호가
+     코드/로그(요청 헤더 로깅 포함)/BuildConfig 평문/PR 본문/테스트 픽스처에 노출되는가.
+     `BuildConfig.GEMINI_API_KEY` 참조나 secrets `ignoreList` 제거는 ADR-001 위반으로 **심각** 결함이다.
    - **외부 호출** — 테스트나 화면 조작이 실제 Gemini/네이버 호출을 일으키는가(유료·개인 사진 전송).
    - **Compose 규율** — 리컴포지션 안전(remember/State), 부수효과는 LaunchedEffect/SideEffect 안에서만.
    - **단순성** — 과도한 추상화·불필요한 코드? 더 작게 가능?
