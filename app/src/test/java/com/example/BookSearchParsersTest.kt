@@ -20,7 +20,7 @@ class BookSearchParsersTest {
     val body = """
       {"items":[
         {"title":"<b>토비의</b> 스프링 3.1 (양장본)","author":"<b>저자</b>: 이일민 지음","image":"https://img.example/1.jpg"},
-        {"title":"객체지향의 사실과 오해","author":"조영호^김철수|박영희","image":""},
+        {"title":"객체지향의 사실과 오해","author":"조영호 저^김철수 역|옮김: 박영희","image":""},
         {"title":"코스모스 [양장본]","author":"칼 세이건 저"},
         {"title":"수학의 정석 (제3판)","author":"옮김: 홍성대"}
       ]}
@@ -34,6 +34,7 @@ class BookSearchParsersTest {
     assertEquals("이일민", result[0].author)
     assertEquals("https://img.example/1.jpg", result[0].coverUrl)
     assertEquals(250, result[0].pageCount)
+    // 공저자마다 붙은 역할어(저/역/옮김:)가 각각 떨어져야 한다
     assertEquals("조영호, 김철수, 박영희", result[1].author)
     assertEquals("코스모스", result[2].title)
     assertEquals("칼 세이건", result[2].author)
@@ -82,11 +83,27 @@ class BookSearchParsersTest {
   }
 
   @Test
-  fun google_smallThumbnailOnly_isNotUsedAsFallback_currentBehaviorPinned() {
-    // 기존 동작 고정: optString("thumbnail")은 결측 시 null이 아닌 ""를 돌려주므로
-    // smallThumbnail 폴백은 발동하지 않는다. 고칠 때는 별도 PR에서 이 기대값을 바꾼다.
+  fun google_smallThumbnailOnly_isUsedAsFallback() {
+    // optString("thumbnail")은 결측 시 ""를 돌려주므로 예전엔 폴백이 죽어 있었다. 이제 smallThumbnail로 내려간다.
     val body = """{"items":[{"volumeInfo":{"title":"T","imageLinks":{"smallThumbnail":"http://x/small.jpg"}}}]}"""
-    assertEquals("", BookSearchParsers.parseGoogleBooks(body)[0].coverUrl)
+    assertEquals("https://x/small.jpg", BookSearchParsers.parseGoogleBooks(body)[0].coverUrl)
+    val noLinks = """{"items":[{"volumeInfo":{"title":"T"}}]}"""
+    assertEquals("", BookSearchParsers.parseGoogleBooks(noLinks)[0].coverUrl)
+  }
+
+  @Test
+  fun naver_translatorAndEditorRoleSuffixes_areStripped() {
+    // 번역서의 전형적 형태. "옮김"이 접미 목록에 없으면 "박수진 옮김"이 사람 이름으로 남는다.
+    val body = """{"items":[{"title":"T","author":"김영하 지음^박수진 옮김"},{"title":"U","author":"홍길동 편저|이몽룡 감수"}]}"""
+    val result = BookSearchParsers.parseNaverBooks(body)
+    assertEquals("김영하, 박수진", result[0].author)
+    assertEquals("홍길동, 이몽룡", result[1].author)
+  }
+
+  @Test
+  fun naver_authorWithOnlyRoleWords_fallsBackToUnknown() {
+    val body = """{"items":[{"title":"T","author":"지음"}]}"""
+    assertEquals("지은이 미상", BookSearchParsers.parseNaverBooks(body)[0].author)
   }
 
   @Test
