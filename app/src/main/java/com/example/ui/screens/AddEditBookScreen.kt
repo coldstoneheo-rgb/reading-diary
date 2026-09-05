@@ -41,12 +41,16 @@ import com.example.data.Bookcase
 import com.example.ui.viewmodel.ReadingViewModel
 import com.example.data.SecureKeyManager
 import com.example.data.api.BookSearchParsers
+import com.example.data.api.Isbn
 import com.example.data.api.SearchResultBook
 import com.example.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.net.URLEncoder
@@ -106,6 +110,30 @@ fun AddEditBookScreen(
     var searchError by remember { mutableStateOf<String?>(null) }
     /** 네이버 키가 있으면 네이버로, 없으면 공용 Google 도서로 검색한다. 안내 카드가 이 값으로 원인을 구분한다. */
     var searchedWithNaver by remember { mutableStateOf<Boolean?>(null) }
+
+    // ISBN 바코드 스캔(ADR-003 실행 8). 스캐너 UI는 Play 서비스가 띄우므로 카메라 권한·미리보기 코드가 없다. EAN-13만 받아 부가기호(5자리)를 거른다.
+    val barcodeScanner = remember(context) {
+        GmsBarcodeScanning.getClient(
+            context,
+            GmsBarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_EAN_13).build()
+        )
+    }
+    fun startIsbnScan() {
+        barcodeScanner.startScan()
+            .addOnSuccessListener { barcode ->
+                val isbn = Isbn.fromBarcode(barcode.rawValue)
+                if (isbn != null) {
+                    searchQuery = isbn
+                } else {
+                    Toast.makeText(context, "책 바코드(ISBN)가 아닙니다. 뒷면의 978 또는 979로 시작하는 바코드를 찍어 주세요.", Toast.LENGTH_LONG).show()
+                }
+            }
+            .addOnCanceledListener { /* 사용자가 닫음 — 아무 일도 하지 않는다 */ }
+            .addOnFailureListener {
+                // 스캐너 모듈을 못 받는 기기(Play 서비스 없음 등). 예외 문구는 사용자용이 아니므로 종류만 알린다.
+                Toast.makeText(context, "바코드 스캐너를 사용할 수 없습니다. 제목이나 저자로 검색해 주세요.", Toast.LENGTH_LONG).show()
+            }
+    }
 
     // Sync state if editing
     LaunchedEffect(bookId, books, bookcases) {
@@ -170,7 +198,8 @@ fun AddEditBookScreen(
                 } else {
                     try {
                         val client = OkHttpClient()
-                        val escapedQuery = URLEncoder.encode(trimmedQuery, "UTF-8")
+                        val googleQuery = Isbn.fromBarcode(trimmedQuery)?.let { "isbn:$it" } ?: trimmedQuery
+                        val escapedQuery = URLEncoder.encode(googleQuery, "UTF-8")
                         val url = "https://www.googleapis.com/books/v1/volumes?q=$escapedQuery&maxResults=10"
                         val request = Request.Builder()
                             .url(url)
@@ -250,17 +279,24 @@ fun AddEditBookScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("search_book_input"),
-                    placeholder = { 
+                    placeholder = {
                         Text(
-                            text = "도서 제목 또는 저자", 
+                            text = "도서 제목, 저자 또는 ISBN",
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f)
-                        ) 
+                        )
                     },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
                             IconButton(onClick = { searchQuery = "" }) {
                                 Icon(Icons.Default.Clear, contentDescription = "지우기")
+                            }
+                        } else {
+                            IconButton(
+                                onClick = { startIsbnScan() },
+                                modifier = Modifier.testTag("search_isbn_scan_button")
+                            ) {
+                                Icon(Icons.Default.QrCodeScanner, contentDescription = "책 바코드(ISBN) 스캔")
                             }
                         }
                     },
@@ -310,7 +346,7 @@ fun AddEditBookScreen(
                                         )
                                         Spacer(modifier = Modifier.height(8.dp))
                                         Text(
-                                            "책 제목이나 지은이의 두 글자 이상 입력해 주세요\n실시간으로 온라인 데이터베이스에서 도서를 찾아옵니다.",
+                                            "책 제목이나 지은이를 두 글자 이상 입력해 주세요.\n검색창의 바코드 아이콘을 누르면 책 뒷면 ISBN으로 바로 찾습니다.",
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                                             lineHeight = 18.sp,

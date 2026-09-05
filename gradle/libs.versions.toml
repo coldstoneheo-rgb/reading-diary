@@ -33,6 +33,7 @@ robolectric = "4.16.1"
 roborazzi = "1.59.0"
 json = "20240303"
 mlkitTextRecognitionKorean = "16.0.1"
+playServicesCodeScanner = "16.1.0"
 firebaseBom = "34.12.0"
 secretsGradlePlugin = "2.0.1"
 securityCrypto = "1.1.0-alpha06"
@@ -78,6 +79,8 @@ robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "
 json = { group = "org.json", name = "json", version.ref = "json" }
 # 언번들(모델은 Google Play 서비스가 첫 사용 시 다운로드). 번들 전환은 group을 com.google.mlkit, name을 text-recognition-korean으로 교체 (ADR-002)
 play-services-mlkit-text-recognition-korean = { group = "com.google.android.gms", name = "play-services-mlkit-text-recognition-korean", version.ref = "mlkitTextRecognitionKorean" }
+# Google 코드 스캐너(언번들, 스캐너 UI는 Play 서비스 제공, 카메라 권한 불필요). ISBN 바코드 → 도서 검색 (ADR-003 실행 8)
+play-services-code-scanner = { group = "com.google.android.gms", name = "play-services-code-scanner", version.ref = "playServicesCodeScanner" }
 roborazzi = { group = "io.github.takahirom.roborazzi", name = "roborazzi", version.ref = "roborazzi" }
 roborazzi-compose = { group = "io.github.takahirom.roborazzi", name = "roborazzi-compose", version.ref = "roborazzi" }
 roborazzi-junit-rule = { group = "io.github.takahirom.roborazzi", name = "roborazzi-junit-rule", version.ref = "roborazzi" }
