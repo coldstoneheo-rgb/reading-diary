@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.util.Base64
 import android.util.Log
+import com.example.data.SecureKeyManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -18,23 +19,26 @@ import java.io.ByteArrayOutputStream
 import java.util.concurrent.TimeUnit
 
 /**
- * Modern, hybrid on-device and cloud book reading text analyzer powered by Gemini.
- * It detects the presence of local GEMINI_API_KEY environment variables to perform
- * real-time, state-of-the-art vision-OCR extraction targeting pens/highlighter overlays.
+ * 책 페이지 이미지에서 밑줄/형광펜 구절을 추출하는 Gemini(vision) 클라이언트.
+ *
+ * 키 정책(docs/adr/ADR-001): Gemini 키는 앱 바이너리에 포함하지 않는다. 유일한 출처는
+ * 사용자가 직접 등록해 기기 암호화 저장소에 보관한 [SecureKeyManager.getGeminiApiKey]다.
+ * 키가 없으면 네트워크 호출 없이 예시 문장으로 폴백한다.
  */
 object GeminiApiClient {
     private const val TAG = "LocalOcrAnalyzer"
+    private const val ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
 
     /**
      * Extracts text from a captured/selected page image.
-     * Uses real Gemini API if an API key is available, falls back to simulation with smart UX tips otherwise.
+     * Uses real Gemini API if the user has registered an API key, falls back to simulation otherwise.
      */
     suspend fun extractUnderlinedText(context: Context, bitmap: Bitmap, bookTitle: String = ""): String = withContext(Dispatchers.IO) {
         Log.d(TAG, "Initiating OCR analyzer for book: $bookTitle")
 
-        // 1. Resolve Gemini API Key from BuildConfig
+        // 1. Resolve Gemini API key from the user's encrypted on-device store (never from BuildConfig)
         val apiKey = try {
-            com.example.BuildConfig.GEMINI_API_KEY
+            SecureKeyManager.getGeminiApiKey(context)
         } catch (e: Exception) {
             ""
         }.trim()
@@ -87,8 +91,10 @@ object GeminiApiClient {
                 val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
                 val body = requestJson.toString().toRequestBody(mediaType)
 
+                // 키는 URL 쿼리가 아니라 헤더로 보낸다(로그·프록시에 URL이 남아도 키가 새지 않도록)
                 val request = Request.Builder()
-                    .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey")
+                    .url(ENDPOINT)
+                    .addHeader("x-goog-api-key", apiKey)
                     .post(body)
                     .build()
 
@@ -149,7 +155,7 @@ object GeminiApiClient {
             }
         }
 
-        val hint = "\n\n*(자연스러운 밑줄 구절 실시간 텍스트 인식을 시뮬레이션했습니다. 실제 촬영 사진에서 텍스트를 정밀 분석하려면 AI Studio의 'Secrets' 탭에 GEMINI_API_KEY를 추가해주세요.)*"
+        val hint = "\n\n*(밑줄 구절 인식을 시뮬레이션한 예시 문장입니다. 실제 촬영 사진을 분석하려면 본인의 Gemini API 키를 앱에 등록해야 합니다.)*"
         return@withContext simulatedText + hint
     }
 }

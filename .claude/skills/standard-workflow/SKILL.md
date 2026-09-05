@@ -38,5 +38,5 @@ description: 독서 다이어리(Android) 표준 작업 워크플로우 — 작�
 - `gradlew` 없음 → 로컬 Gradle 9.x 배포판 또는 Android Studio. 빌드 검증은 시간이 걸리므로 변경 부위 타깃 테스트 우선.
 - Roborazzi는 `verify`/`record` 태스크로만 실제 캡처·비교한다. 기준 이미지(`app/src/test/screenshots/`)는 커밋됨.
   의도된 UI 변경만 `recordRoborazziDebug`로 갱신하고 PR에 이유를 적는다.
-- `GeminiApiClient`는 실제 키가 있으면 유료 외부 호출을 한다. 테스트는 placeholder 키로.
+- `GeminiApiClient`는 사용자가 등록한 키(SecureKeyManager)가 있을 때만 유료 외부 호출을 한다. 키는 앱에 굽지 않는다(ADR-001).
 - 릴리스 서명은 사용자 전용(`!`).
