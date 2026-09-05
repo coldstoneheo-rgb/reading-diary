@@ -19,6 +19,7 @@ import com.example.data.ocr.TextExtractor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -52,7 +53,9 @@ class ReadingViewModel @JvmOverloads constructor(
     application: Application,
     private val textExtractor: TextExtractor = MlKitTextExtractor(),
     /** "정밀 분석" 전용. 키 등록 + 사진 전송 동의가 있을 때만 [processPreciseAnalysis]가 호출한다. */
-    private val preciseExtractor: TextExtractor = GeminiTextExtractor(application)
+    private val preciseExtractor: TextExtractor = GeminiTextExtractor(application),
+    /** 기기 암호화 저장소에 Gemini 키가 있는지. 테스트에서 주입한다. IO 스레드에서 호출된다. */
+    private val geminiKeyPresence: () -> Boolean = { SecureKeyManager.getGeminiApiKey(application).isNotEmpty() }
 ) : AndroidViewModel(application) {
     private val database = AppDatabase.getDatabase(application)
     private val repository = ReadingRepository(database)
@@ -121,25 +124,48 @@ class ReadingViewModel @JvmOverloads constructor(
     }
 
     // ---- AI 정밀 분석(선택): 사용자 본인 Gemini 키 (ADR-001 D, ADR-002 Q3) ----
-    /** 기기 암호화 저장소에 키가 있는가. 키 값 자체는 ViewModel에 올리지 않는다. */
-    val geminiKeyRegistered = MutableStateFlow(SecureKeyManager.getGeminiApiKey(application).isNotEmpty())
+    /**
+     * 기기 암호화 저장소에 키가 있는가. 키 값 자체는 ViewModel에 올리지 않는다.
+     * EncryptedSharedPreferences/KeyStore 접근은 느릴 수 있어 메인 스레드에서 열지 않는다 — 초기값 false(fail-closed)로 두고 IO에서 갱신.
+     */
+    val geminiKeyRegistered = MutableStateFlow(false)
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            val present = geminiKeyPresence()
+            withContext(Dispatchers.Main) {
+                geminiKeyRegistered.value = present
+                // 동의는 일반 설정(백업됨)에, 키는 백업 제외 저장소에 있다. 키 없이 동의만 복원되면 동의를 내린다:
+                // 새 기기/새 키에는 새 동의가 필요하다.
+                if (!present && geminiPhotoConsent.value) setGeminiPhotoConsent(false)
+            }
+        }
+    }
     /** "정밀 분석 시 사진이 Google Gemini로 전송된다"에 대한 사용자 동의. 키와 별개로 명시적으로 받는다. */
     val geminiPhotoConsent = MutableStateFlow(prefs.getBoolean("gemini_photo_consent", false))
     /** 정밀 분석 버튼 노출 조건. 둘 다 있어야 한다. */
     val preciseAnalysisAvailable: StateFlow<Boolean> = combine(geminiKeyRegistered, geminiPhotoConsent) { key, consent -> key && consent }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    /** @return false = 저장 거부(암호화 저장소를 열 수 없거나 헤더에 실을 수 없는 문자). 평문으로 저장하지 않는다. */
-    fun saveGeminiApiKey(apiKey: String): Boolean {
-        val saved = SecureKeyManager.saveGeminiApiKey(getApplication(), apiKey)
-        if (saved) geminiKeyRegistered.value = true
-        return saved
+    /** 저장은 IO에서. onResult(false) = 저장 거부(암호화 저장소를 열 수 없거나 헤더에 실을 수 없는 문자). 평문으로 저장하지 않는다. */
+    fun saveGeminiApiKey(apiKey: String, onResult: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            val saved = withContext(Dispatchers.IO) { SecureKeyManager.saveGeminiApiKey(getApplication(), apiKey) }
+            if (saved) geminiKeyRegistered.value = true
+            onResult(saved)
+        }
     }
 
-    fun clearGeminiApiKey() {
-        SecureKeyManager.clearGeminiApiKey(getApplication())
-        geminiKeyRegistered.value = false
-        setGeminiPhotoConsent(false) // 키를 지우면 동의도 함께 내린다
+    /** 삭제 실패(암호화 저장소를 열 수 없음)면 등록 상태를 유지하고 onResult(false). 성공 시 동의도 함께 내린다. */
+    fun clearGeminiApiKey(onResult: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            val cleared = withContext(Dispatchers.IO) { SecureKeyManager.clearGeminiApiKey(getApplication()) }
+            if (cleared) {
+                geminiKeyRegistered.value = false
+                setGeminiPhotoConsent(false)
+            }
+            onResult(cleared)
+        }
     }
 
     fun setGeminiPhotoConsent(granted: Boolean) {
@@ -370,16 +396,18 @@ class ReadingViewModel @JvmOverloads constructor(
 
     /**
      * 크롭된 페이지 이미지에서 텍스트를 추출한다. 결과는 있는 그대로 전달하며 가짜 문장으로 채우지 않는다(ADR-002 Q2).
-     * Gemini 경로는 여기서 호출하지 않는다 — 사용자 명시 동의 UI와 함께 별도 PR에서 붙인다(ADR-002 Q3).
+     * Gemini 경로는 여기서 호출하지 않는다 — 키 등록·동의·사진마다 확인을 거치는 [processPreciseAnalysis]만 쓴다(ADR-002 Q3).
      */
     /** 진행 중인 인식 작업의 소유자. 새 요청·리셋 시 취소해 오래된 결과가 다른 화면의 편집창을 덮어쓰지 못하게 한다. */
     private var ocrJob: Job? = null
 
     fun processUnderlineOcr(bitmap: Bitmap) {
-        if (ocrJob?.isActive == true) return // 재진입 방지(공개 상태가 아니라 Job으로 판정)
+        if (anyOcrRunning()) return // 재진입 방지(공개 상태가 아니라 Job으로 판정)
         ocrJob = viewModelScope.launch {
             ocrState.value = OcrState.Processing
-            ocrState.value = extractSafely(bitmap)
+            val result = extractSafely(bitmap, textExtractor)
+            ensureActive()
+            ocrState.value = result
         }
     }
 
@@ -396,24 +424,61 @@ class ReadingViewModel @JvmOverloads constructor(
         cropRight: Float,
         cropBottom: Float
     ) {
-        if (ocrJob?.isActive == true) return
-        ocrJob = viewModelScope.launch {
-            ocrState.value = OcrState.Processing
-            val cropped = withContext(Dispatchers.Default) {
-                BitmapDecoding.decodeForOcr(getApplication(), imageUri, rotationDegrees, flipped, cropLeft, cropTop, cropRight, cropBottom)
-            }
-            ocrState.value = if (cropped == null) {
-                // 디코드 실패는 그 자리에서 오류로 끝낸다. 대체 이미지로 인식을 돌리지 않는다.
-                OcrState.Error(DECODE_ERROR_MESSAGE)
-            } else {
-                extractSafely(cropped).also { cropped.recycle() }
+        if (anyOcrRunning()) return // 같은 사진에 두 경로가 동시에 돌아 결과가 서로 덮어쓰는 것을 막는다
+        ocrJob = runOcrPipeline(ocrState, textExtractor, imageUri, rotationDegrees, flipped, cropLeft, cropTop, cropRight, cropBottom)
+    }
+
+    private fun anyOcrRunning() = ocrJob?.isActive == true || preciseJob?.isActive == true
+
+    /**
+     * 공용 파이프라인: 디코드 → 추출 → 상태 기록. 두 경로(온디바이스/정밀)가 상태·Job·추출기만 다르게 공유한다.
+     * - 크롭 비트맵은 취소돼도 반드시 회수(try/finally)
+     * - 결과는 자기 Job이 아직 현재 Job일 때만 기록(취소된 옛 작업이 새 작업의 상태를 덮어쓰지 않게)
+     */
+    private fun runOcrPipeline(
+        state: MutableStateFlow<OcrState>,
+        extractor: TextExtractor,
+        imageUri: Uri,
+        rotationDegrees: Float,
+        flipped: Boolean,
+        cropLeft: Float,
+        cropTop: Float,
+        cropRight: Float,
+        cropBottom: Float
+    ): Job = viewModelScope.launch {
+        state.value = OcrState.Processing
+        val cropped = withContext(Dispatchers.Default) {
+            BitmapDecoding.decodeForOcr(getApplication(), imageUri, rotationDegrees, flipped, cropLeft, cropTop, cropRight, cropBottom)
+        }
+        val result = if (cropped == null) {
+            // 디코드 실패는 그 자리에서 오류로 끝낸다. 대체 이미지로 인식을 돌리지 않는다.
+            OcrState.Error(DECODE_ERROR_MESSAGE)
+        } else {
+            try {
+                extractSafely(cropped, extractor)
+            } finally {
+                cropped.recycle()
             }
         }
+        ensureActive() // 취소됐으면 여기서 끝. 옛 작업의 결과가 새 상태를 덮어쓰지 않는다
+        state.value = result
     }
 
     // ---- 정밀 분석 경로: 기본 경로(ocrState)와 상태를 분리해 결과가 편집창을 조용히 덮어쓰지 않게 한다 ----
     val preciseOcrState = MutableStateFlow<OcrState>(OcrState.Idle)
     private var preciseJob: Job? = null
+    private var preciseOwner: String? = null
+
+    /**
+     * 화면 진입 시 호출. 소유자(책/일기)가 바뀐 경우에만 진행 중 작업·결과를 버린다.
+     * 회전 등 화면 재생성에서는 소유자가 같으므로 유료 요청과 그 결과가 살아남는다.
+     */
+    fun enterPreciseScope(owner: String) {
+        if (preciseOwner != owner) {
+            resetPreciseOcrState()
+            preciseOwner = owner
+        }
+    }
 
     /**
      * 사진을 사용자 본인 키로 Google Gemini에 보내 분석한다. 키 등록과 사진 전송 동의가 모두 없으면 **호출하지 않고** 오류로 끝난다.
@@ -433,18 +498,8 @@ class ReadingViewModel @JvmOverloads constructor(
             preciseOcrState.value = OcrState.Error(CONSENT_REQUIRED_MESSAGE)
             return
         }
-        if (preciseJob?.isActive == true) return
-        preciseJob = viewModelScope.launch {
-            preciseOcrState.value = OcrState.Processing
-            val cropped = withContext(Dispatchers.Default) {
-                BitmapDecoding.decodeForOcr(getApplication(), imageUri, rotationDegrees, flipped, cropLeft, cropTop, cropRight, cropBottom)
-            }
-            preciseOcrState.value = if (cropped == null) {
-                OcrState.Error(DECODE_ERROR_MESSAGE)
-            } else {
-                extractSafely(cropped, preciseExtractor).also { cropped.recycle() }
-            }
-        }
+        if (anyOcrRunning()) return
+        preciseJob = runOcrPipeline(preciseOcrState, preciseExtractor, imageUri, rotationDegrees, flipped, cropLeft, cropTop, cropRight, cropBottom)
     }
 
     fun resetPreciseOcrState() {
@@ -453,7 +508,8 @@ class ReadingViewModel @JvmOverloads constructor(
         preciseOcrState.value = OcrState.Idle
     }
 
-    private suspend fun extractSafely(bitmap: Bitmap, extractor: TextExtractor = textExtractor): OcrState = try {
+    /** 어떤 엔진을 쓰는지는 호출부에서 항상 명시한다(기본값 없음 — 온디바이스/외부 전송 선택이 diff에 드러나게). */
+    private suspend fun extractSafely(bitmap: Bitmap, extractor: TextExtractor): OcrState = try {
         when (val outcome = extractor.extract(bitmap)) {
             is OcrOutcome.Text -> OcrState.Success(outcome.text)
             OcrOutcome.NoText -> OcrState.Error(NO_TEXT_MESSAGE)

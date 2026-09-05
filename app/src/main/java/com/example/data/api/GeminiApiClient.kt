@@ -5,11 +5,18 @@ import android.graphics.Bitmap
 import android.util.Base64
 import android.util.Log
 import com.example.data.SecureKeyManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
+import java.io.IOException
+import kotlin.coroutines.resume
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
@@ -24,8 +31,8 @@ import java.util.concurrent.TimeUnit
  * 사용자가 직접 등록해 기기 암호화 저장소에 보관한 [SecureKeyManager.getGeminiApiKey]다.
  * 키가 없으면 네트워크 호출 없이 [IllegalStateException]을 던진다(가짜 문장 폴백 없음, ADR-002).
  *
- * 현재 이 클래스를 호출하는 경로는 없다. 기본 추출 경로는 온디바이스 [com.example.data.ocr.MlKitTextExtractor]이며,
- * Gemini "정밀 분석"은 사진 전송에 대한 사용자 명시 동의 UI와 함께 붙인다(ADR-002 Q3).
+ * 이 클래스는 [com.example.data.ocr.GeminiTextExtractor] 어댑터를 통해서만 호출되며, 그 어댑터는 키 등록 + 사진 전송 동의 +
+ * 사진마다 확인을 거친 "정밀 분석" 경로에서만 쓰인다(ADR-002 Q3). 기본 추출 경로는 온디바이스 [com.example.data.ocr.MlKitTextExtractor]다.
  */
 object GeminiApiClient {
     private const val TAG = "LocalOcrAnalyzer"
@@ -105,7 +112,20 @@ object GeminiApiClient {
 
                 Log.d(TAG, "Requesting Gemini API ($MODEL) with real-time OCR...")
                 
-                okHttpClient.newCall(request).execute().use { response ->
+                // 코루틴 취소 시 업로드도 끊는다(취소된 뒤 사진이 끝까지 전송·과금되지 않게)
+                val call = okHttpClient.newCall(request)
+                val executed = suspendCancellableCoroutine<Response> { cont ->
+                    cont.invokeOnCancellation { call.cancel() }
+                    call.enqueue(object : Callback {
+                        override fun onFailure(call: Call, e: IOException) {
+                            if (cont.isActive) cont.resumeWith(Result.failure(e))
+                        }
+                        override fun onResponse(call: Call, response: Response) {
+                            if (cont.isActive) cont.resume(response) else response.close()
+                        }
+                    })
+                }
+                executed.use { response ->
                     if (response.isSuccessful) {
                         val responseBody = response.body?.string() ?: ""
                         Log.d(TAG, "Gemini API response received.")
@@ -135,6 +155,8 @@ object GeminiApiClient {
                         Log.e(TAG, "Gemini API rejected request: Code ${response.code} Body(200): $errPreview")
                     }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 // 예외 메시지에 헤더 값(키)이 실릴 수 있으므로 종류만 기록한다
                 Log.e(TAG, "Exception during real Gemini API execution: ${e::class.java.simpleName}")

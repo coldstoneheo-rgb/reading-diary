@@ -22,6 +22,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -407,8 +409,13 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                             )
                             TextButton(
                                 onClick = {
-                                    viewModel.clearGeminiApiKey()
-                                    Toast.makeText(context, "Gemini 키를 삭제했습니다.", Toast.LENGTH_SHORT).show()
+                                    viewModel.clearGeminiApiKey { cleared ->
+                                        Toast.makeText(
+                                            context,
+                                            if (cleared) "Gemini 키를 삭제했습니다." else "삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
                                 },
                                 modifier = Modifier.testTag("gemini_key_clear_button")
                             ) { Text("삭제") }
@@ -420,21 +427,24 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                             label = { Text("Gemini API 키") },
                             singleLine = true,
                             visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("gemini_key_input")
                         )
                         Button(
                             onClick = {
-                                if (viewModel.saveGeminiApiKey(geminiKeyInput)) {
-                                    geminiKeyInput = ""
-                                    Toast.makeText(context, "키를 기기 암호화 저장소에 저장했습니다.", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    Toast.makeText(
-                                        context,
-                                        "저장하지 못했습니다. 키에 허용되지 않는 문자가 있거나 이 기기의 암호화 저장소를 열 수 없습니다.",
-                                        Toast.LENGTH_LONG
-                                    ).show()
+                                viewModel.saveGeminiApiKey(geminiKeyInput) { saved ->
+                                    if (saved) {
+                                        geminiKeyInput = ""
+                                        Toast.makeText(context, "키를 기기 암호화 저장소에 저장했습니다.", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            "저장하지 못했습니다. 키에 허용되지 않는 문자가 있거나 이 기기의 암호화 저장소를 열 수 없습니다.",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
                                 }
                             },
                             enabled = geminiKeyInput.isNotBlank(),
@@ -641,7 +651,7 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                                 shape = RoundedCornerShape(6.dp)
                             ) {
                                 Text(
-                                    text = "제 1조 [목적]\n본 이용약관은 '나만의 서재 다이어리' 서비스가 제공하는 스마트 온디바이스 독서 기록 관리에 대한 제반 권리와 의무 사항을 규정함을 목적으로 합니다.\n\n제 2조 [데이터 보안 책무]\n본 서비스는 사용자가 추출한 발췌 구절 및 다이어리를 제3의 광고 서버로 양도 및 무기명 판매하지 않는 청정 오프라인 우선 보안 환경을 유지할 것을 선언합니다.",
+                                    text = "제 1조 [목적]\n본 이용약관은 '나만의 서재 다이어리' 서비스가 제공하는 스마트 온디바이스 독서 기록 관리에 대한 제반 권리와 의무 사항을 규정함을 목적으로 합니다.\n\n제 2조 [데이터 보안 책무]\n본 서비스는 사용자가 추출한 발췌 구절 및 다이어리를 제3의 광고 서버로 양도 및 무기명 판매하지 않는 청정 오프라인 우선 보안 환경을 유지할 것을 선언합니다.\n\n제 3조 [선택적 외부 전송]\n사용자가 설정에서 본인의 Google Gemini API 키를 등록하고 사진 전송에 명시적으로 동의한 경우에 한해, '정밀 분석'을 실행할 때마다 사용자가 선택한 페이지 사진이 Google Gemini로 전송됩니다. 그 외의 경우 사진은 기기 밖으로 나가지 않습니다.",
                                     style = MaterialTheme.typography.bodySmall,
                                     modifier = Modifier.padding(10.dp),
                                     lineHeight = 16.sp
@@ -677,7 +687,7 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                                 shape = RoundedCornerShape(6.dp)
                             ) {
                                 Text(
-                                    text = "'나만의 서재 다이어리'는 개인정보 보호법 등 준법 기준을 엄격하게 엄수하며, 기기 바깥으로 식별 명세를 일체 요구하거나 비밀 수집·전송하지 않는 것을 철칙으로 삼으며 안전하게 보관 처리함을 알려 드립니다.",
+                                    text = "'나만의 서재 다이어리'는 개인정보 보호법 등 준법 기준을 엄격하게 엄수하며, 기기 바깥으로 식별 명세를 일체 요구하거나 비밀 수집·전송하지 않는 것을 철칙으로 삼으며 안전하게 보관 처리함을 알려 드립니다. 단, 사용자가 본인의 Gemini API 키를 등록하고 사진 전송에 동의한 뒤 직접 '정밀 분석'을 실행한 경우에는 해당 페이지 사진이 Google Gemini로 전송되며, 이는 사용자의 명시적 행위로만 이루어집니다.",
                                     style = MaterialTheme.typography.bodySmall,
                                     modifier = Modifier.padding(10.dp),
                                     lineHeight = 16.sp

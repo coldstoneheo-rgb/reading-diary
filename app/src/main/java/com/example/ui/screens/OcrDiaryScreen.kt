@@ -205,11 +205,9 @@ fun OcrDiaryScreen(
     // 화면 진입 시 이전 화면(다른 책/일기)의 OCR 결과가 남아 편집창을 덮어쓰지 않도록 초기화하고, 이탈 시에도 비운다
     DisposableEffect(Unit) {
         viewModel.resetOcrState()
-        viewModel.resetPreciseOcrState()
-        onDispose {
-            viewModel.resetOcrState()
-            viewModel.resetPreciseOcrState()
-        }
+        // 정밀 분석(유료·외부 전송)은 소유자(책/일기)가 바뀔 때만 버린다. 회전 등 재생성에서는 요청과 결과가 살아남는다.
+        viewModel.enterPreciseScope("$bookId/$diaryId")
+        onDispose { viewModel.resetOcrState() }
     }
 
     // 정밀 분석 실패는 토스트로만 알리고 편집창은 건드리지 않는다
@@ -1033,10 +1031,10 @@ fun OcrDiaryScreen(
 
                 // 정밀 분석(선택): 키 등록 + 사진 전송 동의가 있을 때만 노출. 사진마다 확인 다이얼로그를 거친다(ADR-002 Q3)
                 val preciseTarget = activeImageUrl?.takeIf { !it.startsWith("http") }
-                if (preciseAvailable && preciseTarget != null) {
+                if (preciseAvailable && preciseTarget != null && isCroppedReady) {
                     OutlinedButton(
                         onClick = { showPreciseConfirm = true },
-                        enabled = preciseState !is OcrState.Processing,
+                        enabled = preciseState !is OcrState.Processing && ocrState !is OcrState.Processing,
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("precise_analysis_button"),

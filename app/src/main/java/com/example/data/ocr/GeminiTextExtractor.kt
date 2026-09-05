@@ -19,7 +19,8 @@ class GeminiTextExtractor(private val context: Context) : TextExtractor {
     } catch (e: IllegalStateException) {
         // 키 미등록/요청 실패 — GeminiApiClient가 사용자 문구를 담아 던진다
         OcrOutcome.Failed(e.message ?: "정밀 분석 요청이 실패했어요.")
-    } catch (e: Exception) {
-        OcrOutcome.Failed("정밀 분석 요청 중 오류가 났어요. 네트워크를 확인해 주세요.")
+    } catch (e: OutOfMemoryError) {
+        // JPEG 압축·Base64·JSON 직렬화가 큰 임시 복사본을 만든다. Error라 일반 catch를 우회하므로 여기서 받는다
+        OcrOutcome.Failed("메모리가 부족해 정밀 분석을 진행하지 못했어요. 더 작은 영역을 잘라 다시 시도해 주세요.")
     }
 }
