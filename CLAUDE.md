@@ -74,4 +74,4 @@ gradle :app:assembleDebug            # 디버그 빌드 — 루트에 debug.keys
 - Room 스키마 변경은 🔴 고위험: 마이그레이션 전략 없이 엔티티 필드를 바꾸지 않는다(기존 설치 데이터 소실).
 
 ---
-**Last Updated:** 2026-09-05 · **Stack:** Kotlin 2.2 · AGP 9.1 · Compose BOM · Room · OkHttp(Retrofit/Moshi 의존성은 있으나 미사용) · Roborazzi
+**Last Updated:** 2026-09-05 · **Stack:** Kotlin 2.2 · AGP 9.1 · Compose BOM · Room · OkHttp + org.json(직접 사용, Retrofit/Moshi 제거됨) · Roborazzi
