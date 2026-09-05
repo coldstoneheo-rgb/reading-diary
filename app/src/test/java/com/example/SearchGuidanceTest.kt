@@ -1,6 +1,7 @@
 package com.example
 
-import com.example.ui.screens.isHeaderSafe
+import com.example.ui.screens.areNaverKeysHeaderSafe
+import com.example.ui.screens.connectionFailureText
 import com.example.ui.screens.pickNaverCredentials
 import com.example.ui.screens.searchGuidanceText
 import org.junit.Assert.assertEquals
@@ -64,9 +65,19 @@ class SearchGuidanceTest {
   @Test
   fun credentials_withNonAsciiCharacters_areNotHeaderSafe() {
     // 비ASCII 키를 헤더에 넣으면 OkHttp 예외 메시지에 값이 통째로 실린다(CLAUDE.md). 헤더 투입 전에 걸러야 한다.
-    assertTrue(("ABCDEFGHIJKLMNOPQRST" to "abcdefghij").isHeaderSafe())
-    assertFalse(("ABCDEFGHIJKLMNOPQRST" to "abcdefghi\u200b").isHeaderSafe())   // zero-width space
-    assertFalse(("ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴ" to "abcdefghij").isHeaderSafe())   // 전각 문자
+    assertTrue(areNaverKeysHeaderSafe("ABCDEFGHIJKLMNOPQRST", "abcdefghij"))
+    assertFalse(areNaverKeysHeaderSafe("ABCDEFGHIJKLMNOPQRST", "abcdefghi\u200b"))   // zero-width space
+    assertFalse(areNaverKeysHeaderSafe("ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴ", "abcdefghij"))   // 전각 문자
+  }
+
+  @Test
+  fun connectionFailure_isTranslatedWithoutExceptionMessage() {
+    val secret = "abcdefghij"
+    val text = connectionFailureText(java.net.UnknownHostException("openapi.naver.com header=$secret"))
+    assertTrue(text.contains("인터넷 연결"))
+    assertFalse(text.contains(secret))
+    assertTrue(connectionFailureText(java.net.SocketTimeoutException("t")).contains("늦어"))
+    assertTrue(connectionFailureText(IllegalStateException("x")).contains("다시 시도"))
   }
 
   @Test

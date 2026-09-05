@@ -92,6 +92,15 @@ class BookSearchParsersTest {
   }
 
   @Test
+  fun naver_translatorAndEditorRoleSuffixes_areStripped() {
+    // 번역서의 전형적 형태. "옮김"이 접미 목록에 없으면 "박수진 옮김"이 사람 이름으로 남는다.
+    val body = """{"items":[{"title":"T","author":"김영하 지음^박수진 옮김"},{"title":"U","author":"홍길동 편저|이몽룡 감수"}]}"""
+    val result = BookSearchParsers.parseNaverBooks(body)
+    assertEquals("김영하, 박수진", result[0].author)
+    assertEquals("홍길동, 이몽룡", result[1].author)
+  }
+
+  @Test
   fun naver_authorWithOnlyRoleWords_fallsBackToUnknown() {
     val body = """{"items":[{"title":"T","author":"지음"}]}"""
     assertEquals("지은이 미상", BookSearchParsers.parseNaverBooks(body)[0].author)

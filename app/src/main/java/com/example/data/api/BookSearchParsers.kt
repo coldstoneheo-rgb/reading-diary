@@ -19,7 +19,7 @@ object BookSearchParsers {
     private val TITLE_EDITION_SUFFIX =
         Regex("\\s*[\\(\\[](반양장본|양장본|개정판|제\\d+판|Paperback|Hardcover|소설|단행본|Korean Edition|번역본)[\\)\\]]")
     private val AUTHOR_ROLE_PREFIX = Regex("^(저자|지은이|글|그림|옮김)\\s*:\\s*")
-    private val AUTHOR_ROLE_SUFFIX = Regex("\\s+(저|지음|글|그림|역)$")
+    private val AUTHOR_ROLE_SUFFIX = Regex("\\s+(저|지음|글|그림|역|옮김|편|편저|감수)$")
     /** 역할어만 남은 조각(예: author가 "지음")은 저자가 아니다. */
     private val AUTHOR_ROLE_ONLY = Regex("^(저|지음|글|그림|역|옮김|편|편저|감수)$")
 
