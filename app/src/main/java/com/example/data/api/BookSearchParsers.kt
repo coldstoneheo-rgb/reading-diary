@@ -20,6 +20,8 @@ object BookSearchParsers {
         Regex("\\s*[\\(\\[](반양장본|양장본|개정판|제\\d+판|Paperback|Hardcover|소설|단행본|Korean Edition|번역본)[\\)\\]]")
     private val AUTHOR_ROLE_PREFIX = Regex("^(저자|지은이|글|그림|옮김)\\s*:\\s*")
     private val AUTHOR_ROLE_SUFFIX = Regex("\\s+(저|지음|글|그림|역)$")
+    /** 역할어만 남은 조각(예: author가 "지음")은 저자가 아니다. */
+    private val AUTHOR_ROLE_ONLY = Regex("^(저|지음|글|그림|역|옮김|편|편저|감수)$")
 
     /**
      * 네이버 책 검색 API(`/v1/search/book.json`) 응답 파싱. `items`가 없으면 빈 목록.
@@ -38,13 +40,14 @@ object BookSearchParsers {
                 .replace(TITLE_EDITION_SUFFIX, "")
                 .trim()
 
+            // 네이버는 공저자를 ^ 또는 |로 잇는다. 역할어(저/지음/옮김…)는 저자마다 붙으므로 나눈 뒤 각자 떼고 다시 잇는다.
             val cleanAuthor = rawAuthor
                 .replace(HTML_TAG, "")
-                .replace(AUTHOR_ROLE_PREFIX, "")
-                .replace(AUTHOR_ROLE_SUFFIX, "")
-                .replace("^", ", ")
-                .replace("|", ", ")
-                .trim()
+                .split('^', '|')
+                .map { it.trim().replace(AUTHOR_ROLE_PREFIX, "").replace(AUTHOR_ROLE_SUFFIX, "").trim() }
+                .filterNot { it.isEmpty() || AUTHOR_ROLE_ONLY.matches(it) }
+                .joinToString(", ")
+                .ifBlank { "지은이 미상" }
 
             val cover = item.optString("image", "")
             list.add(SearchResultBook(cleanTitle, cleanAuthor, 250, cover))
@@ -69,8 +72,11 @@ object BookSearchParsers {
             } else "지은이 미상"
             val pageCount = volumeInfo.optInt("pageCount", 250)
             val imageLinks = volumeInfo.optJSONObject("imageLinks")
-            val thumb = imageLinks?.optString("thumbnail")?.replace("http://", "https://")
-                ?: imageLinks?.optString("smallThumbnail")?.replace("http://", "https://") ?: ""
+            // optString은 결측 시 null이 아닌 ""를 돌려주므로 isNotBlank로 걸러야 smallThumbnail 폴백이 동작한다.
+            val thumb = listOf("thumbnail", "smallThumbnail")
+                .map { imageLinks?.optString(it, "").orEmpty() }
+                .firstOrNull { it.isNotBlank() }
+                ?.replace("http://", "https://") ?: ""
             list.add(SearchResultBook(titleStr, authorStr, pageCount, thumb))
         }
         return list

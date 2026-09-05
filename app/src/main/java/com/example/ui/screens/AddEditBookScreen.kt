@@ -53,6 +53,7 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import okhttp3.OkHttpClient
+import org.json.JSONException
 import okhttp3.Request
 import java.net.URLEncoder
 
@@ -171,7 +172,10 @@ fun AddEditBookScreen(
             isSearching = true
             val naverCredentials = withContext(Dispatchers.IO) { resolveNaverCredentials(context) }
             val responseResult = withContext(Dispatchers.IO) {
-                if (naverCredentials != null) {
+                if (naverCredentials != null && !naverCredentials.isHeaderSafe()) {
+                    // 비ASCII가 섞인 키를 헤더에 넣으면 OkHttp 예외 메시지에 값이 통째로 실린다(CLAUDE.md 안전 규칙). 값은 표시하지 않는다.
+                    Pair<List<SearchResultBook>, String?>(emptyList(), "네이버 검색 키에 헤더에 쓸 수 없는 문자가 섞여 있습니다. .env의 키를 확인해 주세요.")
+                } else if (naverCredentials != null) {
                     val (configClientId, configClientSecret) = naverCredentials
                     try {
                         val client = OkHttpClient()
@@ -203,8 +207,11 @@ fun AddEditBookScreen(
                             }
                             Pair<List<SearchResultBook>, String?>(emptyList(), errMsg)
                         }
+                    } catch (e: JSONException) {
+                        Pair<List<SearchResultBook>, String?>(emptyList(), "네이버 응답을 해석할 수 없습니다. 잠시 후 다시 시도해 주세요.")
                     } catch (e: Exception) {
-                        Pair<List<SearchResultBook>, String?>(emptyList(), "네이버 연결 네트워크 도중 오류가 발생했습니다: ${e.message}")
+                        // 예외 메시지에는 URL·헤더가 실릴 수 있어 종류만 보여 준다.
+                        Pair<List<SearchResultBook>, String?>(emptyList(), "네이버에 연결하지 못했습니다 (${e.javaClass.simpleName}).")
                     }
                 } else {
                     try {
@@ -228,8 +235,10 @@ fun AddEditBookScreen(
                             }
                             Pair<List<SearchResultBook>, String?>(emptyList(), googleErrDetail)
                         }
+                    } catch (e: JSONException) {
+                        Pair<List<SearchResultBook>, String?>(emptyList(), "Google 도서 응답을 해석할 수 없습니다. 잠시 후 다시 시도해 주세요.")
                     } catch (e: Exception) {
-                        Pair<List<SearchResultBook>, String?>(emptyList(), "네트워크에 연결할 수 없거나 요청 처리 중 오류가 발생했습니다: ${e.localizedMessage}")
+                        Pair<List<SearchResultBook>, String?>(emptyList(), "온라인 검색에 연결하지 못했습니다 (${e.javaClass.simpleName}).")
                     }
                 }
             }
@@ -834,6 +843,10 @@ private val NAVER_PLACEHOLDERS = setOf(
     "MY_NAVER_CLIENT_ID", "NAVER_CLIENT_ID", "NAVER_CLIENT_ID_PLACEHOLDER",
     "MY_NAVER_CLIENT_SECRET", "NAVER_CLIENT_SECRET", "NAVER_CLIENT_SECRET_PLACEHOLDER"
 )
+
+/** 두 값 모두 출력 가능한 ASCII인가. 아니면 헤더에 넣지 않는다(예외 메시지에 값이 실리는 것을 막는다). */
+internal fun Pair<String, String>.isHeaderSafe(): Boolean =
+    SecureKeyManager.isHeaderSafe(first) && SecureKeyManager.isHeaderSafe(second)
 
 /**
  * 순수 함수: 원시 문자열 둘을 정리해 (ID, Secret)으로 만든다. 둘 다 있어야 하고 공백·자리표시자(양쪽 목록 합집합)는 없는 것으로 친다.
