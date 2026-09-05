@@ -2,8 +2,10 @@ package com.example.ui.screens
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -20,10 +22,12 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.Book
 import com.example.data.Diary
+import com.example.data.knowledge.SharedWord
 import com.example.ui.viewmodel.ReadingViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -31,8 +35,8 @@ import java.util.Locale
 
 /**
  * 기억 서랍 — 책 사이의 연결(ADR-003).
- * 이 파일은 4단계(제거 + 중립 문구) 상태다: 장식 그래프·고정 점수·하드코딩 태그를 걷어내고, 검색은 일치 근거를 라벨로 보여준다.
- * "연결 발견"(서로 다른 책에 함께 나온 단어)은 5단계에서 [KnowledgeDrawerContent]에 추가된다.
+ * "연결"은 서로 다른 책 2권 이상의 기록에 함께 나온 단어다(Q1). 계산은 [ReadingViewModel.sharedWords]가 DB 변경 시에만 한다(Q4).
+ * 단어는 형태소 분석 없는 휴리스틱으로 뽑으므로 "함께 나온 단어"라 부르고 항상 원문 구절과 함께 보인다(Q2).
  */
 @Composable
 fun KnowledgeDrawerScreen(
@@ -41,9 +45,11 @@ fun KnowledgeDrawerScreen(
 ) {
     val books by viewModel.books.collectAsState()
     val diaries by viewModel.diaries.collectAsState()
+    val sharedWords by viewModel.sharedWords.collectAsState()
     KnowledgeDrawerContent(
         books = books,
         diaries = diaries,
+        sharedWords = sharedWords,
         onBack = { viewModel.navigateBack() },
         modifier = modifier
     )
@@ -76,21 +82,25 @@ internal fun matchKind(diary: Diary, bookTitle: String, query: String): MatchKin
     }
 }
 
+private const val CONNECTIONS_COLLAPSED = 3
+
 /** ViewModel 없이 그릴 수 있는 본문. 스크린샷 테스트가 고정 데이터로 이 함수를 그린다. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KnowledgeDrawerContent(
     books: List<Book>,
     diaries: List<Diary>,
+    sharedWords: List<SharedWord>,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val titleById = remember(books) { books.associate { it.id to it.title } }
-
     val dateFormat = remember { SimpleDateFormat("yyyy.MM.dd", Locale.getDefault()) }
+
     var searchKeyword by rememberSaveable { mutableStateOf("") }
+    var showAllConnections by rememberSaveable { mutableStateOf(false) }
     val query = searchKeyword.trim()
 
     val results: List<Pair<Diary, MatchKind?>> = remember(query, diaries, titleById) {
@@ -103,6 +113,8 @@ fun KnowledgeDrawerContent(
             }
         }
     }
+    val visibleConnections = if (showAllConnections) sharedWords else sharedWords.take(CONNECTIONS_COLLAPSED)
+    val booksWithRecords = remember(diaries) { diaries.map { it.bookId }.toSet().size }
 
     Scaffold(
         topBar = {
@@ -180,7 +192,7 @@ fun KnowledgeDrawerContent(
                 }
             }
 
-            // 내 기록 검색
+            // 내 기록 검색 + 함께 나온 단어 칩(누르면 검색어로)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = "내 기록 검색",
@@ -206,15 +218,33 @@ fun KnowledgeDrawerContent(
                     shape = RoundedCornerShape(8.dp),
                     singleLine = true
                 )
+                if (sharedWords.isNotEmpty()) {
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("knowledgedrawer_word_chips"),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(sharedWords, key = { it.word }) { sw ->
+                            val chipIcon: (@Composable () -> Unit)? = if (sw.userTagged) {
+                                { Icon(Icons.Default.Tag, contentDescription = "내 태그", modifier = Modifier.size(14.dp)) }
+                            } else null
+                            SuggestionChip(
+                                onClick = { searchKeyword = sw.word },
+                                label = { Text("#${sw.word}") },
+                                icon = chipIcon
+                            )
+                        }
+                    }
+                }
             }
 
-            Text(
-                text = if (query.isEmpty()) "기록 ${results.size}개" else "일치하는 기록 ${results.size}개",
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-            )
-
-            if (results.isEmpty()) {
+            if (results.isEmpty() && (query.isNotEmpty() || diaries.isEmpty())) {
+                Text(
+                    text = if (query.isEmpty()) "기록 0개" else "일치하는 기록 0개",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -246,10 +276,143 @@ fun KnowledgeDrawerContent(
                         .testTag("knowledgedrawer_results_list"),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(results, key = { it.first.id }) { (diary, kind) ->
+                    // 연결 발견: 검색 중이 아닐 때만. 서로 다른 책에 함께 나온 단어(ADR-003 Q1·Q3 1단계)
+                    if (query.isEmpty()) {
+                        item(key = "connections_header") {
+                            SectionHeader(
+                                title = if (sharedWords.isEmpty()) "연결 발견" else "연결 발견 ${sharedWords.size}개",
+                                subtitle = "서로 다른 책의 기록에 함께 나온 단어"
+                            )
+                        }
+                        if (sharedWords.isEmpty()) {
+                            item(key = "connections_empty") {
+                                Text(
+                                    text = if (booksWithRecords < 2) "다른 책에서 구절을 한 개 더 모으면 연결이 나타납니다."
+                                    else "아직 두 책에 함께 나온 단어가 없습니다. 메모에 #태그를 붙이면 바로 연결됩니다.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                    modifier = Modifier.testTag("knowledgedrawer_connections_empty")
+                                )
+                            }
+                        } else {
+                            items(visibleConnections, key = { "conn_" + it.word }) { sw ->
+                                ConnectionCard(sharedWord = sw)
+                            }
+                            if (sharedWords.size > CONNECTIONS_COLLAPSED) {
+                                item(key = "connections_toggle") {
+                                    TextButton(
+                                        onClick = { showAllConnections = !showAllConnections },
+                                        modifier = Modifier.testTag("knowledgedrawer_connections_toggle")
+                                    ) {
+                                        Text(if (showAllConnections) "접기" else "연결 ${sharedWords.size - CONNECTIONS_COLLAPSED}개 더 보기")
+                                    }
+                                }
+                            }
+                        }
+                        item(key = "records_header") {
+                            SectionHeader(title = "기록 ${results.size}개", subtitle = null)
+                        }
+                    } else {
+                        item(key = "records_header") {
+                            SectionHeader(title = "일치하는 기록 ${results.size}개", subtitle = null)
+                        }
+                    }
+                    items(results, key = { "diary_" + it.first.id }) { (diary, kind) ->
                         DiaryResultCard(diary = diary, bookTitle = titleById[diary.bookId], matchKind = kind, dateFormat = dateFormat)
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String, subtitle: String?) {
+    Column {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+        )
+        if (subtitle != null) {
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+            )
+        }
+    }
+}
+
+/**
+ * 연결 카드: 단어 하나와 그 단어가 나온 서로 다른 책의 구절들.
+ * 접힌 상태에서는 책마다 첫 구절만, 펼치면 전부. 원문이 항상 보이므로 휴리스틱 오탐은 사용자 눈에 곧 걸러진다(ADR-003 Q2).
+ */
+@Composable
+private fun ConnectionCard(sharedWord: SharedWord) {
+    var expanded by remember(sharedWord.word) { mutableStateOf(false) }
+    val quotes = remember(sharedWord, expanded) {
+        if (expanded) sharedWord.quotes else sharedWord.quotes.distinctBy { it.bookId }
+    }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { expanded = !expanded }
+            .testTag("knowledgedrawer_connection_${sharedWord.word}"),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f))
+    ) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(
+                    imageVector = Icons.Default.Link,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = "#${sharedWord.word}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                if (sharedWord.userTagged) {
+                    Text(
+                        text = "내 태그",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = "책 ${sharedWord.bookCount}권 · 구절 ${sharedWord.quotes.size}개",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
+            }
+            quotes.forEach { q ->
+                Row(verticalAlignment = Alignment.Top) {
+                    Text(
+                        text = "${q.bookTitle} p.${q.page}",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
+                        modifier = Modifier.width(96.dp)
+                    )
+                    Text(
+                        text = q.text,
+                        style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                        maxLines = if (expanded) Int.MAX_VALUE else 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            if (!expanded && sharedWord.quotes.size > quotes.size) {
+                Text(
+                    text = "구절 ${sharedWord.quotes.size - quotes.size}개 더 보기",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
         }
     }

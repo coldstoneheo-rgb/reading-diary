@@ -11,6 +11,8 @@ import com.example.data.Bookcase
 import com.example.data.Diary
 import com.example.data.ReadingRepository
 import com.example.data.SecureKeyManager
+import com.example.data.knowledge.KeywordLinks
+import com.example.data.knowledge.SharedWord
 import com.example.data.ocr.BitmapDecoding
 import com.example.data.ocr.GeminiTextExtractor
 import com.example.data.ocr.MlKitTextExtractor
@@ -25,6 +27,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -190,6 +193,15 @@ class ReadingViewModel @JvmOverloads constructor(
             else -> list
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * 책 사이의 연결(ADR-003 Q1·Q4): 서로 다른 책 2권 이상의 기록에 함께 나온 단어.
+     * DB가 바뀔 때만 Default 디스패처에서 재계산한다. 화면은 이 값을 읽기만 한다.
+     */
+    val sharedWords: StateFlow<List<SharedWord>> = combine(repository.allBooks, repository.allDiaries) { allBooks, allDiaries ->
+        KeywordLinks.build(allBooks, allDiaries)
+    }.flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Active Details states
     val activeBook = MutableStateFlow<Book?>(null)
