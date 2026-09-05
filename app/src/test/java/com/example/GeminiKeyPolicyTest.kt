@@ -60,6 +60,21 @@ class GeminiKeyPolicyTest {
   }
 
   @Test
+  fun backupRules_excludeSecureKeyPrefs() {
+    // ADR-001: 키 저장소는 클라우드 백업·기기 이전에서 제외. IDE 템플릿 재생성으로 규칙이 사라지면 이 테스트가 잡는다.
+    val exclude = Regex("""<exclude\s+domain="sharedpref"\s+path="secure_user_prefs\.xml"\s*/>""")
+
+    val legacy = java.io.File("src/main/res/xml/backup_rules.xml").readText()
+    assertTrue("backup_rules.xml must exclude secure_user_prefs.xml", exclude.containsMatchIn(legacy))
+
+    val modern = java.io.File("src/main/res/xml/data_extraction_rules.xml").readText()
+    val cloud = Regex("""<cloud-backup>[\s\S]*?</cloud-backup>""").find(modern)?.value ?: ""
+    val transfer = Regex("""<device-transfer>[\s\S]*?</device-transfer>""").find(modern)?.value ?: ""
+    assertTrue("cloud-backup must exclude secure_user_prefs.xml", exclude.containsMatchIn(cloud))
+    assertTrue("device-transfer must exclude secure_user_prefs.xml", exclude.containsMatchIn(transfer))
+  }
+
+  @Test
   fun saveGeminiApiKey_rejectsNonHeaderSafeCharacters() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     // 제로폭 공백·전각 문자는 헤더에 실을 수 없고, 실으려 하면 예외 메시지에 키가 통째로 남는다

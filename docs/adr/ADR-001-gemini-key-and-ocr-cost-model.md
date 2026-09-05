@@ -68,8 +68,11 @@
   암호화 저장소를 열 수 없으면 저장을 거부하고(`saveGeminiApiKey` → `false`), 읽기도 평문 폴백을 보지 않는다.
   출력 가능한 ASCII가 아닌 키는 저장 단계에서 거부한다(헤더 조립 예외 메시지에 키가 실리는 경로 차단).
   키가 등록된 상태에서 호출이 실패하면 예외로 실패 사실을 알린다(가짜 문장 없음, ADR-002).
-  남은 항목: `allowBackup="true"`에 백업 제외 규칙이 비어 있어 prefs 파일이 클라우드 백업에 포함된다. 2단계 D(설정 UI) 전에
-  `backup_rules.xml`/`data_extraction_rules.xml`에서 `secure_user_prefs`를 제외한다.
+  백업: `backup_rules.xml`/`data_extraction_rules.xml`에서 `secure_user_prefs.xml`(EncryptedSharedPreferences 키셋은 같은 파일 안의
+  예약 키라 함께 제외됨)을 클라우드 백업·기기 이전 모두에서 제외했다 — 2단계 D(BYO 키 UI)의 선행 조건인 "백업 제외" 완료.
+  Room DB와 일반 설정은 계속 백업된다. 마스터키는 AndroidKeyStore에 있어 어차피 다른 기기에서 복호화할 수 없었으므로, 이 변경은
+  "복호화 불가능한 prefs가 복원돼 이후 암호화 저장소 생성이 영구 실패하는" 고장 상태도 막는다. 이미 올라간 기존 백업은
+  다음 백업 주기에 정리된다. 키 UI에는 "이 키는 백업·기기 이전에 포함되지 않습니다"를 안내한다.
 - **키 회전 권고:** 과거 실제 키가 든 `.env`로 빌드한 APK가 기기나 AI Studio에 남아 있을 수 있다. 코드에서 키를 빼도 그 키는
   안전해지지 않으므로, 그런 키가 있었다면 Google AI Studio에서 폐기·재발급한다.
 - 모델 ID `gemini-3.5-flash`는 2026-09 기준 Gemini API의 GA(안정) 모델로 확인됨 — 출처: https://ai.google.dev/gemini-api/docs/models ,
