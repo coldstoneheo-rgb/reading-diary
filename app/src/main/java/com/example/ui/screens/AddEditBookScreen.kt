@@ -41,6 +41,8 @@ import com.example.data.Bookcase
 import com.example.ui.viewmodel.ReadingViewModel
 import com.example.ui.viewmodel.Screen
 import com.example.data.SecureKeyManager
+import com.example.data.api.BookSearchParsers
+import com.example.data.api.SearchResultBook
 import com.example.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -48,7 +50,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONObject
 import java.net.URLEncoder
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -189,33 +190,7 @@ fun AddEditBookScreen(
                         val response = client.newCall(request).execute()
                         if (response.isSuccessful) {
                             val body = response.body?.string() ?: ""
-                            val items = JSONObject(body).optJSONArray("items")
-                            val list = mutableListOf<SearchResultBook>()
-                            if (items != null) {
-                                for (i in 0 until items.length()) {
-                                    val item = items.getJSONObject(i)
-                                    val rawTitle = item.optString("title", "알 수 없는 제목")
-                                    val rawAuthor = item.optString("author", "지은이 미상")
-                                    
-                                    var cleanTitle = rawTitle.replace(Regex("<[^>]*>"), "")
-                                    var cleanAuthor = rawAuthor.replace(Regex("<[^>]*>"), "")
-
-                                    cleanTitle = cleanTitle
-                                        .replace(Regex("\\s*[\\(\\[](반양장본|양장본|개정판|제\\d+판|Paperback|Hardcover|소설|단행본|Korean Edition|번역본)[\\)\\]]"), "")
-                                        .trim()
-
-                                    cleanAuthor = cleanAuthor
-                                        .replace(Regex("^(저자|지은이|글|그림|옮김)\\s*:\\s*"), "")
-                                        .replace(Regex("\\s+(저|지음|글|그림|역)$"), "")
-                                        .replace("^", ", ")
-                                        .replace("|", ", ")
-                                        .trim()
-
-                                    val cover = item.optString("image", "")
-                                    list.add(SearchResultBook(cleanTitle, cleanAuthor, 250, cover))
-                                }
-                            }
-                            Pair<List<SearchResultBook>, String?>(list, null)
+                            Pair<List<SearchResultBook>, String?>(BookSearchParsers.parseNaverBooks(body), null)
                         } else {
                             val errMsg = when (response.code) {
                                 401 -> "네이버 검색 API 인증에 실패했습니다. (HTTP 401 Unauthorized - 입력하신 Naver Client ID 또는 Client Secret Key 값을 다시 한 번 학인해 주세요.)"
@@ -240,25 +215,7 @@ fun AddEditBookScreen(
                         val response = client.newCall(request).execute()
                         if (response.isSuccessful) {
                             val body = response.body?.string() ?: ""
-                            val items = JSONObject(body).optJSONArray("items")
-                            val list = mutableListOf<SearchResultBook>()
-                            if (items != null) {
-                                for (i in 0 until items.length()) {
-                                    val item = items.getJSONObject(i)
-                                    val volumeInfo = item.optJSONObject("volumeInfo") ?: continue
-                                    val titleStr = volumeInfo.optString("title", "알 수 없는 제목")
-                                    val authorsArray = volumeInfo.optJSONArray("authors")
-                                    val authorStr = if (authorsArray != null && authorsArray.length() > 0) {
-                                        authorsArray.getString(0)
-                                    } else "지은이 미상"
-                                    val pageCount = volumeInfo.optInt("pageCount", 250)
-                                    val imageLinks = volumeInfo.optJSONObject("imageLinks")
-                                    val thumb = imageLinks?.optString("thumbnail")?.replace("http://", "https://") 
-                                        ?: imageLinks?.optString("smallThumbnail")?.replace("http://", "https://") ?: ""
-                                    list.add(SearchResultBook(titleStr, authorStr, pageCount, thumb))
-                                }
-                            }
-                            Pair<List<SearchResultBook>, String?>(list, null)
+                            Pair<List<SearchResultBook>, String?>(BookSearchParsers.parseGoogleBooks(body), null)
                         } else {
                             val googleErrDetail = if (response.code == 429) {
                                 "공용 구글 도서 API 호출 한도가 초과되었습니다 (HTTP 429). 지속적인 고성능 도서 검색 서비스를 원하시면 본인의 고유 '네이버 검색 API Key'를 [설정] 화면에 등록하여 사용하시기 바랍니다."
@@ -883,13 +840,5 @@ fun getHighlightedText(text: String, query: String, highlightColor: Color): Anno
         }
     }
 }
-
-data class SearchResultBook(
-    val title: String,
-    val author: String,
-    val pageCount: Int,
-    val coverUrl: String
-)
-
 
 

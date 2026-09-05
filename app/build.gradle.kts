@@ -107,6 +107,8 @@ dependencies {
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)
   testImplementation(libs.junit)
+  // 순수 JVM 단위 테스트에서 org.json을 쓰기 위해(android.jar 스텁은 "not mocked"로 throw)
+  testImplementation(libs.json)
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation(libs.robolectric)
   testImplementation(libs.roborazzi)
