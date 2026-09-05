@@ -293,7 +293,7 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                     ) {
                         Icon(imageVector = Icons.Default.Link, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("기억 서랍 ( Obsidian & RAG )", fontWeight = FontWeight.Bold)
+                        Text("기억 서랍", fontWeight = FontWeight.Bold)
                     }
                 }
             }

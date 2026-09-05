@@ -12,7 +12,7 @@ val BookBackground = Color(0xFFFDFBF7)    // Authentic ivory paper page
 val BookSurface = Color(0xFFF4EFE6)       // Slightly darker warm cream for cards
 
 // ==========================================
-// Theme 2: 미드나잇 블루 (Midnight Blue / Obsidian Navy & Cobalt Accent)
+// Theme 2: 미드나잇 블루 (Midnight Blue / Deep Navy & Cobalt Accent)
 // ==========================================
 val MidnightPrimary = Color(0xFF5AB9FF)     // Soft Radiant Blue
 val MidnightSecondary = Color(0xFF8FA3C7)   // Sleek Slate Silver-Blue
