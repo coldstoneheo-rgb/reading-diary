@@ -74,6 +74,46 @@ class ReadingViewModelOcrTest {
   }
 
   @Test
+  fun uriEntryPoint_missingFile_becomesDecodeError_withoutCallingExtractor() {
+    // 실제 화면이 쓰는 진입점. 디코드 실패는 추출기를 부르지 않고 DECODE_ERROR_MESSAGE로 끝난다.
+    val fake = FakeExtractor(OcrOutcome.Text("should not be used"))
+    val vm = viewModel(fake)
+    val missing = android.net.Uri.fromFile(java.io.File(ApplicationProvider.getApplicationContext<Application>().cacheDir, "missing.png"))
+
+    kotlinx.coroutines.runBlocking {
+      vm.processUnderlineOcr(missing, 0f, false, 0f, 0f, 1f, 1f)
+      // Dispatchers.Default 디코드가 끝날 때까지 상태를 기다린다
+      val deadline = System.currentTimeMillis() + 5_000
+      while (vm.ocrState.value !is OcrState.Error && System.currentTimeMillis() < deadline) {
+        dispatcher.scheduler.advanceUntilIdle()
+        kotlinx.coroutines.delay(20)
+      }
+    }
+
+    assertEquals(OcrState.Error(ReadingViewModel.DECODE_ERROR_MESSAGE), vm.ocrState.value)
+    assertEquals(0, fake.calls)
+  }
+
+  @Test
+  fun resetOcrState_cancelsInFlightJob_soStaleResultNeverLands() = runTest(dispatcher) {
+    val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+    val slow = object : TextExtractor {
+      override suspend fun extract(bitmap: Bitmap): OcrOutcome { gate.await(); return OcrOutcome.Text("stale") }
+    }
+    val vm = viewModel(slow)
+
+    vm.processUnderlineOcr(bitmap)
+    dispatcher.scheduler.runCurrent()
+    assertEquals(OcrState.Processing, vm.ocrState.value)
+
+    vm.resetOcrState() // 화면 이탈
+    gate.complete(Unit)
+    advanceUntilIdle()
+
+    assertEquals(OcrState.Idle, vm.ocrState.value)
+  }
+
+  @Test
   fun engineFailure_becomesErrorWithEngineMessage() = runTest(dispatcher) {
     val vm = viewModel(FakeExtractor(OcrOutcome.Failed("모델 준비 중")))
 

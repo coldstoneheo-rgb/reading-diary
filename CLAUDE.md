@@ -24,7 +24,7 @@ app/src/main/java/com/example/
   ui/viewmodel/ReadingViewModel.kt  # 상태·내비·CRUD 전부 여기 (AndroidViewModel). TextExtractor를 생성자 주입(기본 ML Kit)
   ui/screens/*Screen.kt    # Dashboard/BookDetail/AddEditBook/OcrDiary/Settings/Statistics/KnowledgeDrawer
   ui/screens/AddEditBookScreen.kt   # 네이버 책 검색(OkHttp 직접, openapi.naver.com)이 화면 코드 안에 있음
-  ui/screens/OcrDiaryScreen.kt      # 카메라/갤러리 → 크롭(백그라운드 디코드) → viewModel.processUnderlineOcr(bitmap)
+  ui/screens/OcrDiaryScreen.kt      # 카메라/갤러리 → 크롭 비율 지정 → viewModel.processUnderlineOcr(uri, 회전, 플립, 크롭) (디코드는 ViewModel)
   ui/theme/                # 테마 id로 전환하는 다중 컬러스킴
 ```
 

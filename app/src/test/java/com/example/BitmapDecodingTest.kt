@@ -81,7 +81,12 @@ class BitmapDecodingTest {
   @Test
   fun pureHelpers() {
     assertEquals(90f, BitmapDecoding.exifDegrees(ExifInterface.ORIENTATION_ROTATE_90))
+    assertEquals(90f, BitmapDecoding.exifDegrees(ExifInterface.ORIENTATION_TRANSPOSE))
+    assertEquals(270f, BitmapDecoding.exifDegrees(ExifInterface.ORIENTATION_TRANSVERSE))
     assertEquals(0f, BitmapDecoding.exifDegrees(ExifInterface.ORIENTATION_NORMAL))
+    assertEquals(true, BitmapDecoding.exifMirrored(ExifInterface.ORIENTATION_FLIP_HORIZONTAL))
+    assertEquals(false, BitmapDecoding.exifMirrored(ExifInterface.ORIENTATION_ROTATE_90))
+    assertEquals(true, BitmapDecoding.exifMatrix(ExifInterface.ORIENTATION_NORMAL).isIdentity)
     val rect = BitmapDecoding.cropRect(100, 100, 0.99f, 0.99f, 0.99f, 0.99f)
     assertEquals(1, rect.width())
     assertEquals(1, rect.height())

@@ -39,12 +39,26 @@ object BitmapDecoding {
         return Rect(l, t, r, b)
     }
 
-    /** EXIF Orientation 태그 → 시계 방향 회전 각도. 순수 함수. */
+    /** EXIF Orientation 태그 → 시계 방향 회전 각도(플립/전치 방향은 회전 성분만). 순수 함수. */
     fun exifDegrees(orientation: Int): Float = when (orientation) {
-        ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-        ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-        ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+        ExifInterface.ORIENTATION_ROTATE_90, ExifInterface.ORIENTATION_TRANSPOSE -> 90f
+        ExifInterface.ORIENTATION_ROTATE_180, ExifInterface.ORIENTATION_FLIP_VERTICAL -> 180f
+        ExifInterface.ORIENTATION_ROTATE_270, ExifInterface.ORIENTATION_TRANSVERSE -> 270f
         else -> 0f
+    }
+
+    /** EXIF Orientation 태그에 수평 미러 성분이 있는가(2, 4, 5, 7). 미리보기(Coil)와 같은 8방향 해석. 순수 함수. */
+    fun exifMirrored(orientation: Int): Boolean = when (orientation) {
+        ExifInterface.ORIENTATION_FLIP_HORIZONTAL, ExifInterface.ORIENTATION_FLIP_VERTICAL,
+        ExifInterface.ORIENTATION_TRANSPOSE, ExifInterface.ORIENTATION_TRANSVERSE -> true
+        else -> false
+    }
+
+    /** EXIF 8방향을 [Matrix]로. 미러를 먼저, 회전을 나중에(Coil/ExifInterface 관례). */
+    fun exifMatrix(orientation: Int): Matrix = Matrix().apply {
+        if (exifMirrored(orientation)) postScale(-1f, 1f)
+        val d = exifDegrees(orientation)
+        if (d != 0f) postRotate(d)
     }
 
     /** 반환 null = 디코드 실패(파일 없음·손상·메모리 부족). 호출자는 이를 오류로 처리하고 대체 이미지를 쓰지 않는다. */
@@ -62,19 +76,20 @@ object BitmapDecoding {
             if (decoded == null) {
                 null
             } else {
-                val degrees = try {
+                val orientation = try {
                     context.contentResolver.openInputStream(uri)?.use {
-                        exifDegrees(ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL))
-                    } ?: 0f
+                        ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+                    } ?: ExifInterface.ORIENTATION_NORMAL
                 } catch (e: Exception) {
-                    0f
+                    ExifInterface.ORIENTATION_NORMAL
                 }
-                if (degrees == 0f) {
+                val exif = exifMatrix(orientation)
+                if (exif.isIdentity) {
                     decoded
                 } else {
-                    val rotated = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, Matrix().apply { postRotate(degrees) }, true)
-                    if (rotated !== decoded) decoded.recycle()
-                    rotated
+                    val oriented = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, exif, true)
+                    if (oriented !== decoded) decoded.recycle()
+                    oriented
                 }
             }
         }

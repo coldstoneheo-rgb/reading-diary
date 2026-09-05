@@ -2,8 +2,6 @@ package com.example.ui.screens
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
-import android.graphics.Bitmap
-import android.graphics.Matrix
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -54,7 +52,6 @@ import com.example.data.Book
 import com.example.ui.viewmodel.OcrState
 import com.example.ui.viewmodel.ReadingViewModel
 import com.example.ui.viewmodel.Screen
-import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -69,7 +66,6 @@ fun OcrDiaryScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
 
     val books by viewModel.books.collectAsState()
     val diaries by viewModel.diaries.collectAsState()

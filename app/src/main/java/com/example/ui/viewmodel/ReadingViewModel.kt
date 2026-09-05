@@ -16,6 +16,7 @@ import com.example.data.ocr.OcrOutcome
 import com.example.data.ocr.TextExtractor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -340,9 +341,12 @@ class ReadingViewModel @JvmOverloads constructor(
      * 크롭된 페이지 이미지에서 텍스트를 추출한다. 결과는 있는 그대로 전달하며 가짜 문장으로 채우지 않는다(ADR-002 Q2).
      * Gemini 경로는 여기서 호출하지 않는다 — 사용자 명시 동의 UI와 함께 별도 PR에서 붙인다(ADR-002 Q3).
      */
+    /** 진행 중인 인식 작업의 소유자. 새 요청·리셋 시 취소해 오래된 결과가 다른 화면의 편집창을 덮어쓰지 못하게 한다. */
+    private var ocrJob: Job? = null
+
     fun processUnderlineOcr(bitmap: Bitmap) {
-        if (ocrState.value is OcrState.Processing) return // 재진입 방지
-        viewModelScope.launch {
+        if (ocrJob?.isActive == true) return // 재진입 방지(공개 상태가 아니라 Job으로 판정)
+        ocrJob = viewModelScope.launch {
             ocrState.value = OcrState.Processing
             ocrState.value = extractSafely(bitmap)
         }
@@ -361,8 +365,8 @@ class ReadingViewModel @JvmOverloads constructor(
         cropRight: Float,
         cropBottom: Float
     ) {
-        if (ocrState.value is OcrState.Processing) return
-        viewModelScope.launch {
+        if (ocrJob?.isActive == true) return
+        ocrJob = viewModelScope.launch {
             ocrState.value = OcrState.Processing
             val cropped = withContext(Dispatchers.Default) {
                 BitmapDecoding.decodeForOcr(getApplication(), imageUri, rotationDegrees, flipped, cropLeft, cropTop, cropRight, cropBottom)
@@ -396,6 +400,8 @@ class ReadingViewModel @JvmOverloads constructor(
     }
 
     fun resetOcrState() {
+        ocrJob?.cancel() // 화면 이탈/진입 시 진행 중 작업도 버린다. 완료돼도 다른 화면에 결과를 흘리지 않는다
+        ocrJob = null
         ocrState.value = OcrState.Idle
     }
 }
