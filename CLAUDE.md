@@ -2,7 +2,7 @@
 
 독서 다이어리 — Android(Kotlin + Jetpack Compose + Room) 단일 모듈 앱.
 책/책장/독서일기(밑줄 구절)를 온디바이스에 저장하고, 네이버 책 검색으로 서지를 채우며,
-촬영한 책 페이지에서 밑줄 구절을 추출한다(사용자가 자기 Gemini 키를 등록한 경우에만 실제 분석, 아니면 예시 문장).
+촬영한 책 페이지에서 온디바이스 텍스트 인식(ML Kit, 한국어)으로 구절을 추출한다. 사진은 기기 밖으로 나가지 않는다.
 이 파일은 **작업 원칙**만 담는다. 운영 메커니즘은 [.claude/HARNESS.md](.claude/HARNESS.md),
 작업 루프는 [.claude/skills/standard-workflow/SKILL.md](.claude/skills/standard-workflow/SKILL.md),
 아키텍처 결정은 [docs/adr/](docs/adr/).
@@ -14,13 +14,17 @@ app/src/main/java/com/example/
   MainActivity.kt          # 단일 Activity. Screen(sealed) 기반 자체 백스택 내비게이션
   data/Entities.kt         # Room 엔티티: Bookcase → Book → Diary (CASCADE)
   data/Daos.kt, AppDatabase.kt, ReadingRepository.kt
-  data/api/GeminiApiClient.kt   # SecureKeyManager에 사용자 Gemini 키가 있으면 generativelanguage.googleapis.com에
-                                #   페이지 이미지를 POST(키는 x-goog-api-key 헤더). 키가 없으면 제목 기반 시뮬레이션으로 폴백
-  data/SecureKeyManager.kt # EncryptedSharedPreferences에 네이버·Gemini 키 저장(실패 시 평문 prefs 폴백)
-  ui/viewmodel/ReadingViewModel.kt  # 상태·내비·CRUD 전부 여기 (AndroidViewModel)
+  data/ocr/TextExtractor.kt     # 추출 엔진 경계(인터페이스) + OcrOutcome(Text/NoText/Failed). 가짜 문장 폴백 없음(ADR-002)
+  data/ocr/MlKitTextExtractor.kt # 기본 엔진. ML Kit 한국어(언번들: Play 서비스가 첫 사용 시 모델 다운로드)
+  data/ocr/OcrTextAssembler.kt  # 블록 top→left 정렬, 줄은 공백, 블록은 빈 줄 (순수 함수, JVM 테스트)
+  data/ocr/BitmapDecoding.kt    # OCR 입력 다운샘플링(긴 변 2048) — 원본 12MP를 그대로 올리면 OOM
+  data/api/GeminiApiClient.kt   # 사용자 Gemini 키(SecureKeyManager)로 generativelanguage.googleapis.com 호출(x-goog-api-key 헤더).
+                                #   키 없으면 예외. **현재 어디서도 호출되지 않음** — 명시 동의 UI와 함께 붙일 것(ADR-002 Q3)
+  data/SecureKeyManager.kt # EncryptedSharedPreferences에 네이버·Gemini 키 저장(네이버만 평문 폴백, Gemini는 fail-closed)
+  ui/viewmodel/ReadingViewModel.kt  # 상태·내비·CRUD 전부 여기 (AndroidViewModel). TextExtractor를 생성자 주입(기본 ML Kit)
   ui/screens/*Screen.kt    # Dashboard/BookDetail/AddEditBook/OcrDiary/Settings/Statistics/KnowledgeDrawer
   ui/screens/AddEditBookScreen.kt   # 네이버 책 검색(OkHttp 직접, openapi.naver.com)이 화면 코드 안에 있음
-  ui/screens/OcrDiaryScreen.kt      # 카메라/갤러리 → 크롭 → viewModel.processUnderlineOcr → GeminiApiClient
+  ui/screens/OcrDiaryScreen.kt      # 카메라/갤러리 → 크롭(백그라운드 디코드) → viewModel.processUnderlineOcr(bitmap)
   ui/theme/                # 테마 id로 전환하는 다중 컬러스킴
 ```
 

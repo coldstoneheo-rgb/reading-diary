@@ -6,7 +6,6 @@ import android.util.Base64
 import android.util.Log
 import com.example.data.SecureKeyManager
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
@@ -23,7 +22,10 @@ import java.util.concurrent.TimeUnit
  *
  * 키 정책(docs/adr/ADR-001): Gemini 키는 앱 바이너리에 포함하지 않는다. 유일한 출처는
  * 사용자가 직접 등록해 기기 암호화 저장소에 보관한 [SecureKeyManager.getGeminiApiKey]다.
- * 키가 없으면 네트워크 호출 없이 예시 문장으로 폴백한다.
+ * 키가 없으면 네트워크 호출 없이 [IllegalStateException]을 던진다(가짜 문장 폴백 없음, ADR-002).
+ *
+ * 현재 이 클래스를 호출하는 경로는 없다. 기본 추출 경로는 온디바이스 [com.example.data.ocr.MlKitTextExtractor]이며,
+ * Gemini "정밀 분석"은 사진 전송에 대한 사용자 명시 동의 UI와 함께 붙인다(ADR-002 Q3).
  */
 object GeminiApiClient {
     private const val TAG = "LocalOcrAnalyzer"
@@ -32,8 +34,8 @@ object GeminiApiClient {
     private const val ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/$MODEL:generateContent"
 
     /**
-     * Extracts text from a captured/selected page image.
-     * Uses real Gemini API if the user has registered an API key, falls back to simulation otherwise.
+     * Extracts text from a captured/selected page image with the user's registered Gemini key.
+     * @throws IllegalStateException 키가 없거나 요청이 실패한 경우
      */
     suspend fun extractUnderlinedText(context: Context, bitmap: Bitmap, bookTitle: String = ""): String = withContext(Dispatchers.IO) {
         Log.d(TAG, "Initiating OCR analyzer for book: $bookTitle")
@@ -139,32 +141,10 @@ object GeminiApiClient {
             }
         }
 
-        // 2. 폴백. 키가 없으면 시뮬레이션(처리 지연 연출), 키가 있는데 실패했으면 지연 없이 실패 사실을 알린다
-        if (!isKeyValid) delay(1200)
-        val normalizedTitle = bookTitle.trim().lowercase()
-        val simulatedText = when {
-            normalizedTitle.contains("데미안") || normalizedTitle.contains("demian") -> {
-                "태어나려는 자는 하나의 세계를 깨뜨려야 한다. 새는 신을 향해 날아간다. 그 신의 이름은 아브락사스다."
-            }
-            normalizedTitle.contains("돈의") || normalizedTitle.contains("돈") -> {
-                "돈은 스스로 생각하는 주체적 인격체와 같다. 자기를 존중하면 그 사람을 지키고, 무시하면 기회를 보아 빠져나간다."
-            }
-            normalizedTitle.contains("사피엔스") || normalizedTitle.contains("sapiens") -> {
-                "우리가 인지혁명이라고 부르는 이 혁명 덕분에 호모 사피엔스는 가상의 실재를 창조해 내고 협동할 수 있게 되었다."
-            }
-            normalizedTitle.contains("머니") || normalizedTitle.contains("재테크") || normalizedTitle.contains("세이노") -> {
-                "투자의 핵심은 이익을 얼마나 많이 내느냐가 아니라, 살아남아서 시간과 복리의 마법을 온전히 누리는 것이다."
-            }
-            else -> {
-                "마음속에 깊이 남는 문장을 발견하고 그것을 기록해 두는 습관은 우리의 독서를 깨어있게 만들고 내면을 풍요롭게 가꾸어 줍니다."
-            }
+        // 2. 가짜 문장으로 채우지 않는다(ADR-002 Q2). 실패는 예외로 알린다.
+        if (!isKeyValid) {
+            throw IllegalStateException("Gemini API 키가 등록되지 않았습니다.")
         }
-
-        val hint = if (isKeyValid) {
-            "\n\n*(AI 분석 요청이 실패해 예시 문장을 표시합니다. 등록한 Gemini 키, 네트워크, 모델 설정을 확인해 주세요.)*"
-        } else {
-            "\n\n*(밑줄 구절 인식을 시뮬레이션한 예시 문장입니다. 실제 촬영 사진 분석은 다음 업데이트에서 지원할 예정입니다.)*"
-        }
-        return@withContext simulatedText + hint
+        throw IllegalStateException("Gemini 분석 요청이 실패했습니다. 등록한 키, 네트워크, 모델 설정을 확인해 주세요.")
     }
 }

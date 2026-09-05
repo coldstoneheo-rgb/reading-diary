@@ -9,7 +9,9 @@ import com.example.data.Book
 import com.example.data.Bookcase
 import com.example.data.Diary
 import com.example.data.ReadingRepository
-import com.example.data.api.GeminiApiClient
+import com.example.data.ocr.MlKitTextExtractor
+import com.example.data.ocr.OcrOutcome
+import com.example.data.ocr.TextExtractor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -34,7 +36,14 @@ sealed class OcrState {
     data class Error(val message: String) : OcrState()
 }
 
-class ReadingViewModel(application: Application) : AndroidViewModel(application) {
+/**
+ * @param textExtractor 밑줄 구절 추출 엔진. 기본은 온디바이스 ML Kit(ADR-002). 테스트는 Fake를 주입한다.
+ *   Compose의 `viewModel()`은 (Application) 생성자를 리플렉션으로 찾으므로 @JvmOverloads가 필요하다.
+ */
+class ReadingViewModel @JvmOverloads constructor(
+    application: Application,
+    private val textExtractor: TextExtractor = MlKitTextExtractor()
+) : AndroidViewModel(application) {
     private val database = AppDatabase.getDatabase(application)
     private val repository = ReadingRepository(database)
 
@@ -322,17 +331,23 @@ class ReadingViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    // AI Underline Processing Flow (Gemini Image OCR)
-    fun processUnderlineOcr(bitmap: Bitmap, bookTitle: String) {
+    /**
+     * 크롭된 페이지 이미지에서 텍스트를 추출한다. 결과는 있는 그대로 전달하며 가짜 문장으로 채우지 않는다(ADR-002 Q2).
+     * Gemini 경로는 여기서 호출하지 않는다 — 사용자 명시 동의 UI와 함께 별도 PR에서 붙인다(ADR-002 Q3).
+     */
+    fun processUnderlineOcr(bitmap: Bitmap) {
         viewModelScope.launch {
             ocrState.value = OcrState.Processing
-            try {
-                val extractedText = GeminiApiClient.extractUnderlinedText(getApplication(), bitmap, bookTitle)
-                ocrState.value = OcrState.Success(extractedText)
-            } catch (e: Exception) {
-                ocrState.value = OcrState.Error(e.message ?: "추출 실패")
+            ocrState.value = when (val outcome = textExtractor.extract(bitmap)) {
+                is OcrOutcome.Text -> OcrState.Success(outcome.text)
+                OcrOutcome.NoText -> OcrState.Error(NO_TEXT_MESSAGE)
+                is OcrOutcome.Failed -> OcrState.Error(outcome.message)
             }
         }
+    }
+
+    companion object {
+        const val NO_TEXT_MESSAGE = "글자를 찾지 못했어요. 더 밝게, 더 가까이 찍어 다시 시도하거나 직접 입력해 주세요."
     }
 
     fun resetOcrState() {

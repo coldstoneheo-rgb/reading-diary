@@ -52,7 +52,11 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.data.Book
+import com.example.data.ocr.BitmapDecoding
 import com.example.ui.viewmodel.OcrState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.example.ui.viewmodel.ReadingViewModel
 import com.example.ui.viewmodel.Screen
 import java.io.ByteArrayOutputStream
@@ -204,14 +208,17 @@ fun OcrDiaryScreen(
         }
     }
 
-    // Sync extracted text with success state of OCR
+    // OCR 결과 반영. 실패 메시지는 편집창에 넣지 않는다(일기로 저장되면 안 되므로) — ADR-002 Q2
     LaunchedEffect(ocrState) {
-        if (ocrState is OcrState.Success) {
-            extractedText = (ocrState as OcrState.Success).text
-            Toast.makeText(context, "AI가 이미지에서 밑줄 구절을 완벽하게 인식했습니다!", Toast.LENGTH_SHORT).show()
-        } else if (ocrState is OcrState.Error) {
-            Toast.makeText(context, "AI 파싱 완료! 감지된 구절을 확인해보세요.", Toast.LENGTH_SHORT).show()
-            extractedText = (ocrState as OcrState.Error).message
+        when (val state = ocrState) {
+            is OcrState.Success -> {
+                extractedText = state.text
+                Toast.makeText(context, "인식된 문장을 원문과 대조해 주세요.", Toast.LENGTH_SHORT).show()
+            }
+            is OcrState.Error -> {
+                Toast.makeText(context, state.message, Toast.LENGTH_LONG).show()
+            }
+            else -> Unit
         }
     }
 
@@ -851,7 +858,7 @@ fun OcrDiaryScreen(
                                 }
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(
-                                    "AI 오번역 필터링 및 펜선 인식 분석 작업중...",
+                                    "기기에서 글자를 인식하는 중… (첫 사용 시 인식 모델을 내려받아 시간이 더 걸릴 수 있어요)",
                                     style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                                     color = MaterialTheme.colorScheme.primary
                                 )
@@ -860,61 +867,47 @@ fun OcrDiaryScreen(
                             if (isCroppedReady) {
                                 Button(
                                     onClick = {
-                                        activeImageUrl?.let { path ->
-                                            try {
-                                                var finalBitmap: Bitmap? = null
-                                                if (path.startsWith("http")) {
-                                                    finalBitmap = BitmapFactory.decodeResource(context.resources, android.R.drawable.ic_menu_gallery)
-                                                } else {
-                                                    val uri = Uri.parse(path)
-                                                    context.contentResolver.openInputStream(uri)?.use { stream ->
-                                                        finalBitmap = BitmapFactory.decodeStream(stream)
-                                                    }
-                                                }
-                                                val baseBitmap = finalBitmap ?: Bitmap.createBitmap(500, 500, Bitmap.Config.ARGB_8888)
-                                                
-                                                // Create a transformation matrix dynamically matching rotate & flip parameters
-                                                val matrix = Matrix().apply {
-                                                    if (isFlipped) {
-                                                        postScale(-1f, 1f)
-                                                    }
-                                                    if (imageRotation != 0f) {
-                                                        postRotate(imageRotation)
-                                                    }
-                                                }
-                                                val transformedBitmap = Bitmap.createBitmap(
-                                                    baseBitmap,
-                                                    0, 0,
-                                                    baseBitmap.width,
-                                                    baseBitmap.height,
-                                                    matrix,
-                                                    true
-                                                )
-
-                                                // Clean slice/crop out of final edited bitmap using crop ranges representation
-                                                val w = transformedBitmap.width
-                                                val h = transformedBitmap.height
-                                                val leftOffsetPix = (cropLeft * w).toInt().coerceIn(0, w - 1)
-                                                val topOffsetPix = (cropTop * h).toInt().coerceIn(0, h - 1)
-                                                val rightOffsetPix = (cropRight * w).toInt().coerceIn(leftOffsetPix + 1, w)
-                                                val bottomOffsetPix = (cropBottom * h).toInt().coerceIn(topOffsetPix + 1, h)
-
-                                                val croppedBitmap = Bitmap.createBitmap(
-                                                    transformedBitmap,
-                                                    leftOffsetPix,
-                                                    topOffsetPix,
-                                                    rightOffsetPix - leftOffsetPix,
-                                                    bottomOffsetPix - topOffsetPix
-                                                )
-                                                
-                                                viewModel.processUnderlineOcr(croppedBitmap, currentBook.title)
-                                            } catch (e: Exception) {
-                                                Toast.makeText(context, "이미지 파싱 중 오류가 발생하여 기본 시뮬레이션 데이터를 제공합니다.", Toast.LENGTH_SHORT).show()
-                                                val rawBitmap = BitmapFactory.decodeResource(context.resources, android.R.drawable.ic_menu_gallery) ?: Bitmap.createBitmap(150, 150, Bitmap.Config.ARGB_8888)
-                                                viewModel.processUnderlineOcr(rawBitmap, currentBook.title)
-                                            }
-                                        } ?: run {
+                                        val path = activeImageUrl
+                                        if (path == null) {
                                             Toast.makeText(context, "분석할 사진을 먼저 선택해 주세요.", Toast.LENGTH_SHORT).show()
+                                            return@Button
+                                        }
+                                        if (path.startsWith("http")) {
+                                            // 예시 이미지(URL)는 인식 대상이 아니다. 예전엔 갤러리 아이콘을 OCR에 넣어 가짜 결과를 냈다.
+                                            Toast.makeText(context, "촬영하거나 갤러리에서 고른 사진만 인식할 수 있어요.", Toast.LENGTH_LONG).show()
+                                            return@Button
+                                        }
+                                        // 디코드·회전·크롭은 백그라운드에서. 원본 해상도 그대로 올리면 메인 스레드 OOM/ANR 위험(ADR-002 Q5)
+                                        val rotation = imageRotation
+                                        val flipped = isFlipped
+                                        val crop = floatArrayOf(cropLeft, cropTop, cropRight, cropBottom)
+                                        coroutineScope.launch(Dispatchers.Default) {
+                                            val cropped = try {
+                                                BitmapDecoding.decodeDownsampled(context, Uri.parse(path))?.let { base ->
+                                                    val matrix = Matrix().apply {
+                                                        if (flipped) postScale(-1f, 1f)
+                                                        if (rotation != 0f) postRotate(rotation)
+                                                    }
+                                                    val transformed = Bitmap.createBitmap(base, 0, 0, base.width, base.height, matrix, true)
+                                                    val w = transformed.width
+                                                    val h = transformed.height
+                                                    val left = (crop[0] * w).toInt().coerceIn(0, w - 1)
+                                                    val top = (crop[1] * h).toInt().coerceIn(0, h - 1)
+                                                    val right = (crop[2] * w).toInt().coerceIn(left + 1, w)
+                                                    val bottom = (crop[3] * h).toInt().coerceIn(top + 1, h)
+                                                    Bitmap.createBitmap(transformed, left, top, right - left, bottom - top)
+                                                }
+                                            } catch (e: Exception) {
+                                                null
+                                            }
+                                            withContext(Dispatchers.Main) {
+                                                if (cropped == null) {
+                                                    // 디코드 실패는 그 자리에서 오류로 끝낸다. 대체 이미지로 인식을 돌리지 않는다.
+                                                    Toast.makeText(context, "사진을 읽지 못했어요. 다시 촬영하거나 다른 사진을 골라 주세요.", Toast.LENGTH_LONG).show()
+                                                } else {
+                                                    viewModel.processUnderlineOcr(cropped)
+                                                }
+                                            }
                                         }
                                     },
                                     modifier = Modifier
@@ -1036,7 +1029,7 @@ fun OcrDiaryScreen(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = if (extractedText.isNotEmpty()) "일치율: 99.8% (신뢰율 높음)" else "인식 보류 중",
+                                    text = if (extractedText.isNotEmpty()) "원문과 대조해 주세요" else "인식 대기 중",
                                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold),
                                     color = if (extractedText.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                                 )

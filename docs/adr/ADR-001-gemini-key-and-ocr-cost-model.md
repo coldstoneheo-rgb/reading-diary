@@ -70,8 +70,8 @@
   `backup_rules.xml`/`data_extraction_rules.xml`에서 `secure_user_prefs`를 제외한다.
 - **키 회전 권고:** 과거 실제 키가 든 `.env`로 빌드한 APK가 기기나 AI Studio에 남아 있을 수 있다. 코드에서 키를 빼도 그 키는
   안전해지지 않으므로, 그런 키가 있었다면 Google AI Studio에서 폐기·재발급한다.
-- 2단계 착수 시 최우선 확인: `GeminiApiClient`의 모델 ID(`gemini-3.5-flash`)가 실제로 존재하는지. 틀리면 BYO 키를 등록해도
-  항상 404 → 폴백이라 D 시나리오가 성립하지 않는다.
+- 모델 ID `gemini-3.5-flash`는 2026-09 기준 Gemini API에서 GA(안정) 모델로 확인됨(공식 모델 목록·릴리스 노트). D 시나리오 성립.
+- 2단계 A는 [ADR-002](ADR-002-on-device-ocr-rollout.md)로 실행했다. 가짜 예시 문장 폴백은 제거됐다.
 
 ## 재검토 조건
 

@@ -8,6 +8,7 @@ import com.example.data.api.GeminiApiClient
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,16 +31,17 @@ class GeminiKeyPolicyTest {
   }
 
   @Test
-  fun withoutRegisteredKey_returnsSimulatedText() = runBlocking {
-    // 키가 없으면 isKeyValid=false로 OkHttp 블록을 건너뛴다. 네트워크 미발생 자체를 직접 검증하지는 않는다.
+  fun withoutRegisteredKey_throwsBeforeAnyNetworkCall_noFakeText() {
+    // 키가 없으면 isKeyValid=false로 OkHttp 블록을 건너뛰고 즉시 예외. 가짜 문장(ADR-002 Q2)은 더 이상 없다.
     val context = ApplicationProvider.getApplicationContext<Context>()
     val bitmap = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
 
-    val result = GeminiApiClient.extractUnderlinedText(context, bitmap, "데미안")
+    val error = assertThrows(IllegalStateException::class.java) {
+      runBlocking { GeminiApiClient.extractUnderlinedText(context, bitmap, "데미안") }
+    }
 
-    assertTrue(result.contains("아브락사스"))
-    assertTrue(result.contains("시뮬레이션"))
-    assertFalse(result.contains("GEMINI_API_KEY"))
+    assertTrue(error.message!!.contains("등록되지 않았"))
+    assertFalse(error.message!!.contains("아브락사스"))
   }
 
   @Test
