@@ -72,9 +72,7 @@ secrets {
   ignoreList.add("GEMINI_API_KEY")
 }
 
-// Some unused dependencies are commented out below instead of being removed.
-// This makes it easy to add them back in the future if needed.
-// 예외: 키 유출 위험이 있는 의존성(예: logging-interceptor)은 카탈로그 항목까지 완전 제거한다(CLAUDE.md 안전 규칙).
+// 재도입 가능성이 있는 미사용 의존성만 주석으로 남기고, 그 외(특히 키 유출 위험이 있는 것)는 카탈로그까지 제거한다.
 dependencies {
   implementation(platform(libs.androidx.compose.bom))
   implementation(platform(libs.firebase.bom))
