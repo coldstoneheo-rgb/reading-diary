@@ -11,10 +11,11 @@ import java.io.File
  */
 class HonestCopyTest {
 
-  private fun mainKotlinSources(): List<File> {
-    val mainSrc = File("src/main/java")
-    assertTrue("expected app/src/main/java to exist", mainSrc.isDirectory)
-    return mainSrc.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
+  /** 프로덕션 소스와 리소스(문구가 strings.xml로 옮겨져도 잡히도록). */
+  private fun mainSources(): List<File> {
+    val mainSrc = File("src/main")
+    assertTrue("expected app/src/main to exist", mainSrc.isDirectory)
+    return mainSrc.walkTopDown().filter { it.isFile && (it.extension == "kt" || it.extension == "xml") }.toList()
   }
 
   @Test
@@ -22,13 +23,16 @@ class HonestCopyTest {
     // 제거된 가짜 기능의 문구. 실제 백업/복원 구현이 들어오는 PR에서만 이 목록을 줄일 수 있다.
     val forbidden = listOf(
       "클라우드 백업 및 복원",
+      "데이터 백업 및 복원",
+      "클라우드 동기화",
+      "동기화 실행",
       "백업 동기화가 안전하게 완료",
       "복원 진행하기",
       "클라우드 아카이브",
       "iCloud",
       "runSimulatedProgress"
     )
-    val offenders = mainKotlinSources().flatMap { file ->
+    val offenders = mainSources().flatMap { file ->
       val text = file.readText()
       forbidden.filter { text.contains(it) }.map { "${file.path}: \"$it\"" }
     }

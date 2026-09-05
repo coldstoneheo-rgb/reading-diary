@@ -245,7 +245,7 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                     }
                 }
 
-                // Bottom utilities section (Cloud Backup and Utilities)
+                // Bottom utilities section (통계, 기억 서랍)
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
