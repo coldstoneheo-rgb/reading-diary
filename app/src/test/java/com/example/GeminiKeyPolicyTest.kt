@@ -59,19 +59,46 @@ class GeminiKeyPolicyTest {
     assertTrue("GeminiApiClient referenced from: $offenders", offenders.isEmpty())
   }
 
+  /** 컴파일된 XML 리소스를 파싱해 (섹션, 태그, domain, path) 목록으로. 주석·속성 순서에 영향받지 않는다. */
+  private fun backupRuleEntries(resId: Int): List<List<String>> {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val parser = context.resources.getXml(resId)
+    val entries = mutableListOf<List<String>>()
+    var section = "root"
+    var event = parser.eventType
+    while (event != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+      if (event == org.xmlpull.v1.XmlPullParser.START_TAG) {
+        when (parser.name) {
+          "cloud-backup", "device-transfer", "full-backup-content" -> section = parser.name
+          "include", "exclude" -> entries.add(
+            listOf(section, parser.name, parser.getAttributeValue(null, "domain") ?: "", parser.getAttributeValue(null, "path") ?: "")
+          )
+        }
+      }
+      event = parser.next()
+    }
+    return entries
+  }
+
   @Test
   fun backupRules_excludeSecureKeyPrefs() {
-    // ADR-001: 키 저장소는 클라우드 백업·기기 이전에서 제외. IDE 템플릿 재생성으로 규칙이 사라지면 이 테스트가 잡는다.
-    val exclude = Regex("""<exclude\s+domain="sharedpref"\s+path="secure_user_prefs\.xml"\s*/>""")
+    // ADR-001: 키 저장소(및 SharedPreferences가 남길 수 있는 .bak 사본)는 클라우드 백업·기기 이전에서 제외.
+    // 리소스를 파싱하므로 주석 처리된 규칙은 통과하지 못하고, 파일명은 SecureKeyManager와 같은 상수에서 온다.
+    val prefsXml = "${SecureKeyManager.PREFS_FILE}.xml"
+    val required = listOf(prefsXml, "$prefsXml.bak")
 
-    val legacy = java.io.File("src/main/res/xml/backup_rules.xml").readText()
-    assertTrue("backup_rules.xml must exclude secure_user_prefs.xml", exclude.containsMatchIn(legacy))
+    val legacy = backupRuleEntries(R.xml.backup_rules)
+    val modern = backupRuleEntries(R.xml.data_extraction_rules)
+    for (path in required) {
+      assertTrue("backup_rules must exclude $path: $legacy", legacy.contains(listOf("full-backup-content", "exclude", "sharedpref", path)))
+      assertTrue("cloud-backup must exclude $path: $modern", modern.contains(listOf("cloud-backup", "exclude", "sharedpref", path)))
+      assertTrue("device-transfer must exclude $path: $modern", modern.contains(listOf("device-transfer", "exclude", "sharedpref", path)))
+    }
 
-    val modern = java.io.File("src/main/res/xml/data_extraction_rules.xml").readText()
-    val cloud = Regex("""<cloud-backup>[\s\S]*?</cloud-backup>""").find(modern)?.value ?: ""
-    val transfer = Regex("""<device-transfer>[\s\S]*?</device-transfer>""").find(modern)?.value ?: ""
-    assertTrue("cloud-backup must exclude secure_user_prefs.xml", exclude.containsMatchIn(cloud))
-    assertTrue("device-transfer must exclude secure_user_prefs.xml", exclude.containsMatchIn(transfer))
+    // 매니페스트 배선이 빠지면 규칙 파일이 있어도 전부 백업된다 (ApplicationInfo의 해당 필드는 @hide라 원문을 본다)
+    val manifest = java.io.File("src/main/AndroidManifest.xml").readText()
+    assertTrue(manifest.contains("android:dataExtractionRules=\"@xml/data_extraction_rules\""))
+    assertTrue(manifest.contains("android:fullBackupContent=\"@xml/backup_rules\""))
   }
 
   @Test

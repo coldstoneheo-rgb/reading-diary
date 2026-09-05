@@ -2,10 +2,12 @@
    Auto Backup 규칙 (API 30 이하). API 31+는 data_extraction_rules.xml을 본다.
    ADR-001: API 키 저장소(SecureKeyManager)는 클라우드 백업·기기 이전에서 제외한다.
    secure_user_prefs.xml에는 네이버/Gemini 키(암호화 또는 평문 폴백)와 EncryptedSharedPreferences 키셋
-   (__androidx_security_crypto_encrypted_prefs_*_keyset__ — 별도 파일이 아니라 같은 파일 안의 예약 키)이 함께 들어 있으므로
-   이 한 줄로 모두 제외된다. Room DB(일기 데이터)와 일반 설정(diary_general_settings.xml)은 그대로 백업한다.
-   GeminiKeyPolicyTest.backupRules_excludeSecureKeyPrefs가 이 규칙의 존재를 고정한다.
+   (__androidx_security_crypto_encrypted_prefs_*_keyset__ — 별도 파일이 아니라 같은 파일 안의 예약 키)이 함께 들어 있다.
+   SharedPreferences는 커밋마다 .bak 사본을 만들고 프로세스가 죽으면 남길 수 있으므로 .bak도 함께 제외한다.
+   Room DB(일기 데이터)와 일반 설정(diary_general_settings.xml)은 그대로 백업한다.
+   GeminiKeyPolicyTest.backupRules_excludeSecureKeyPrefs가 리소스를 파싱해 이 규칙과 매니페스트 배선을 고정한다.
 -->
 <full-backup-content>
     <exclude domain="sharedpref" path="secure_user_prefs.xml"/>
+    <exclude domain="sharedpref" path="secure_user_prefs.xml.bak"/>
 </full-backup-content>

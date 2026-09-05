@@ -1,13 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   API 31+ 백업·기기 이전 규칙. ADR-001: API 키 저장소(SecureKeyManager, secure_user_prefs.xml — 키셋 예약 키 포함)를
-   클라우드 백업과 기기 이전 모두에서 제외한다. Room DB(일기 데이터)와 일반 설정은 그대로 포함한다.
-   GeminiKeyPolicyTest.backupRules_excludeSecureKeyPrefs가 이 규칙의 존재를 고정한다.
+   API 31+ 백업·기기 이전 규칙. ADR-001: API 키 저장소(SecureKeyManager, secure_user_prefs.xml — 키셋 예약 키 포함)와
+   그 .bak 사본을 클라우드 백업과 기기 이전 모두에서 제외한다. Room DB(일기 데이터)와 일반 설정은 그대로 포함한다.
+   GeminiKeyPolicyTest.backupRules_excludeSecureKeyPrefs가 리소스를 파싱해 이 규칙과 매니페스트 배선을 고정한다.
 -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="secure_user_prefs.xml"/>
+        <exclude domain="sharedpref" path="secure_user_prefs.xml.bak"/>
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="secure_user_prefs.xml"/>
+        <exclude domain="sharedpref" path="secure_user_prefs.xml.bak"/>
     </device-transfer>
 </data-extraction-rules>

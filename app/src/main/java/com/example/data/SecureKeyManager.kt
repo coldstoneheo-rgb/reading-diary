@@ -6,7 +6,8 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKeys
 
 object SecureKeyManager {
-    private const val PREFS_FILE = "secure_user_prefs"
+    /** 백업 제외 규칙(res/xml)과 테스트가 이 이름을 참조한다. 바꾸면 backup_rules/data_extraction_rules도 같이 바꿔야 한다. */
+    internal const val PREFS_FILE = "secure_user_prefs"
     private const val KEY_NAVER_CLIENT_ID = "naver_client_id"
     private const val KEY_NAVER_CLIENT_SECRET = "naver_client_secret"
     private const val KEY_GEMINI_API_KEY = "gemini_api_key"
