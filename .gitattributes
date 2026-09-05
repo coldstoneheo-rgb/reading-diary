@@ -1,0 +1,9 @@
+# 이진 파일은 EOL 변환·인코딩 정규화 대상에서 제외한다(방어적 설정).
+# 기준 스크린샷(greeting.png)이 텍스트 도구로 써진 채(0x89→c2 89, CRLF→LF) 커밋된 이력이 있어
+# verifyRoborazziDebug가 기준 이미지를 읽지 못했다. 재발 감지는 ScreenshotBaselineIntegrityTest가 맡는다.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.jks binary
+*.keystore binary
