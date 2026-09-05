@@ -39,7 +39,6 @@ import com.example.ui.screens.KnowledgeDrawerScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.ReadingViewModel
 import com.example.ui.viewmodel.Screen
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -73,76 +72,8 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
-    // Backup actions dialog trigger
-    var showBackupDialog by remember { mutableStateOf(false) }
-    var isBackingUp by remember { mutableStateOf(false) }
-    var backupStatusText by remember { mutableStateOf("") }
-
     // Custom bookcase name input
     var newBookcaseName by remember { mutableStateOf("") }
-
-    if (showBackupDialog) {
-        AlertDialog(
-            onDismissRequest = { if (!isBackingUp) showBackupDialog = false },
-            title = { Text("클라우드 동기화 및 백업", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    if (isBackingUp) {
-                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = backupStatusText,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.CloudUpload,
-                            contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            "현재 저장된 책 목록과 독서 다이어리 기록을 구글 클라우드 및 iCloud 시스템에 동기화할까요?",
-                            style = MaterialTheme.typography.bodyMedium,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                if (!isBackingUp) {
-                    Button(
-                        onClick = {
-                            isBackingUp = true
-                            coroutineScope.launch {
-                                backupStatusText = "로컬 SQLite DB 압축 파일 생성 중..."
-                                delay(1200)
-                                backupStatusText = "원격 구글 서버 보안 채널 동기화 진행 중..."
-                                delay(1500)
-                                isBackingUp = false
-                                showBackupDialog = false
-                                Toast.makeText(context, "백업 동기화가 안전하게 완료되었습니다!", Toast.LENGTH_LONG).show()
-                            }
-                        }
-                    ) {
-                        Text("동기화 실행")
-                    }
-                }
-            },
-            dismissButton = {
-                if (!isBackingUp) {
-                    TextButton(onClick = { showBackupDialog = false }) {
-                        Text("닫기")
-                    }
-                }
-            }
-        )
-    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -314,7 +245,7 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                     }
                 }
 
-                // Bottom utilities section (Cloud Backup and Utilities)
+                // Bottom utilities section (통계, 기억 서랍)
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -363,21 +294,6 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                         Icon(imageVector = Icons.Default.Link, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("기억 서랍 ( Obsidian & RAG )", fontWeight = FontWeight.Bold)
-                    }
-
-                    Button(
-                        onClick = { showBackupDialog = true },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("backup_button"),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        )
-                    ) {
-                        Icon(imageVector = Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("클라우드 백업 및 복원", fontWeight = FontWeight.Bold)
                     }
                 }
             }
