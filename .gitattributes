@@ -1,0 +1,11 @@
+# 이진 파일은 EOL 변환·인코딩 정규화 대상에서 제외한다.
+# 기준 스크린샷(greeting.png)이 텍스트로 취급되어 PNG 시그니처(89 50 4E 47 0D 0A 1A 0A)가 깨진 채 커밋됐고,
+# verifyRoborazziDebug가 기준 이미지를 읽지 못해 항상 실패했다.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.jks binary
+*.keystore binary
+*.jar binary
