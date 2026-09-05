@@ -39,7 +39,6 @@ import coil.request.ImageRequest
 import com.example.data.Book
 import com.example.data.Bookcase
 import com.example.ui.viewmodel.ReadingViewModel
-import com.example.ui.viewmodel.Screen
 import com.example.data.SecureKeyManager
 import com.example.data.api.BookSearchParsers
 import com.example.data.api.SearchResultBook
@@ -104,13 +103,9 @@ fun AddEditBookScreen(
     var searchQuery by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<SearchResultBook>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
-    var isNaverActive by remember { mutableStateOf(false) }
     var searchError by remember { mutableStateOf<String?>(null) }
-
-    // Determine Naver search API credentials configuration
-    LaunchedEffect(Unit) {
-        isNaverActive = true
-    }
+    /** 네이버 키가 있으면 네이버로, 없으면 공용 Google 도서로 검색한다. 안내 카드가 이 값으로 원인을 구분한다. */
+    var searchedWithNaver by remember { mutableStateOf<Boolean?>(null) }
 
     // Sync state if editing
     LaunchedEffect(bookId, books, bookcases) {
@@ -141,40 +136,11 @@ fun AddEditBookScreen(
             delay(400) // 400ms debounce
             isSearching = true
             val responseResult = withContext(Dispatchers.IO) {
-                var configClientId = try {
-                    SecureKeyManager.getNaverClientId(context)
-                } catch (e: Exception) {
-                    ""
-                }.ifBlank { 
-                    try { BuildConfig.ENV_NAVER_CLIENT_ID } catch (t: Throwable) { "" }
-                        .ifBlank { try { BuildConfig.NAVER_CLIENT_ID } catch (t: Throwable) { "" } }
-                }.trim().removeSurrounding("\"").removeSurrounding("'")
+                val naverCredentials = resolveNaverCredentials(context)
+                withContext(Dispatchers.Main) { searchedWithNaver = naverCredentials != null }
 
-                var configClientSecret = try {
-                    SecureKeyManager.getNaverClientSecret(context)
-                } catch (e: Exception) {
-                    ""
-                }.ifBlank { 
-                    try { BuildConfig.ENV_NAVER_CLIENT_SECRET } catch (t: Throwable) { "" }
-                        .ifBlank { try { BuildConfig.NAVER_CLIENT_SECRET } catch (t: Throwable) { "" } }
-                }.trim().removeSurrounding("\"").removeSurrounding("'")
-
-                val hasNaverKeys = configClientId.isNotBlank() && 
-                        configClientSecret.isNotBlank() && 
-                        configClientId != "MY_NAVER_CLIENT_ID" && 
-                        configClientId != "NAVER_CLIENT_ID" &&
-                        configClientId != "NAVER_CLIENT_ID_PLACEHOLDER" &&
-                        configClientSecret != "MY_NAVER_CLIENT_SECRET" && 
-                        configClientSecret != "NAVER_CLIENT_SECRET" &&
-                        configClientSecret != "NAVER_CLIENT_SECRET_PLACEHOLDER"
-
-                if (hasNaverKeys) {
-                    // Auto-recovery: if user swapped Naver Client ID and Client Secret in settings or Secrets panel
-                    if (configClientId.length < configClientSecret.length) {
-                        val temp = configClientId
-                        configClientId = configClientSecret
-                        configClientSecret = temp
-                    }
+                if (naverCredentials != null) {
+                    val (configClientId, configClientSecret) = naverCredentials
                     try {
                         val client = OkHttpClient()
                         val escapedQuery = URLEncoder.encode(trimmedQuery, "UTF-8")
@@ -218,7 +184,7 @@ fun AddEditBookScreen(
                             Pair<List<SearchResultBook>, String?>(BookSearchParsers.parseGoogleBooks(body), null)
                         } else {
                             val googleErrDetail = if (response.code == 429) {
-                                "공용 구글 도서 API 호출 한도가 초과되었습니다 (HTTP 429). 지속적인 고성능 도서 검색 서비스를 원하시면 본인의 고유 '네이버 검색 API Key'를 [설정] 화면에 등록하여 사용하시기 바랍니다."
+                                "공용 Google 도서 검색의 호출 한도를 넘었습니다 (HTTP 429). 잠시 후 다시 시도하거나 직접 입력해 등록해 주세요."
                             } else {
                                 "Google Books API Error (HTTP ${response.code})."
                             }
@@ -378,48 +344,35 @@ fun AddEditBookScreen(
                                                 )
                                                 Spacer(modifier = Modifier.width(10.dp))
                                                 Text(
-                                                    text = "도서 검색 연결 안내",
+                                                    text = if (searchError != null) "도서 검색에 실패했습니다" else "검색 결과가 없습니다",
                                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                                     color = MaterialTheme.colorScheme.error
                                                 )
                                             }
                                             Spacer(modifier = Modifier.height(8.dp))
                                             Text(
-                                                text = if (searchError != null) {
-                                                    "공용 구글 API 호출 한도가 초과되었습니다.\n오류 정보: $searchError\n\n지속적인 사용을 원하시면 본인의 네이버 ID/Secret 키를 [설정]에 등록해 주세요. 현재는 우측 상단 '직접 입력' 버튼 또는 아래 '직접 수동 등록'버튼을 통해 등록하실 수 있습니다."
-                                                } else {
-                                                    "검색어 '$searchQuery'에 해당하는 도서를 찾지 못했습니다.\n\n정확한 단어로 다시 검색하시거나, 본인의 Naver API Key를 설정에 추가하시면 고정밀 네이버 도서 검색도 가능합니다."
-                                                },
+                                                text = searchGuidanceText(
+                                                    query = searchQuery,
+                                                    error = searchError,
+                                                    searchedWithNaver = searchedWithNaver
+                                                ),
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                                                 lineHeight = 18.sp
                                             )
                                             Spacer(modifier = Modifier.height(12.dp))
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            OutlinedButton(
+                                                onClick = { isSearchActive = false },
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .testTag("search_manual_entry_button"),
+                                                shape = RoundedCornerShape(8.dp),
+                                                colors = ButtonDefaults.outlinedButtonColors(
+                                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                                ),
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f))
                                             ) {
-                                                OutlinedButton(
-                                                    onClick = { isSearchActive = false },
-                                                    modifier = Modifier.weight(1f),
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    colors = ButtonDefaults.outlinedButtonColors(
-                                                        contentColor = MaterialTheme.colorScheme.onErrorContainer
-                                                    ),
-                                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f))
-                                                ) {
-                                                    Text("직접 수동 등록", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
-                                                }
-                                                Button(
-                                                    onClick = { viewModel.navigateTo(Screen.Settings) },
-                                                    modifier = Modifier.weight(1.2f),
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    colors = ButtonDefaults.buttonColors(
-                                                        containerColor = MaterialTheme.colorScheme.error
-                                                     )
-                                                ) {
-                                                    Text("⚙️ API 설정하기", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
-                                                }
+                                                Text("직접 입력해서 등록", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold))
                                             }
                                         }
                                     }
@@ -842,3 +795,46 @@ fun getHighlightedText(text: String, query: String, highlightColor: Color): Anno
 }
 
 
+
+
+/**
+ * 네이버 검색 키. 출처 우선순위(CLAUDE.md): ① 기기 암호화 저장소 → ② 빌드 셸 환경변수 → ③ .env. 둘 다 있어야 하고 자리표시자는 없는 것으로 친다.
+ * 없으면 null — 호출자는 공용 Google 도서 검색으로 간다. 값은 로그에 남기지 않는다.
+ */
+internal fun resolveNaverCredentials(context: android.content.Context): Pair<String, String>? {
+    fun clean(v: String) = v.trim().removeSurrounding("\"").removeSurrounding("'")
+    val placeholders = setOf(
+        "", "MY_NAVER_CLIENT_ID", "NAVER_CLIENT_ID", "NAVER_CLIENT_ID_PLACEHOLDER",
+        "MY_NAVER_CLIENT_SECRET", "NAVER_CLIENT_SECRET", "NAVER_CLIENT_SECRET_PLACEHOLDER"
+    )
+    var id = clean(
+        runCatching { SecureKeyManager.getNaverClientId(context) }.getOrDefault("")
+            .ifBlank { runCatching { BuildConfig.ENV_NAVER_CLIENT_ID }.getOrDefault("") }
+            .ifBlank { runCatching { BuildConfig.NAVER_CLIENT_ID }.getOrDefault("") }
+    )
+    var secret = clean(
+        runCatching { SecureKeyManager.getNaverClientSecret(context) }.getOrDefault("")
+            .ifBlank { runCatching { BuildConfig.ENV_NAVER_CLIENT_SECRET }.getOrDefault("") }
+            .ifBlank { runCatching { BuildConfig.NAVER_CLIENT_SECRET }.getOrDefault("") }
+    )
+    if (id in placeholders || secret in placeholders) return null
+    // 예전 버전이 ID/Secret을 바꿔 저장한 기기 보정: 네이버 Client ID(20자)가 Secret(10자)보다 길다.
+    if (id.length < secret.length) { val t = id; id = secret; secret = t }
+    return id to secret
+}
+
+/**
+ * 검색 실패·결과 없음 안내. 원인을 사실대로 말하고, 존재하지 않는 키 입력 화면으로 보내지 않는다(ADR-003 실행 7, 오너 결정: 네이버 키 UI는 만들지 않음).
+ * @param searchedWithNaver null이면 아직 검색 전(빈 결과 문구만 쓴다).
+ */
+internal fun searchGuidanceText(query: String, error: String?, searchedWithNaver: Boolean?): String {
+    if (error == null) {
+        return "검색어 '${query.trim()}'에 맞는 책을 찾지 못했습니다.\n다른 단어로 다시 검색하거나 직접 입력해 등록해 주세요."
+    }
+    val route = when (searchedWithNaver) {
+        true -> "네이버 도서 검색"
+        false -> "공용 Google 도서 검색(이 빌드에는 네이버 검색 키가 들어 있지 않습니다)"
+        null -> "온라인 검색"
+    }
+    return "$route 중 오류가 났습니다.\n$error\n\n잠시 후 다시 시도하거나 직접 입력해 등록해 주세요."
+}

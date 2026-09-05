@@ -30,7 +30,11 @@ class HonestCopyTest {
       "복원 진행하기",
       "클라우드 아카이브",
       "iCloud",
-      "runSimulatedProgress"
+      "runSimulatedProgress",
+      // 도서 검색 안내가 존재하지 않는 네이버 키 입력 화면으로 보내던 문구(ADR-003 실행 7)
+      "API 설정하기",
+      "키를 [설정]",
+      "Key를 설정에"
     )
     val offenders = mainSources().flatMap { file ->
       val text = file.readText()
