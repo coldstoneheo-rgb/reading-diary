@@ -74,6 +74,7 @@ secrets {
 
 // Some unused dependencies are commented out below instead of being removed.
 // This makes it easy to add them back in the future if needed.
+// 예외: 키 유출 위험이 있는 의존성(예: logging-interceptor)은 카탈로그 항목까지 완전 제거한다(CLAUDE.md 안전 규칙).
 dependencies {
   implementation(platform(libs.androidx.compose.bom))
   implementation(platform(libs.firebase.bom))
@@ -102,7 +103,6 @@ dependencies {
   // implementation(libs.firebase.ai)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
-  implementation(libs.logging.interceptor)
   implementation(libs.okhttp)
   // implementation(libs.play.services.location)
   testImplementation(libs.androidx.compose.ui.test.junit4)
