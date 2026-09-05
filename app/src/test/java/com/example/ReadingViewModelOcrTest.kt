@@ -42,8 +42,52 @@ class ReadingViewModelOcrTest {
     override suspend fun extract(bitmap: Bitmap): OcrOutcome { calls++; return outcome }
   }
 
-  private fun viewModel(extractor: TextExtractor): ReadingViewModel =
-    ReadingViewModel(ApplicationProvider.getApplicationContext<Application>(), extractor)
+  private fun viewModel(
+    extractor: TextExtractor,
+    precise: TextExtractor = FakeExtractor(OcrOutcome.Text("precise"))
+  ): ReadingViewModel =
+    ReadingViewModel(ApplicationProvider.getApplicationContext<Application>(), extractor, precise)
+
+  @Test
+  fun defaultOcr_neverTouchesPreciseExtractor() = runTest(dispatcher) {
+    val precise = FakeExtractor(OcrOutcome.Text("precise"))
+    val vm = viewModel(FakeExtractor(OcrOutcome.Text("on-device")), precise)
+
+    vm.processUnderlineOcr(bitmap)
+    advanceUntilIdle()
+
+    assertEquals(OcrState.Success("on-device"), vm.ocrState.value)
+    assertEquals(0, precise.calls)
+  }
+
+  @Test
+  fun preciseAnalysis_refusedWithoutKeyAndConsent_extractorNotCalled() = runTest(dispatcher) {
+    val precise = FakeExtractor(OcrOutcome.Text("precise"))
+    val vm = viewModel(FakeExtractor(OcrOutcome.NoText), precise)
+    val uri = android.net.Uri.fromFile(java.io.File(ApplicationProvider.getApplicationContext<Application>().cacheDir, "x.png"))
+
+    // Robolectric에서는 암호화 저장소가 없어 키가 등록되지 않은 상태 = 동의만 있어도 거부돼야 한다
+    vm.setGeminiPhotoConsent(true)
+    vm.processPreciseAnalysis(uri, 0f, false, 0f, 0f, 1f, 1f)
+    advanceUntilIdle()
+
+    assertEquals(OcrState.Error(ReadingViewModel.CONSENT_REQUIRED_MESSAGE), vm.preciseOcrState.value)
+    assertEquals(0, precise.calls)
+    assertEquals(OcrState.Idle, vm.ocrState.value) // 기본 경로 상태는 건드리지 않는다
+  }
+
+  @Test
+  fun clearGeminiApiKey_alsoRevokesConsent() {
+    val vm = viewModel(FakeExtractor(OcrOutcome.NoText))
+    vm.setGeminiPhotoConsent(true)
+    assertEquals(true, vm.geminiPhotoConsent.value)
+
+    vm.clearGeminiApiKey()
+
+    assertEquals(false, vm.geminiPhotoConsent.value)
+    assertEquals(false, vm.geminiKeyRegistered.value)
+    assertEquals(false, vm.preciseAnalysisAvailable.value)
+  }
 
   private val bitmap: Bitmap get() = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
 

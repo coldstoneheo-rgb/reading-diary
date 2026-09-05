@@ -70,6 +70,9 @@ fun OcrDiaryScreen(
     val books by viewModel.books.collectAsState()
     val diaries by viewModel.diaries.collectAsState()
     val ocrState by viewModel.ocrState.collectAsState()
+    val preciseState by viewModel.preciseOcrState.collectAsState()
+    val preciseAvailable by viewModel.preciseAnalysisAvailable.collectAsState()
+    var showPreciseConfirm by remember { mutableStateOf(false) }
 
     val currentBook = books.find { it.id == bookId }
     val editingDiary = remember(diaryId, diaries) { diaries.find { it.id == diaryId } }
@@ -202,7 +205,19 @@ fun OcrDiaryScreen(
     // 화면 진입 시 이전 화면(다른 책/일기)의 OCR 결과가 남아 편집창을 덮어쓰지 않도록 초기화하고, 이탈 시에도 비운다
     DisposableEffect(Unit) {
         viewModel.resetOcrState()
-        onDispose { viewModel.resetOcrState() }
+        viewModel.resetPreciseOcrState()
+        onDispose {
+            viewModel.resetOcrState()
+            viewModel.resetPreciseOcrState()
+        }
+    }
+
+    // 정밀 분석 실패는 토스트로만 알리고 편집창은 건드리지 않는다
+    LaunchedEffect(preciseState) {
+        (preciseState as? OcrState.Error)?.let {
+            Toast.makeText(context, it.message, Toast.LENGTH_LONG).show()
+            viewModel.resetPreciseOcrState()
+        }
     }
 
     // OCR 결과 반영. 실패 메시지는 편집창에 넣지 않는다(일기로 저장되면 안 되므로) — ADR-002 Q2
@@ -1015,6 +1030,73 @@ fun OcrDiaryScreen(
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
+
+                // 정밀 분석(선택): 키 등록 + 사진 전송 동의가 있을 때만 노출. 사진마다 확인 다이얼로그를 거친다(ADR-002 Q3)
+                val preciseTarget = activeImageUrl?.takeIf { !it.startsWith("http") }
+                if (preciseAvailable && preciseTarget != null) {
+                    OutlinedButton(
+                        onClick = { showPreciseConfirm = true },
+                        enabled = preciseState !is OcrState.Processing,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("precise_analysis_button"),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            if (preciseState is OcrState.Processing) "Google Gemini 분석 중…" else "정밀 분석 (사진을 Google Gemini로 전송)",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                if (showPreciseConfirm && preciseTarget != null) {
+                    AlertDialog(
+                        onDismissRequest = { showPreciseConfirm = false },
+                        title = { Text("사진을 Google Gemini로 보낼까요?", fontWeight = FontWeight.Bold) },
+                        text = {
+                            Text("선택한 영역의 페이지 사진이 본인 키로 Google Gemini에 전송됩니다. 요금은 키 소유자에게 청구되며, 결과는 확인 후에만 편집창에 반영됩니다.")
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    showPreciseConfirm = false
+                                    viewModel.processPreciseAnalysis(
+                                        imageUri = Uri.parse(preciseTarget),
+                                        rotationDegrees = imageRotation,
+                                        flipped = isFlipped,
+                                        cropLeft = cropLeft,
+                                        cropTop = cropTop,
+                                        cropRight = cropRight,
+                                        cropBottom = cropBottom
+                                    )
+                                },
+                                modifier = Modifier.testTag("precise_analysis_confirm")
+                            ) { Text("전송하고 분석") }
+                        },
+                        dismissButton = { TextButton(onClick = { showPreciseConfirm = false }) { Text("취소") } }
+                    )
+                }
+
+                (preciseState as? OcrState.Success)?.let { result ->
+                    AlertDialog(
+                        onDismissRequest = { viewModel.resetPreciseOcrState() },
+                        title = { Text("정밀 분석 결과", fontWeight = FontWeight.Bold) },
+                        text = { Text(result.text) },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    extractedText = result.text
+                                    viewModel.resetPreciseOcrState()
+                                },
+                                modifier = Modifier.testTag("precise_analysis_apply")
+                            ) { Text("이 결과로 바꾸기") }
+                        },
+                        dismissButton = { TextButton(onClick = { viewModel.resetPreciseOcrState() }) { Text("버리기") } }
+                    )
+                }
 
                 // SNS Card Share Button at the bottom of Stage 3
                 OutlinedButton(

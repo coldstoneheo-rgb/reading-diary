@@ -46,17 +46,24 @@ class GeminiKeyPolicyTest {
 
   @Test
   fun geminiClient_isNotReferencedByAnyProductionPath() {
-    // ADR-002 Q3: 사진이 기기 밖으로 나가는 유일한 코드(GeminiApiClient)는 명시 동의 UI 없이는 어디서도 호출되면 안 된다.
+    // ADR-002 Q3: 사진이 기기 밖으로 나가는 유일한 코드(GeminiApiClient)는 GeminiTextExtractor 어댑터를 통해서만,
+    // 그 어댑터는 ReadingViewModel.processPreciseAnalysis(키 등록 + 사진 전송 동의 + 사진마다 확인)에서만 쓰인다.
     // 테스트 작업 디렉터리는 app 모듈 루트다(GreetingScreenshotTest의 상대 경로 관례와 동일).
     val mainSrc = java.io.File("src/main/java")
     assertTrue("expected app/src/main/java to exist", mainSrc.isDirectory)
-    val offenders = mainSrc.walkTopDown()
-      .filter { it.isFile && it.extension == "kt" }
-      .filter { !it.path.replace('\\', '/').contains("/data/api/GeminiApiClient.kt") }
-      .filter { it.readText().contains("GeminiApiClient") }
+    val ktFiles = mainSrc.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
+    fun offenders(symbol: String, allowed: List<String>) = ktFiles
+      .filter { f -> allowed.none { f.path.replace('\\', '/').endsWith(it) } }
+      .filter { it.readText().contains(symbol) }
       .map { it.path }
-      .toList()
-    assertTrue("GeminiApiClient referenced from: $offenders", offenders.isEmpty())
+    assertTrue(
+      "GeminiApiClient referenced outside its adapter",
+      offenders("GeminiApiClient", listOf("/data/api/GeminiApiClient.kt", "/data/ocr/GeminiTextExtractor.kt")).isEmpty()
+    )
+    assertTrue(
+      "GeminiTextExtractor referenced outside ReadingViewModel",
+      offenders("GeminiTextExtractor", listOf("/data/ocr/GeminiTextExtractor.kt", "/ui/viewmodel/ReadingViewModel.kt")).isEmpty()
+    )
   }
 
   /** 컴파일된 XML 리소스를 파싱해 (섹션, 태그, domain, path) 목록으로. 주석·속성 순서에 영향받지 않는다. */

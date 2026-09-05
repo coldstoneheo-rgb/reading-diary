@@ -18,8 +18,9 @@ app/src/main/java/com/example/
   data/ocr/MlKitTextExtractor.kt # 기본 엔진. ML Kit 한국어(언번들: Play 서비스가 첫 사용 시 모델 다운로드)
   data/ocr/OcrTextAssembler.kt  # 블록 top→left 정렬, 줄은 공백, 블록은 빈 줄 (순수 함수, JVM 테스트)
   data/ocr/BitmapDecoding.kt    # OCR 입력 다운샘플링(긴 변 2048) — 원본 12MP를 그대로 올리면 OOM
+  data/ocr/GeminiTextExtractor.kt # "정밀 분석" 어댑터. ReadingViewModel.processPreciseAnalysis에서만 사용(키 등록+사진 전송 동의+사진마다 확인)
   data/api/GeminiApiClient.kt   # 사용자 Gemini 키(SecureKeyManager)로 generativelanguage.googleapis.com 호출(x-goog-api-key 헤더).
-                                #   키 없으면 예외. **현재 어디서도 호출되지 않음** — 명시 동의 UI와 함께 붙일 것(ADR-002 Q3)
+                                #   키 없으면 예외. GeminiTextExtractor 외에서 참조 금지(테스트가 고정)
   data/SecureKeyManager.kt # EncryptedSharedPreferences에 네이버·Gemini 키 저장(네이버만 평문 폴백, Gemini는 fail-closed)
   ui/viewmodel/ReadingViewModel.kt  # 상태·내비·CRUD 전부 여기 (AndroidViewModel). TextExtractor를 생성자 주입(기본 ML Kit)
   ui/screens/*Screen.kt    # Dashboard/BookDetail/AddEditBook/OcrDiary/Settings/Statistics/KnowledgeDrawer
@@ -83,8 +84,9 @@ gradle :app:assembleDebug            # 디버그 빌드 — 루트에 debug.keys
   `redactHeader("X-Naver-Client-Secret")`가 필수다. 헤더 값에 비ASCII가 섞이면 OkHttp 예외 메시지에 값이 통째로 실리므로
   헤더에 넣기 전 `SecureKeyManager.isHeaderSafe`로 거르고, 예외는 종류만 표시한다.
 - **릴리스 서명은 사용자만.** `assembleRelease`/`bundleRelease`는 에이전트가 실행하지 않고 사용자가 `!`로 직접 실행한다.
-- 현재 OCR 화면은 온디바이스(ML Kit)만 호출한다. `GeminiApiClient`를 어떤 경로에 연결하든 **사진 전송에 대한 사용자 명시 동의 UI**가
-  먼저다(ADR-002 Q3). `GeminiKeyPolicyTest`가 프로덕션 코드의 `GeminiApiClient` 참조 0건을 고정한다.
+- 기본 OCR 경로는 온디바이스(ML Kit)만 호출한다. Gemini "정밀 분석"은 설정에서 본인 키 등록 + 사진 전송 동의 체크 + 사진마다
+  확인 다이얼로그를 거친 `processPreciseAnalysis`에서만 열리며, 결과는 사용자가 "이 결과로 바꾸기"를 눌러야 편집창에 들어간다(ADR-002 Q3).
+  `GeminiKeyPolicyTest`가 `GeminiApiClient`/`GeminiTextExtractor`의 참조 범위를 고정한다.
 - Room 스키마 변경은 🔴 고위험: 마이그레이션 전략 없이 엔티티 필드를 바꾸지 않는다(기존 설치 데이터 소실).
 
 ---

@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,6 +40,9 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
     // Observe persistent general configurations
     val diarySortNewestFirst by viewModel.diarySortNewestFirst.collectAsState()
     val diaryFontSize by viewModel.diaryFontSize.collectAsState()
+    val geminiKeyRegistered by viewModel.geminiKeyRegistered.collectAsState()
+    val geminiPhotoConsent by viewModel.geminiPhotoConsent.collectAsState()
+    var geminiKeyInput by remember { mutableStateOf("") }
 
     // Dynamic state for general toggle choices
     var showChangelog by remember { mutableStateOf(false) }
@@ -364,6 +368,105 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                             }
                         }
                     }
+                }
+            }
+
+            // SECTION 1.5: AI 정밀 분석 (선택) — 사용자 본인 Gemini 키 + 사진 전송 동의 (ADR-001 D, ADR-002 Q3)
+            Text(
+                "🔍 AI 정밀 분석 (선택)",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "기본 밑줄 인식은 기기 안에서만 처리되고 사진은 밖으로 나가지 않습니다. 본인의 Google Gemini API 키를 등록하면 " +
+                            "선택한 페이지 사진을 Google Gemini로 보내 더 정밀하게 분석하는 '정밀 분석' 버튼이 생깁니다. 요금은 키 소유자에게 청구됩니다.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        lineHeight = 15.sp
+                    )
+
+                    if (geminiKeyRegistered) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "키 등록됨 (기기 암호화 저장소)",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                            )
+                            TextButton(
+                                onClick = {
+                                    viewModel.clearGeminiApiKey()
+                                    Toast.makeText(context, "Gemini 키를 삭제했습니다.", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.testTag("gemini_key_clear_button")
+                            ) { Text("삭제") }
+                        }
+                    } else {
+                        OutlinedTextField(
+                            value = geminiKeyInput,
+                            onValueChange = { geminiKeyInput = it },
+                            label = { Text("Gemini API 키") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("gemini_key_input")
+                        )
+                        Button(
+                            onClick = {
+                                if (viewModel.saveGeminiApiKey(geminiKeyInput)) {
+                                    geminiKeyInput = ""
+                                    Toast.makeText(context, "키를 기기 암호화 저장소에 저장했습니다.", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        "저장하지 못했습니다. 키에 허용되지 않는 문자가 있거나 이 기기의 암호화 저장소를 열 수 없습니다.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            },
+                            enabled = geminiKeyInput.isNotBlank(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("gemini_key_save_button"),
+                            shape = RoundedCornerShape(8.dp)
+                        ) { Text("키 저장", fontWeight = FontWeight.Bold) }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = geminiPhotoConsent,
+                            onCheckedChange = { viewModel.setGeminiPhotoConsent(it) },
+                            enabled = geminiKeyRegistered,
+                            modifier = Modifier.testTag("gemini_consent_checkbox")
+                        )
+                        Text(
+                            text = "정밀 분석을 실행할 때마다 선택한 페이지 사진이 Google Gemini로 전송되는 것에 동의합니다.",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Text(
+                        text = "이 키는 백업·기기 이전에 포함되지 않습니다. 새 기기에서는 다시 입력해 주세요.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
                 }
             }
 
