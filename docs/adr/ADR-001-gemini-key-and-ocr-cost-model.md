@@ -44,7 +44,7 @@
 | B. 서버 프록시 + 무료 한도(예: 기기당 월 20건) | 서버 + API 요금. MAU 1천·월 20건이면 대략 월 수만 원대 | 서버에만 존재 | 없음(한도 초과 시 안내) | 높음(백엔드, App Check/남용 방지, 기기 식별) | 수요가 확인되면 재검토 |
 | C. 보상형 광고 후 분석 | B와 동일 + 광고 SDK | B와 동일(서버 필수) | 광고 시청 | B + AdMob 연동 | 건당 광고 수익(수 원~수십 원)이 API 원가(1원 안팎)보다 크므로 수익성은 있음. 그러나 B의 서버·남용 방지 부담을 그대로 상속하고 독서 기록 UX를 해침. 보류 |
 | D. BYO 키(사용자 본인 키) | 0 | 기기 암호화 저장 | 높음(키 발급 절차) | 낮음(SecureKeyManager 재사용 + 설정 UI) | **선택 기능으로 채택** |
-| E. 유료 구독 | 0(수익) | 서버 필수 | 결제 | 높음(결제 + 서버) | 오너 판단상 지불 의사 낮음. 보류 |
+| E. 유료 구독 | B와 동일한 서버 비용 발생(구독 수익으로 상쇄 가정) | 서버 필수 | 결제 | 높음(결제 + 서버) | 오너 판단상 지불 의사 낮음. 보류 |
 
 핵심 근거:
 - B/C/E는 모두 **서버가 있어야** 키를 숨길 수 있다. 서버가 없는 현 상태에서 실행 가능한 안은 A와 D뿐이다.
@@ -61,10 +61,13 @@
   `metadata.json`의 `MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API`와 설명 문구는 AI Studio 매니페스트라 의도적으로 유지하며,
   2단계 A 이후 실제 동작에 맞춰 재검토한다.
 - 서버를 두지 않으므로 사용자 데이터(사진)는 사용자가 직접 키를 등록한 경우를 제외하면 기기 밖으로 나가지 않는다.
-- **기기 저장소의 한계(정직하게 적어 둠):** `SecureKeyManager`는 EncryptedSharedPreferences 생성이 실패하면 같은 파일명의
-  **평문** SharedPreferences로 폴백한다. 또 `allowBackup="true"`에 백업 제외 규칙이 비어 있어 prefs가 클라우드 백업에 포함된다.
-  현재는 Gemini 키를 저장하는 호출자가 없어 실제 노출은 없지만, 2단계 D(설정 UI)를 붙이기 **전에** 다음을 먼저 한다:
-  (a) `backup_rules.xml`/`data_extraction_rules.xml`에서 `secure_user_prefs` 제외, (b) 폴백 상태에서는 Gemini 키 저장을 거부.
+- **기기 저장소의 한계(정직하게 적어 둠):** 네이버 키용 `SecureKeyManager` 경로는 EncryptedSharedPreferences 생성이 실패하면
+  같은 파일명의 **평문** SharedPreferences로 폴백한다(기존 동작 유지). Gemini 키는 이 ADR과 함께 **fail-closed**로 구현했다:
+  암호화 저장소를 열 수 없으면 저장을 거부하고(`saveGeminiApiKey` → `false`), 읽기도 평문 폴백을 보지 않는다.
+  출력 가능한 ASCII가 아닌 키는 저장 단계에서 거부한다(헤더 조립 예외 메시지에 키가 실리는 경로 차단).
+  키가 등록된 상태에서 호출이 실패하면 "지원 예정"이 아니라 실패 사실을 알리는 별도 문구를 붙인다.
+  남은 항목: `allowBackup="true"`에 백업 제외 규칙이 비어 있어 prefs 파일이 클라우드 백업에 포함된다. 2단계 D(설정 UI) 전에
+  `backup_rules.xml`/`data_extraction_rules.xml`에서 `secure_user_prefs`를 제외한다.
 - **키 회전 권고:** 과거 실제 키가 든 `.env`로 빌드한 APK가 기기나 AI Studio에 남아 있을 수 있다. 코드에서 키를 빼도 그 키는
   안전해지지 않으므로, 그런 키가 있었다면 Google AI Studio에서 폐기·재발급한다.
 - 2단계 착수 시 최우선 확인: `GeminiApiClient`의 모델 ID(`gemini-3.5-flash`)가 실제로 존재하는지. 틀리면 BYO 키를 등록해도

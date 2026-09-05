@@ -27,7 +27,9 @@ import java.util.concurrent.TimeUnit
  */
 object GeminiApiClient {
     private const val TAG = "LocalOcrAnalyzer"
-    private const val ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
+    // ADR-001: 2단계 착수 시 이 모델 ID가 실재하는지 최우선 확인
+    private const val MODEL = "gemini-3.5-flash"
+    private const val ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/$MODEL:generateContent"
 
     /**
      * Extracts text from a captured/selected page image.
@@ -43,7 +45,8 @@ object GeminiApiClient {
             ""
         }.trim()
 
-        val isKeyValid = apiKey.isNotEmpty() && apiKey != "MY_GEMINI_API_KEY" && apiKey != "placeholder"
+        // 헤더에 실을 수 없는 문자가 섞인 키는 OkHttp가 예외 메시지에 값을 통째로 넣으므로 아예 시도하지 않는다
+        val isKeyValid = apiKey.isNotEmpty() && SecureKeyManager.isHeaderSafe(apiKey)
 
         if (isKeyValid) {
             try {
@@ -98,7 +101,7 @@ object GeminiApiClient {
                     .post(body)
                     .build()
 
-                Log.d(TAG, "Requesting Gemini API (gemini-3.5-flash) with real-time OCR...")
+                Log.d(TAG, "Requesting Gemini API ($MODEL) with real-time OCR...")
                 
                 okHttpClient.newCall(request).execute().use { response ->
                     if (response.isSuccessful) {
@@ -125,17 +128,19 @@ object GeminiApiClient {
                             }
                         }
                     } else {
-                        val errString = response.body?.string() ?: ""
-                        Log.e(TAG, "Gemini API rejected request: Code ${response.code} Body: $errString")
+                        // 응답 본문은 신뢰할 수 없는 외부 입력이라 코드와 앞부분만 남긴다
+                        val errPreview = (response.body?.string() ?: "").take(200)
+                        Log.e(TAG, "Gemini API rejected request: Code ${response.code} Body(200): $errPreview")
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Exception during real Gemini API execution", e)
+                // 예외 메시지에 헤더 값(키)이 실릴 수 있으므로 종류만 기록한다
+                Log.e(TAG, "Exception during real Gemini API execution: ${e::class.java.simpleName}")
             }
         }
 
-        // 2. Mock / Smart Simulator fallback if Gemini key is placeholder or request failed
-        delay(1200) // Realistic processing delay
+        // 2. 폴백. 키가 없으면 시뮬레이션(처리 지연 연출), 키가 있는데 실패했으면 지연 없이 실패 사실을 알린다
+        if (!isKeyValid) delay(1200)
         val normalizedTitle = bookTitle.trim().lowercase()
         val simulatedText = when {
             normalizedTitle.contains("데미안") || normalizedTitle.contains("demian") -> {
@@ -155,7 +160,11 @@ object GeminiApiClient {
             }
         }
 
-        val hint = "\n\n*(밑줄 구절 인식을 시뮬레이션한 예시 문장입니다. 실제 촬영 사진 분석은 다음 업데이트에서 지원할 예정입니다.)*"
+        val hint = if (isKeyValid) {
+            "\n\n*(AI 분석 요청이 실패해 예시 문장을 표시합니다. 등록한 Gemini 키, 네트워크, 모델 설정을 확인해 주세요.)*"
+        } else {
+            "\n\n*(밑줄 구절 인식을 시뮬레이션한 예시 문장입니다. 실제 촬영 사진 분석은 다음 업데이트에서 지원할 예정입니다.)*"
+        }
         return@withContext simulatedText + hint
     }
 }
