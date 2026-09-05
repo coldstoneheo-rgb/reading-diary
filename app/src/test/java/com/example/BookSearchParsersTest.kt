@@ -1,12 +1,17 @@
 package com.example
 
 import com.example.data.api.BookSearchParsers
+import org.json.JSONException
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * 도서 검색 응답 파싱의 오프라인 회귀 테스트. 네트워크·자격증명 없이 항상 같은 결과를 낸다.
+ *
+ * 주의: 이 테스트는 `org.json:json` 레퍼런스 구현으로 실행된다. Android 기기의 `org.json`과는
+ * 타입 강제변환 규칙(예: 숫자를 `getString`으로 읽을 때)이 다를 수 있다.
  */
 class BookSearchParsersTest {
 
@@ -74,5 +79,20 @@ class BookSearchParsersTest {
   @Test
   fun google_missingItemsReturnsEmpty() {
     assertTrue(BookSearchParsers.parseGoogleBooks("""{"kind":"books#volumes","totalItems":0}""").isEmpty())
+  }
+
+  @Test
+  fun google_smallThumbnailOnly_isNotUsedAsFallback_currentBehaviorPinned() {
+    // 기존 동작 고정: optString("thumbnail")은 결측 시 null이 아닌 ""를 돌려주므로
+    // smallThumbnail 폴백은 발동하지 않는다. 고칠 때는 별도 PR에서 이 기대값을 바꾼다.
+    val body = """{"items":[{"volumeInfo":{"title":"T","imageLinks":{"smallThumbnail":"http://x/small.jpg"}}}]}"""
+    assertEquals("", BookSearchParsers.parseGoogleBooks(body)[0].coverUrl)
+  }
+
+  @Test
+  fun invalidJson_propagatesJSONException() {
+    // 계약: 파싱 실패는 호출자(AddEditBookScreen의 try/catch)가 오류 배너로 처리한다
+    assertThrows(JSONException::class.java) { BookSearchParsers.parseNaverBooks("not json") }
+    assertThrows(JSONException::class.java) { BookSearchParsers.parseGoogleBooks("not json") }
   }
 }
