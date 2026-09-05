@@ -135,10 +135,8 @@ fun AddEditBookScreen(
         if (trimmedQuery.length >= 2) {
             delay(400) // 400ms debounce
             isSearching = true
+            val naverCredentials = withContext(Dispatchers.IO) { resolveNaverCredentials(context) }
             val responseResult = withContext(Dispatchers.IO) {
-                val naverCredentials = resolveNaverCredentials(context)
-                withContext(Dispatchers.Main) { searchedWithNaver = naverCredentials != null }
-
                 if (naverCredentials != null) {
                     val (configClientId, configClientSecret) = naverCredentials
                     try {
@@ -195,6 +193,7 @@ fun AddEditBookScreen(
                     }
                 }
             }
+            searchedWithNaver = naverCredentials != null
             searchResults = responseResult.first
             searchError = responseResult.second
             isSearching = false
@@ -798,27 +797,33 @@ fun getHighlightedText(text: String, query: String, highlightColor: Color): Anno
 
 
 /**
- * 네이버 검색 키. 출처 우선순위(CLAUDE.md): ① 기기 암호화 저장소 → ② 빌드 셸 환경변수 → ③ .env. 둘 다 있어야 하고 자리표시자는 없는 것으로 친다.
- * 없으면 null — 호출자는 공용 Google 도서 검색으로 간다. 값은 로그에 남기지 않는다.
+ * 네이버 검색 키. 출처 우선순위(CLAUDE.md): ① 기기 암호화 저장소 → ② 빌드 셸 환경변수 → ③ .env.
+ * 없으면 null — 호출자는 공용 Google 도서 검색으로 간다. 값은 로그에 남기지 않는다. 판정은 [pickNaverCredentials]가 한다.
  */
 internal fun resolveNaverCredentials(context: android.content.Context): Pair<String, String>? {
-    fun clean(v: String) = v.trim().removeSurrounding("\"").removeSurrounding("'")
-    val placeholders = setOf(
-        "", "MY_NAVER_CLIENT_ID", "NAVER_CLIENT_ID", "NAVER_CLIENT_ID_PLACEHOLDER",
-        "MY_NAVER_CLIENT_SECRET", "NAVER_CLIENT_SECRET", "NAVER_CLIENT_SECRET_PLACEHOLDER"
-    )
-    var id = clean(
-        runCatching { SecureKeyManager.getNaverClientId(context) }.getOrDefault("")
-            .ifBlank { runCatching { BuildConfig.ENV_NAVER_CLIENT_ID }.getOrDefault("") }
-            .ifBlank { runCatching { BuildConfig.NAVER_CLIENT_ID }.getOrDefault("") }
-    )
-    var secret = clean(
-        runCatching { SecureKeyManager.getNaverClientSecret(context) }.getOrDefault("")
-            .ifBlank { runCatching { BuildConfig.ENV_NAVER_CLIENT_SECRET }.getOrDefault("") }
-            .ifBlank { runCatching { BuildConfig.NAVER_CLIENT_SECRET }.getOrDefault("") }
-    )
-    if (id in placeholders || secret in placeholders) return null
-    // 예전 버전이 ID/Secret을 바꿔 저장한 기기 보정: 네이버 Client ID(20자)가 Secret(10자)보다 길다.
+    val id = runCatching { SecureKeyManager.getNaverClientId(context) }.getOrDefault("")
+        .ifBlank { BuildConfig.ENV_NAVER_CLIENT_ID }
+        .ifBlank { BuildConfig.NAVER_CLIENT_ID }
+    val secret = runCatching { SecureKeyManager.getNaverClientSecret(context) }.getOrDefault("")
+        .ifBlank { BuildConfig.ENV_NAVER_CLIENT_SECRET }
+        .ifBlank { BuildConfig.NAVER_CLIENT_SECRET }
+    return pickNaverCredentials(id, secret)
+}
+
+private val NAVER_PLACEHOLDERS = setOf(
+    "MY_NAVER_CLIENT_ID", "NAVER_CLIENT_ID", "NAVER_CLIENT_ID_PLACEHOLDER",
+    "MY_NAVER_CLIENT_SECRET", "NAVER_CLIENT_SECRET", "NAVER_CLIENT_SECRET_PLACEHOLDER"
+)
+
+/**
+ * 순수 함수: 원시 문자열 둘을 정리해 (ID, Secret)으로 만든다. 둘 다 있어야 하고 공백·자리표시자(양쪽 목록 합집합)는 없는 것으로 친다.
+ * 예전 버전이 ID/Secret을 바꿔 저장한 기기 보정: 네이버 Client ID(20자)가 Secret(10자)보다 길다.
+ */
+internal fun pickNaverCredentials(idRaw: String, secretRaw: String): Pair<String, String>? {
+    fun clean(v: String) = v.trim().removeSurrounding("\"").removeSurrounding("'").trim()
+    var id = clean(idRaw)
+    var secret = clean(secretRaw)
+    if (id.isBlank() || secret.isBlank() || id in NAVER_PLACEHOLDERS || secret in NAVER_PLACEHOLDERS) return null
     if (id.length < secret.length) { val t = id; id = secret; secret = t }
     return id to secret
 }
@@ -833,7 +838,7 @@ internal fun searchGuidanceText(query: String, error: String?, searchedWithNaver
     }
     val route = when (searchedWithNaver) {
         true -> "네이버 도서 검색"
-        false -> "공용 Google 도서 검색(이 빌드에는 네이버 검색 키가 들어 있지 않습니다)"
+        false -> "공용 Google 도서 검색(이 앱에는 네이버 검색 키가 등록되어 있지 않습니다)"
         null -> "온라인 검색"
     }
     return "$route 중 오류가 났습니다.\n$error\n\n잠시 후 다시 시도하거나 직접 입력해 등록해 주세요."
