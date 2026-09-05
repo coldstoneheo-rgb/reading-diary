@@ -72,8 +72,7 @@ secrets {
   ignoreList.add("GEMINI_API_KEY")
 }
 
-// Some unused dependencies are commented out below instead of being removed.
-// This makes it easy to add them back in the future if needed.
+// 재도입 가능성이 있는 미사용 의존성만 주석으로 남기고, 그 외(특히 키 유출 위험이 있는 것)는 카탈로그까지 제거한다.
 dependencies {
   implementation(platform(libs.androidx.compose.bom))
   implementation(platform(libs.firebase.bom))
@@ -102,7 +101,6 @@ dependencies {
   // implementation(libs.firebase.ai)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
-  implementation(libs.logging.interceptor)
   implementation(libs.okhttp)
   // implementation(libs.play.services.location)
   testImplementation(libs.androidx.compose.ui.test.junit4)
