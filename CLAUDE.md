@@ -21,9 +21,11 @@ app/src/main/java/com/example/
   data/ocr/GeminiTextExtractor.kt # "정밀 분석" 어댑터. ReadingViewModel.processPreciseAnalysis에서만 사용(키 등록+사진 전송 동의+사진마다 확인)
   data/api/GeminiApiClient.kt   # 사용자 Gemini 키(SecureKeyManager)로 generativelanguage.googleapis.com 호출(x-goog-api-key 헤더).
                                 #   키 없으면 예외. GeminiTextExtractor 외에서 참조 금지(테스트가 고정)
+  data/knowledge/KeywordExtractor.kt, KeywordLinks.kt # 기억 서랍 '책 사이의 연결'(ADR-003): 조사 제거 휴리스틱 → 서로 다른 책 2권 이상에 함께 나온 단어. 순수 함수, JVM 테스트
   data/SecureKeyManager.kt # EncryptedSharedPreferences에 네이버·Gemini 키 저장(네이버만 평문 폴백, Gemini는 fail-closed)
   ui/viewmodel/ReadingViewModel.kt  # 상태·내비·CRUD 전부 여기 (AndroidViewModel). TextExtractor를 생성자 주입(기본 ML Kit)
   ui/screens/*Screen.kt    # Dashboard/BookDetail/AddEditBook/OcrDiary/Settings/Statistics/KnowledgeDrawer
+  ui/screens/KnowledgeDrawerScreen.kt # 기억 서랍. 본문 KnowledgeDrawerContent(books, diaries, sharedWords)는 stateless → 스크린샷 테스트. 연결 계산은 ViewModel.sharedWords
   ui/screens/AddEditBookScreen.kt   # 네이버 책 검색(OkHttp 직접, openapi.naver.com)이 화면 코드 안에 있음
   ui/screens/OcrDiaryScreen.kt      # 카메라/갤러리 → 크롭 비율 지정 → viewModel.processUnderlineOcr(uri, 회전, 플립, 크롭) (디코드는 ViewModel)
   ui/theme/                # 테마 id로 전환하는 다중 컬러스킴

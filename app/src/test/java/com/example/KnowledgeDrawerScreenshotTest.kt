@@ -4,6 +4,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import com.example.data.Book
 import com.example.data.Diary
+import com.example.data.knowledge.KeywordLinks
 import com.example.ui.screens.KnowledgeDrawerContent
 import com.example.ui.screens.MatchKind
 import com.example.ui.screens.buildMarkdown
@@ -64,7 +65,7 @@ class KnowledgeDrawerScreenshotTest {
   @Test
   fun knowledgeDrawer_withRecords_screenshot() {
     composeTestRule.setContent {
-      MyApplicationTheme { KnowledgeDrawerContent(books = books, diaries = diaries, onBack = {}) }
+      MyApplicationTheme { KnowledgeDrawerContent(books = books, diaries = diaries, sharedWords = KeywordLinks.build(books, diaries), onBack = {}) }
     }
     composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/knowledge_drawer_records.png")
   }
@@ -72,9 +73,40 @@ class KnowledgeDrawerScreenshotTest {
   @Test
   fun knowledgeDrawer_empty_screenshot() {
     composeTestRule.setContent {
-      MyApplicationTheme { KnowledgeDrawerContent(books = books, diaries = emptyList(), onBack = {}) }
+      MyApplicationTheme { KnowledgeDrawerContent(books = books, diaries = emptyList(), sharedWords = emptyList(), onBack = {}) }
     }
     composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/knowledge_drawer_empty.png")
+  }
+
+  @Test
+  fun knowledgeDrawer_singleBook_showsHowToGetAConnection_screenshot() {
+    val oneBook = diaries.filter { it.bookId == 1 }
+    composeTestRule.setContent {
+      MyApplicationTheme { KnowledgeDrawerContent(books = books, diaries = oneBook, sharedWords = KeywordLinks.build(books, oneBook), onBack = {}) }
+    }
+    composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/knowledge_drawer_single_book.png")
+  }
+
+  @Test
+  fun knowledgeDrawer_twoBooksWithoutSharedWord_screenshot() {
+    val noOverlap = listOf(
+      diaries[0],
+      Diary(id = 12, bookId = 2, page = 5, selectedText = "돈은 인격체다.", notes = "", createdAt = noonUtc)
+    )
+    val links = KeywordLinks.build(books, noOverlap)
+    assertTrue(links.isEmpty())
+    composeTestRule.setContent {
+      MyApplicationTheme { KnowledgeDrawerContent(books = books, diaries = noOverlap, sharedWords = links, onBack = {}) }
+    }
+    composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/knowledge_drawer_two_books_no_link.png")
+  }
+
+  @Test
+  fun fixture_hasExactlyOneCrossBookConnection_onTheWordWorld() {
+    // 화면 기준 이미지가 무엇을 보여주는지 데이터로 고정한다: "세계"만 데미안↔사피엔스에 함께 나온다.
+    val links = KeywordLinks.build(books, diaries)
+    assertEquals(listOf("세계"), links.map { it.word })
+    assertEquals(setOf(1, 2), links[0].bookIds)
   }
 
   @Test
