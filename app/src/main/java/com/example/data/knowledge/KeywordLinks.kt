@@ -3,13 +3,17 @@ package com.example.data.knowledge
 import com.example.data.Book
 import com.example.data.Diary
 
-/** 연결 카드 한 줄: 어느 책의 어느 구절이 이 단어를 품고 있는가. */
+/** 단어가 일기의 어디에서 나왔는가. 화면은 그 원문을 보여 준다(ADR-003 Q2: 근거 없는 연결은 보이지 않는다). */
+enum class QuoteSource { TEXT, NOTES, TAG }
+
+/** 연결 카드 한 줄: 어느 책의 어느 기록이 이 단어를 품고 있는가. [text]는 단어가 실제로 들어 있는 원문이다. */
 data class LinkedQuote(
     val bookId: Int,
     val bookTitle: String,
     val diaryId: Int,
     val page: Int,
-    val text: String
+    val text: String,
+    val source: QuoteSource
 )
 
 /**
@@ -27,7 +31,7 @@ data class SharedWord(
 
 /**
  * 책·일기 목록에서 "책 사이의 연결"을 계산하는 순수 함수. Room·Compose에 의존하지 않아 JVM 테스트가 가능하다.
- * 계산은 ViewModel에서 DB가 바뀔 때만 한다(ADR-003 Q4).
+ * 계산은 ViewModel에서 DB가 바뀔 때만 한다(ADR-003 Q4). 복잡도는 O(전체 토큰 수).
  */
 object KeywordLinks {
 
@@ -44,29 +48,35 @@ object KeywordLinks {
         if (books.isEmpty() || diaries.isEmpty()) return emptyList()
         val titleById = books.associate { it.id to it.title }
 
-        // word -> (userTagged, quotes)
-        val tagged = HashMap<String, Boolean>()
+        val tagged = HashSet<String>()
         val quotesByWord = LinkedHashMap<String, MutableList<LinkedQuote>>()
 
         for (diary in diaries) {
             val title = titleById[diary.bookId] ?: continue // 책이 지워진 일기는 연결에서 제외
-            val quote = LinkedQuote(diary.bookId, title, diary.id, diary.page, diary.selectedText)
-            val tags = KeywordExtractor.tags(diary.notes)
-            val words = LinkedHashSet<String>()
-            words.addAll(tags.map { it.lowercase() })
-            words.addAll(KeywordExtractor.extract(diary.selectedText + " " + diary.notes))
-            for (word in words) {
-                val list = quotesByWord.getOrPut(word) { mutableListOf() }
-                if (list.none { it.diaryId == quote.diaryId }) list.add(quote)
+            // 단어 → 이 일기에서의 출처. 구절에 있으면 구절, 태그면 태그, 메모에만 있으면 메모.
+            val sourceByWord = LinkedHashMap<String, QuoteSource>()
+            for (tag in KeywordExtractor.tags(diary.notes)) {
+                val w = tag.lowercase()
+                sourceByWord.putIfAbsent(w, QuoteSource.TAG)
+                tagged.add(w)
             }
-            for (tag in tags) tagged[tag.lowercase()] = true
+            for (w in KeywordExtractor.extract(diary.selectedText)) {
+                if (sourceByWord[w] != QuoteSource.TAG) sourceByWord[w] = QuoteSource.TEXT
+            }
+            for (w in KeywordExtractor.extract(diary.notes)) sourceByWord.putIfAbsent(w, QuoteSource.NOTES)
+
+            for ((word, source) in sourceByWord) {
+                val text = if (source == QuoteSource.TEXT) diary.selectedText else diary.notes
+                quotesByWord.getOrPut(word) { mutableListOf() }
+                    .add(LinkedQuote(diary.bookId, title, diary.id, diary.page, text, source))
+            }
         }
 
         return quotesByWord.entries
             .mapNotNull { (word, quotes) ->
                 val bookIds = quotes.map { it.bookId }.toSet()
                 if (bookIds.size < minBooks) null
-                else SharedWord(word, tagged[word] == true, bookIds, quotes.sortedWith(compareBy({ it.bookTitle }, { it.page })))
+                else SharedWord(word, word in tagged, bookIds, quotes.sortedWith(compareBy({ it.bookTitle }, { it.page })))
             }
             .sortedWith(
                 compareByDescending<SharedWord> { it.userTagged }

@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.Book
 import com.example.data.Diary
+import com.example.data.knowledge.QuoteSource
 import com.example.data.knowledge.SharedWord
 import com.example.ui.viewmodel.ReadingViewModel
 import java.text.SimpleDateFormat
@@ -239,7 +240,7 @@ fun KnowledgeDrawerContent(
                 }
             }
 
-            if (results.isEmpty() && (query.isNotEmpty() || diaries.isEmpty())) {
+            if (results.isEmpty()) {
                 Text(
                     text = if (query.isEmpty()) "기록 0개" else "일치하는 기록 0개",
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
@@ -350,14 +351,14 @@ private fun SectionHeader(title: String, subtitle: String?) {
  */
 @Composable
 private fun ConnectionCard(sharedWord: SharedWord) {
-    var expanded by remember(sharedWord.word) { mutableStateOf(false) }
+    var expanded by rememberSaveable(sharedWord.word) { mutableStateOf(false) }
     val quotes = remember(sharedWord, expanded) {
         if (expanded) sharedWord.quotes else sharedWord.quotes.distinctBy { it.bookId }
     }
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { expanded = !expanded }
+            .clickable(onClickLabel = if (expanded) "구절 접기" else "구절 모두 보기") { expanded = !expanded }
             .testTag("knowledgedrawer_connection_${sharedWord.word}"),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f))
     ) {
@@ -397,9 +398,10 @@ private fun ConnectionCard(sharedWord: SharedWord) {
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
                         modifier = Modifier.width(96.dp)
                     )
+                    // 단어가 실제로 들어 있는 원문. 메모·태그에서 나온 단어는 메모를 보여 근거가 비지 않게 한다(ADR-003 Q2).
                     Text(
-                        text = q.text,
-                        style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
+                        text = if (q.source == QuoteSource.TEXT) q.text else "메모 · ${q.text}",
+                        style = MaterialTheme.typography.bodySmall.copy(fontStyle = if (q.source == QuoteSource.TEXT) FontStyle.Italic else FontStyle.Normal),
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                         maxLines = if (expanded) Int.MAX_VALUE else 2,
                         overflow = TextOverflow.Ellipsis,

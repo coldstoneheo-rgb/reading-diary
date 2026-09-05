@@ -4,6 +4,7 @@ import com.example.data.Book
 import com.example.data.Diary
 import com.example.data.knowledge.KeywordExtractor
 import com.example.data.knowledge.KeywordLinks
+import com.example.data.knowledge.QuoteSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -45,6 +46,24 @@ class KeywordLinksTest {
   }
 
   @Test
+  fun stem_protectsNounsEndingInIGa_andIsmWords_butStripsVerbEndings() {
+    // 3글자 토큰의 "이/가"는 명사 끝소리일 가능성이 커서 떼지 않는다.
+    assertEquals("고양이", KeywordExtractor.stem("고양이"))
+    assertEquals("호랑이", KeywordExtractor.stem("호랑이"))
+    // "~주의"는 조사 "의"가 아니다.
+    assertEquals("자본주의", KeywordExtractor.stem("자본주의"))
+    assertEquals("민주주의", KeywordExtractor.stem("민주주의를"))
+    // 용언 어미는 2글자 규칙으로 뗀다. 활용형이 달라도 같은 단어가 되도록 한다.
+    assertEquals("필요", KeywordExtractor.stem("필요하다"))
+    assertEquals("중요", KeywordExtractor.stem("중요하고"))
+    assertEquals("위대", KeywordExtractor.stem("위대한"))
+    // 어미만 남은 토큰은 단어가 아니다 — 두 책이 "했다"로만 겹쳐 연결이 되는 것을 막는다.
+    assertNull(KeywordExtractor.stem("했다"))
+    assertNull(KeywordExtractor.stem("그렇게"))
+    assertNull(KeywordExtractor.stem("하는"))
+  }
+
+  @Test
   fun stem_dropsDigitsSingleCharsAndLowercasesLatin() {
     assertNull(KeywordExtractor.stem("2026"))
     assertNull(KeywordExtractor.stem("a"))
@@ -79,6 +98,11 @@ class KeywordLinksTest {
     assertEquals(setOf(1, 3), world.bookIds)          // 데미안 ↔ 사피엔스
     assertEquals(3, world.quotes.size)                // 데미안 2건 + 사피엔스 1건, 같은 일기는 한 번만
     assertFalse(world.userTagged)
+    // 일기 10은 메모에만 "세계"가 있다 → 근거는 메모 원문이어야 한다. 구절만 보여 주면 근거 없는 연결로 보인다.
+    val fromNotes = world.quotes.single { it.diaryId == 10 }
+    assertEquals(QuoteSource.NOTES, fromNotes.source)
+    assertEquals("세계를 깨뜨리는 용기", fromNotes.text)
+    assertEquals(QuoteSource.TEXT, world.quotes.single { it.diaryId == 11 }.source)
     // "인격체"는 돈의 속성 한 권에만 나오므로 연결이 아니다.
     assertTrue(links.none { it.word == "인격체" })
   }
@@ -96,7 +120,26 @@ class KeywordLinksTest {
     // "자유"는 3권에서 나와 책 수는 더 많지만, 사용자 태그 "자기"(불용어지만 태그라 살아남음)가 먼저 온다.
     assertEquals(listOf("자기", "자유"), links.map { it.word })
     assertTrue(links[0].userTagged)
+    assertTrue(links[0].quotes.all { it.source == QuoteSource.TAG && it.text.startsWith("#자기") })
     assertEquals(3, links[1].bookCount)
+  }
+
+  @Test
+  fun seedDiaries_produceNoConnection_pinned() {
+    // AppDatabase.onCreate 시드 3건(데미안 2, 돈의 속성 1). 두 책이 공유하는 단어가 없어 신규 설치의 "연결 발견"은 비어 있다.
+    // 시드를 바꾸는 것은 ADR-003 보류 1(오너 결정). 이 테스트는 현 상태를 고정해 규칙 변경이 시드에 미치는 영향을 드러낸다.
+    val seed = listOf(
+      Diary(id = 1, bookId = 1, page = 45,
+        selectedText = "내 안에서 솟아 나오려는 것, 바로 그것을 살아보려고 했다. 왜 그것이 그토록 어려웠을까?",
+        notes = "내 삶의 주인이 되는 것의 찬란함과 두려움을 일깨워주는 위대한 문장. 나는 과연 온전히 나로서 살아보고 있는가."),
+      Diary(id = 2, bookId = 1, page = 92,
+        selectedText = "새는 알에서 나오려고 투쟁한다. 알은 세계이다. 태어나려는 자는 하나의 세계를 깨뜨려야 한다.",
+        notes = "성장에 필수적인 고통과 가치관 극복에 관한 불후의 교훈. 새로운 시각을 끊임없이 깨어나야 한다."),
+      Diary(id = 3, bookId = 2, page = 112,
+        selectedText = "돈은 인격체다. 자기를 소중히 대하는 사람에게 머물며 함부로 다루면 언제든 떠나갈 궁리를 한다.",
+        notes = "돈을 단순 욕망이 아닌 인격으로 대하라는 혜안. 나의 자산관리 습관이 돈을 인격적으로 존중하고 있었는지 생각하게 된다.")
+    )
+    assertEquals(emptyList<String>(), KeywordLinks.build(listOf(demian, money), seed).map { it.word })
   }
 
   @Test

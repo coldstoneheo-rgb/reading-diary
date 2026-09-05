@@ -88,6 +88,20 @@ class KnowledgeDrawerScreenshotTest {
   }
 
   @Test
+  fun knowledgeDrawer_twoBooksWithoutSharedWord_screenshot() {
+    val noOverlap = listOf(
+      diaries[0],
+      Diary(id = 12, bookId = 2, page = 5, selectedText = "돈은 인격체다.", notes = "", createdAt = noonUtc)
+    )
+    val links = KeywordLinks.build(books, noOverlap)
+    assertTrue(links.isEmpty())
+    composeTestRule.setContent {
+      MyApplicationTheme { KnowledgeDrawerContent(books = books, diaries = noOverlap, sharedWords = links, onBack = {}) }
+    }
+    composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/knowledge_drawer_two_books_no_link.png")
+  }
+
+  @Test
   fun fixture_hasExactlyOneCrossBookConnection_onTheWordWorld() {
     // 화면 기준 이미지가 무엇을 보여주는지 데이터로 고정한다: "세계"만 데미안↔사피엔스에 함께 나온다.
     val links = KeywordLinks.build(books, diaries)
