@@ -15,16 +15,20 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import java.util.Locale
+import java.util.TimeZone
 
 /**
  * 기억 서랍 화면의 스크린샷 기준(ADR-003 4단계) + 검색 근거 라벨·마크다운 순수 함수 테스트.
- * 날짜 표시가 타임존에 흔들리지 않도록 createdAt은 UTC 정오로 고정한다.
+ * 날짜 표시가 호스트 타임존·로케일에 흔들리지 않도록 테스트 동안 기본 TimeZone=UTC, Locale=KOREA로 고정한다.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -33,7 +37,21 @@ class KnowledgeDrawerScreenshotTest {
 
   @get:Rule val composeTestRule = createComposeRule()
 
-  private val noonUtc = 1_780_000_000_000L + 12L * 3600 * 1000 // 2026-06-... 12:00 UTC 근처의 고정값
+  private lateinit var savedTimeZone: TimeZone
+  private lateinit var savedLocale: Locale
+
+  @Before
+  fun pinTimeZoneAndLocale() {
+    savedTimeZone = TimeZone.getDefault(); savedLocale = Locale.getDefault()
+    TimeZone.setDefault(TimeZone.getTimeZone("UTC")); Locale.setDefault(Locale.KOREA)
+  }
+
+  @After
+  fun restoreTimeZoneAndLocale() {
+    TimeZone.setDefault(savedTimeZone); Locale.setDefault(savedLocale)
+  }
+
+  private val noonUtc = 1_780_000_000_000L + 12L * 3600 * 1000 // 2026-05-29T08:26:40Z. 어떤 시간대로 그려도 같은 날짜가 되도록 TZ를 UTC로 고정한다
   private val books = listOf(
     Book(id = 1, title = "데미안", author = "헤르만 헤세", totalPages = 240, bookcaseId = 1, status = "READING"),
     Book(id = 2, title = "사피엔스", author = "유발 하라리", totalPages = 630, bookcaseId = 2, status = "TO_READ")

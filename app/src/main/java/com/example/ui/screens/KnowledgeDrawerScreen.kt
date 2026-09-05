@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -56,7 +57,10 @@ enum class MatchKind(val label: String) {
     TITLE("제목 일치")
 }
 
-/** 순수 함수: 검색어가 비면 null(전체 표시), 아니면 일치 종류. 어디에도 안 맞으면 [MatchKind]가 아니라 결과에서 제외된다. */
+/**
+ * 순수 함수: 검색어가 비면 null(전체 표시), 아니면 일치 종류. 어디에도 안 맞으면 [MatchKind]가 아니라 결과에서 제외된다.
+ * 조합 라벨은 "제목·구절"만 둔다(가장 흔한 조합). 제목+메모처럼 다른 조합은 우선순위가 높은 한 가지만 표시한다 — 알려진 단순화.
+ */
 internal fun matchKind(diary: Diary, bookTitle: String, query: String): MatchKind? {
     val q = query.trim().lowercase()
     if (q.isEmpty()) return null
@@ -85,7 +89,8 @@ fun KnowledgeDrawerContent(
     val clipboardManager = LocalClipboardManager.current
     val titleById = remember(books) { books.associate { it.id to it.title } }
 
-    var searchKeyword by remember { mutableStateOf("") }
+    val dateFormat = remember { SimpleDateFormat("yyyy.MM.dd", Locale.getDefault()) }
+    var searchKeyword by rememberSaveable { mutableStateOf("") }
     val query = searchKeyword.trim()
 
     val results: List<Pair<Diary, MatchKind?>> = remember(query, diaries, titleById) {
@@ -242,7 +247,7 @@ fun KnowledgeDrawerContent(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(results, key = { it.first.id }) { (diary, kind) ->
-                        DiaryResultCard(diary = diary, bookTitle = titleById[diary.bookId], matchKind = kind)
+                        DiaryResultCard(diary = diary, bookTitle = titleById[diary.bookId], matchKind = kind, dateFormat = dateFormat)
                     }
                 }
             }
@@ -251,7 +256,7 @@ fun KnowledgeDrawerContent(
 }
 
 @Composable
-private fun DiaryResultCard(diary: Diary, bookTitle: String?, matchKind: MatchKind?) {
+private fun DiaryResultCard(diary: Diary, bookTitle: String?, matchKind: MatchKind?, dateFormat: SimpleDateFormat) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -319,7 +324,7 @@ private fun DiaryResultCard(diary: Diary, bookTitle: String?, matchKind: MatchKi
 
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "p.${diary.page} • " + SimpleDateFormat("yyyy.MM.dd", Locale.getDefault()).format(Date(diary.createdAt)),
+                text = "p.${diary.page} • " + dateFormat.format(Date(diary.createdAt)),
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 9.sp),
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
                 modifier = Modifier.fillMaxWidth(),
