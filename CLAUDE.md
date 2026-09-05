@@ -83,7 +83,8 @@ gradle :app:assembleDebug            # 디버그 빌드 — 루트에 debug.keys
   `redactHeader("X-Naver-Client-Secret")`가 필수다. 헤더 값에 비ASCII가 섞이면 OkHttp 예외 메시지에 값이 통째로 실리므로
   헤더에 넣기 전 `SecureKeyManager.isHeaderSafe`로 거르고, 예외는 종류만 표시한다.
 - **릴리스 서명은 사용자만.** `assembleRelease`/`bundleRelease`는 에이전트가 실행하지 않고 사용자가 `!`로 직접 실행한다.
-- 기기에 실제 Gemini 키가 등록돼 있으면 OCR 화면 조작이 **유료 외부 호출**을 일으킨다. 자동 테스트는 키 없이 돌린다.
+- 현재 OCR 화면은 온디바이스(ML Kit)만 호출한다. `GeminiApiClient`를 어떤 경로에 연결하든 **사진 전송에 대한 사용자 명시 동의 UI**가
+  먼저다(ADR-002 Q3). `GeminiKeyPolicyTest`가 프로덕션 코드의 `GeminiApiClient` 참조 0건을 고정한다.
 - Room 스키마 변경은 🔴 고위험: 마이그레이션 전략 없이 엔티티 필드를 바꾸지 않는다(기존 설치 데이터 소실).
 
 ---

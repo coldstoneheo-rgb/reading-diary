@@ -3,7 +3,6 @@ package com.example.ui.screens
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.net.Uri
 import android.widget.Toast
@@ -52,11 +51,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.data.Book
-import com.example.data.ocr.BitmapDecoding
 import com.example.ui.viewmodel.OcrState
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import com.example.ui.viewmodel.ReadingViewModel
 import com.example.ui.viewmodel.Screen
 import java.io.ByteArrayOutputStream
@@ -206,6 +201,12 @@ fun OcrDiaryScreen(
             isImageTaken = true
             isCroppedReady = true
         }
+    }
+
+    // 화면 진입 시 이전 화면(다른 책/일기)의 OCR 결과가 남아 편집창을 덮어쓰지 않도록 초기화하고, 이탈 시에도 비운다
+    DisposableEffect(Unit) {
+        viewModel.resetOcrState()
+        onDispose { viewModel.resetOcrState() }
     }
 
     // OCR 결과 반영. 실패 메시지는 편집창에 넣지 않는다(일기로 저장되면 안 되므로) — ADR-002 Q2
@@ -877,38 +878,17 @@ fun OcrDiaryScreen(
                                             Toast.makeText(context, "촬영하거나 갤러리에서 고른 사진만 인식할 수 있어요.", Toast.LENGTH_LONG).show()
                                             return@Button
                                         }
-                                        // 디코드·회전·크롭은 백그라운드에서. 원본 해상도 그대로 올리면 메인 스레드 OOM/ANR 위험(ADR-002 Q5)
-                                        val rotation = imageRotation
-                                        val flipped = isFlipped
-                                        val crop = floatArrayOf(cropLeft, cropTop, cropRight, cropBottom)
-                                        coroutineScope.launch(Dispatchers.Default) {
-                                            val cropped = try {
-                                                BitmapDecoding.decodeDownsampled(context, Uri.parse(path))?.let { base ->
-                                                    val matrix = Matrix().apply {
-                                                        if (flipped) postScale(-1f, 1f)
-                                                        if (rotation != 0f) postRotate(rotation)
-                                                    }
-                                                    val transformed = Bitmap.createBitmap(base, 0, 0, base.width, base.height, matrix, true)
-                                                    val w = transformed.width
-                                                    val h = transformed.height
-                                                    val left = (crop[0] * w).toInt().coerceIn(0, w - 1)
-                                                    val top = (crop[1] * h).toInt().coerceIn(0, h - 1)
-                                                    val right = (crop[2] * w).toInt().coerceIn(left + 1, w)
-                                                    val bottom = (crop[3] * h).toInt().coerceIn(top + 1, h)
-                                                    Bitmap.createBitmap(transformed, left, top, right - left, bottom - top)
-                                                }
-                                            } catch (e: Exception) {
-                                                null
-                                            }
-                                            withContext(Dispatchers.Main) {
-                                                if (cropped == null) {
-                                                    // 디코드 실패는 그 자리에서 오류로 끝낸다. 대체 이미지로 인식을 돌리지 않는다.
-                                                    Toast.makeText(context, "사진을 읽지 못했어요. 다시 촬영하거나 다른 사진을 골라 주세요.", Toast.LENGTH_LONG).show()
-                                                } else {
-                                                    viewModel.processUnderlineOcr(cropped)
-                                                }
-                                            }
-                                        }
+                                        // 디코드(다운샘플+EXIF)·회전·크롭·추출은 ViewModel 스코프의 백그라운드에서(ADR-002 Q5).
+                                        // 화면이 사라져도 상태가 Processing에 고착되지 않는다.
+                                        viewModel.processUnderlineOcr(
+                                            imageUri = Uri.parse(path),
+                                            rotationDegrees = imageRotation,
+                                            flipped = isFlipped,
+                                            cropLeft = cropLeft,
+                                            cropTop = cropTop,
+                                            cropRight = cropRight,
+                                            cropBottom = cropBottom
+                                        )
                                     },
                                     modifier = Modifier
                                         .fillMaxWidth()

@@ -2,6 +2,7 @@ package com.example.ui.viewmodel
 
 import android.app.Application
 import android.graphics.Bitmap
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.AppDatabase
@@ -9,9 +10,13 @@ import com.example.data.Book
 import com.example.data.Bookcase
 import com.example.data.Diary
 import com.example.data.ReadingRepository
+import com.example.data.ocr.BitmapDecoding
 import com.example.data.ocr.MlKitTextExtractor
 import com.example.data.ocr.OcrOutcome
 import com.example.data.ocr.TextExtractor
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -336,18 +341,58 @@ class ReadingViewModel @JvmOverloads constructor(
      * Gemini 경로는 여기서 호출하지 않는다 — 사용자 명시 동의 UI와 함께 별도 PR에서 붙인다(ADR-002 Q3).
      */
     fun processUnderlineOcr(bitmap: Bitmap) {
+        if (ocrState.value is OcrState.Processing) return // 재진입 방지
         viewModelScope.launch {
             ocrState.value = OcrState.Processing
-            ocrState.value = when (val outcome = textExtractor.extract(bitmap)) {
-                is OcrOutcome.Text -> OcrState.Success(outcome.text)
-                OcrOutcome.NoText -> OcrState.Error(NO_TEXT_MESSAGE)
-                is OcrOutcome.Failed -> OcrState.Error(outcome.message)
+            ocrState.value = extractSafely(bitmap)
+        }
+    }
+
+    /**
+     * 사진 URI에서 디코드(다운샘플+EXIF) → 회전/플립 → 크롭 → 추출까지 viewModelScope에서 수행한다.
+     * 화면 스코프가 아니라 ViewModel 스코프에서 돌기 때문에 회전·뒤로가기로 화면이 사라져도 Processing에 고착되지 않는다.
+     */
+    fun processUnderlineOcr(
+        imageUri: Uri,
+        rotationDegrees: Float,
+        flipped: Boolean,
+        cropLeft: Float,
+        cropTop: Float,
+        cropRight: Float,
+        cropBottom: Float
+    ) {
+        if (ocrState.value is OcrState.Processing) return
+        viewModelScope.launch {
+            ocrState.value = OcrState.Processing
+            val cropped = withContext(Dispatchers.Default) {
+                BitmapDecoding.decodeForOcr(getApplication(), imageUri, rotationDegrees, flipped, cropLeft, cropTop, cropRight, cropBottom)
+            }
+            ocrState.value = if (cropped == null) {
+                // 디코드 실패는 그 자리에서 오류로 끝낸다. 대체 이미지로 인식을 돌리지 않는다.
+                OcrState.Error(DECODE_ERROR_MESSAGE)
+            } else {
+                extractSafely(cropped).also { cropped.recycle() }
             }
         }
     }
 
+    private suspend fun extractSafely(bitmap: Bitmap): OcrState = try {
+        when (val outcome = textExtractor.extract(bitmap)) {
+            is OcrOutcome.Text -> OcrState.Success(outcome.text)
+            OcrOutcome.NoText -> OcrState.Error(NO_TEXT_MESSAGE)
+            is OcrOutcome.Failed -> OcrState.Error(outcome.message)
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        // 인터페이스는 "던지지 않는다"를 강제하지 못하므로 마지막 방어선. Processing에 고착되지 않게 한다.
+        OcrState.Error(ENGINE_ERROR_MESSAGE)
+    }
+
     companion object {
         const val NO_TEXT_MESSAGE = "글자를 찾지 못했어요. 더 밝게, 더 가까이 찍어 다시 시도하거나 직접 입력해 주세요."
+        const val ENGINE_ERROR_MESSAGE = "글자 인식 중 오류가 났어요. 다시 시도하거나 직접 입력해 주세요."
+        const val DECODE_ERROR_MESSAGE = "사진을 읽지 못했어요. 다시 촬영하거나 다른 사진을 골라 주세요."
     }
 
     fun resetOcrState() {
