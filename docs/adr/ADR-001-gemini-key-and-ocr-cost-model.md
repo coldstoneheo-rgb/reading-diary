@@ -23,10 +23,11 @@
 
 ### 1단계 (지금, 이 ADR과 함께 시행)
 - secrets 플러그인 `ignoreList`에 `GEMINI_API_KEY`를 추가해 `BuildConfig` 생성을 막는다. `.env.example`에서도 항목을 제거한다.
-- `GeminiApiClient`는 `SecureKeyManager`(EncryptedSharedPreferences)에서 키를 읽는다. 키가 없으면 지금처럼 예시 문장 폴백.
+- `GeminiApiClient`는 `SecureKeyManager`(EncryptedSharedPreferences)에서 키를 읽는다. 키가 없으면 (1단계 시점에는) 예시 문장 폴백
+  — 이 폴백은 ADR-002에서 제거됐다.
   네이버 키와 같은 저장 방식이며, 현재는 키를 넣는 화면이 없으므로 **사실상 Gemini 경로는 꺼진 상태**가 된다.
 - 불변식을 테스트로 고정한다(`GeminiKeyPolicyTest`): `BuildConfig`에 `GEMINI_API_KEY` 필드가 없고, 키 미등록 상태의
-  추출 호출은 네트워크 없이 시뮬레이션 문장을 돌려준다.
+  추출 호출은 네트워크 없이 즉시 예외로 끝나며(ADR-002에서 시뮬레이션 문장 제거), 프로덕션 코드 어디에도 `GeminiApiClient` 참조가 없다.
 - Gemini 요청은 URL 쿼리(`?key=`) 대신 `x-goog-api-key` 헤더로 키를 보낸다(로그·프록시에 남지 않게).
 
 ### 2단계 (다음 PR들)
@@ -55,8 +56,9 @@
 
 ## 결과 및 영향
 
-- 이 ADR 시행 직후: 앱은 키를 포함하지 않는다. 밑줄 추출은 키가 없으므로 예시 문장 폴백만 동작한다(2단계 A 전까지의 과도기).
-  이 상태의 안내 문구는 "다음 업데이트에서 지원 예정"으로 두고, 존재하지 않는 등록 절차를 안내하지 않는다.
+- 이 ADR 시행 직후(1단계): 앱은 키를 포함하지 않는다. 밑줄 추출은 키가 없으므로 예시 문장 폴백만 동작했다(2단계 A 전까지의 과도기,
+  ADR-002로 종료).
+  (당시) 안내 문구는 "다음 업데이트에서 지원 예정"으로 두었다. ADR-002 이후 이 문구와 폴백 자체가 사라졌다.
 - `.env`에 `GEMINI_API_KEY`가 있어도 빌드에 들어가지 않는다. AI Studio에서 실행할 때 주입되던 경로도 끊긴다(의도된 결과).
   `metadata.json`의 `MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API`와 설명 문구는 AI Studio 매니페스트라 의도적으로 유지하며,
   2단계 A 이후 실제 동작에 맞춰 재검토한다.
@@ -65,13 +67,14 @@
   같은 파일명의 **평문** SharedPreferences로 폴백한다(기존 동작 유지). Gemini 키는 이 ADR과 함께 **fail-closed**로 구현했다:
   암호화 저장소를 열 수 없으면 저장을 거부하고(`saveGeminiApiKey` → `false`), 읽기도 평문 폴백을 보지 않는다.
   출력 가능한 ASCII가 아닌 키는 저장 단계에서 거부한다(헤더 조립 예외 메시지에 키가 실리는 경로 차단).
-  키가 등록된 상태에서 호출이 실패하면 "지원 예정"이 아니라 실패 사실을 알리는 별도 문구를 붙인다.
+  키가 등록된 상태에서 호출이 실패하면 예외로 실패 사실을 알린다(가짜 문장 없음, ADR-002).
   남은 항목: `allowBackup="true"`에 백업 제외 규칙이 비어 있어 prefs 파일이 클라우드 백업에 포함된다. 2단계 D(설정 UI) 전에
   `backup_rules.xml`/`data_extraction_rules.xml`에서 `secure_user_prefs`를 제외한다.
 - **키 회전 권고:** 과거 실제 키가 든 `.env`로 빌드한 APK가 기기나 AI Studio에 남아 있을 수 있다. 코드에서 키를 빼도 그 키는
   안전해지지 않으므로, 그런 키가 있었다면 Google AI Studio에서 폐기·재발급한다.
-- 2단계 착수 시 최우선 확인: `GeminiApiClient`의 모델 ID(`gemini-3.5-flash`)가 실제로 존재하는지. 틀리면 BYO 키를 등록해도
-  항상 404 → 폴백이라 D 시나리오가 성립하지 않는다.
+- 모델 ID `gemini-3.5-flash`는 2026-09 기준 Gemini API의 GA(안정) 모델로 확인됨 — 출처: https://ai.google.dev/gemini-api/docs/models ,
+  https://ai.google.dev/gemini-api/docs/whats-new-gemini-3.5 . D 시나리오 성립.
+- 2단계 A는 [ADR-002](ADR-002-on-device-ocr-rollout.md)로 실행했다. 가짜 예시 문장 폴백은 제거됐다.
 
 ## 재검토 조건
 

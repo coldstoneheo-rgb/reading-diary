@@ -2,7 +2,7 @@
 
 독서 다이어리 — Android(Kotlin + Jetpack Compose + Room) 단일 모듈 앱.
 책/책장/독서일기(밑줄 구절)를 온디바이스에 저장하고, 네이버 책 검색으로 서지를 채우며,
-촬영한 책 페이지에서 밑줄 구절을 추출한다(사용자가 자기 Gemini 키를 등록한 경우에만 실제 분석, 아니면 예시 문장).
+촬영한 책 페이지에서 온디바이스 텍스트 인식(ML Kit, 한국어)으로 구절을 추출한다. 사진은 기기 밖으로 나가지 않는다.
 이 파일은 **작업 원칙**만 담는다. 운영 메커니즘은 [.claude/HARNESS.md](.claude/HARNESS.md),
 작업 루프는 [.claude/skills/standard-workflow/SKILL.md](.claude/skills/standard-workflow/SKILL.md),
 아키텍처 결정은 [docs/adr/](docs/adr/).
@@ -14,13 +14,17 @@ app/src/main/java/com/example/
   MainActivity.kt          # 단일 Activity. Screen(sealed) 기반 자체 백스택 내비게이션
   data/Entities.kt         # Room 엔티티: Bookcase → Book → Diary (CASCADE)
   data/Daos.kt, AppDatabase.kt, ReadingRepository.kt
-  data/api/GeminiApiClient.kt   # SecureKeyManager에 사용자 Gemini 키가 있으면 generativelanguage.googleapis.com에
-                                #   페이지 이미지를 POST(키는 x-goog-api-key 헤더). 키가 없으면 제목 기반 시뮬레이션으로 폴백
-  data/SecureKeyManager.kt # EncryptedSharedPreferences에 네이버·Gemini 키 저장(실패 시 평문 prefs 폴백)
-  ui/viewmodel/ReadingViewModel.kt  # 상태·내비·CRUD 전부 여기 (AndroidViewModel)
+  data/ocr/TextExtractor.kt     # 추출 엔진 경계(인터페이스) + OcrOutcome(Text/NoText/Failed). 가짜 문장 폴백 없음(ADR-002)
+  data/ocr/MlKitTextExtractor.kt # 기본 엔진. ML Kit 한국어(언번들: Play 서비스가 첫 사용 시 모델 다운로드)
+  data/ocr/OcrTextAssembler.kt  # 블록 top→left 정렬, 줄은 공백, 블록은 빈 줄 (순수 함수, JVM 테스트)
+  data/ocr/BitmapDecoding.kt    # OCR 입력 다운샘플링(긴 변 2048) — 원본 12MP를 그대로 올리면 OOM
+  data/api/GeminiApiClient.kt   # 사용자 Gemini 키(SecureKeyManager)로 generativelanguage.googleapis.com 호출(x-goog-api-key 헤더).
+                                #   키 없으면 예외. **현재 어디서도 호출되지 않음** — 명시 동의 UI와 함께 붙일 것(ADR-002 Q3)
+  data/SecureKeyManager.kt # EncryptedSharedPreferences에 네이버·Gemini 키 저장(네이버만 평문 폴백, Gemini는 fail-closed)
+  ui/viewmodel/ReadingViewModel.kt  # 상태·내비·CRUD 전부 여기 (AndroidViewModel). TextExtractor를 생성자 주입(기본 ML Kit)
   ui/screens/*Screen.kt    # Dashboard/BookDetail/AddEditBook/OcrDiary/Settings/Statistics/KnowledgeDrawer
   ui/screens/AddEditBookScreen.kt   # 네이버 책 검색(OkHttp 직접, openapi.naver.com)이 화면 코드 안에 있음
-  ui/screens/OcrDiaryScreen.kt      # 카메라/갤러리 → 크롭 → viewModel.processUnderlineOcr → GeminiApiClient
+  ui/screens/OcrDiaryScreen.kt      # 카메라/갤러리 → 크롭 비율 지정 → viewModel.processUnderlineOcr(uri, 회전, 플립, 크롭) (디코드는 ViewModel)
   ui/theme/                # 테마 id로 전환하는 다중 컬러스킴
 ```
 
@@ -79,7 +83,8 @@ gradle :app:assembleDebug            # 디버그 빌드 — 루트에 debug.keys
   `redactHeader("X-Naver-Client-Secret")`가 필수다. 헤더 값에 비ASCII가 섞이면 OkHttp 예외 메시지에 값이 통째로 실리므로
   헤더에 넣기 전 `SecureKeyManager.isHeaderSafe`로 거르고, 예외는 종류만 표시한다.
 - **릴리스 서명은 사용자만.** `assembleRelease`/`bundleRelease`는 에이전트가 실행하지 않고 사용자가 `!`로 직접 실행한다.
-- 기기에 실제 Gemini 키가 등록돼 있으면 OCR 화면 조작이 **유료 외부 호출**을 일으킨다. 자동 테스트는 키 없이 돌린다.
+- 현재 OCR 화면은 온디바이스(ML Kit)만 호출한다. `GeminiApiClient`를 어떤 경로에 연결하든 **사진 전송에 대한 사용자 명시 동의 UI**가
+  먼저다(ADR-002 Q3). `GeminiKeyPolicyTest`가 프로덕션 코드의 `GeminiApiClient` 참조 0건을 고정한다.
 - Room 스키마 변경은 🔴 고위험: 마이그레이션 전략 없이 엔티티 필드를 바꾸지 않는다(기존 설치 데이터 소실).
 
 ---

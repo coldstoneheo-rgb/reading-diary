@@ -8,6 +8,7 @@ import com.example.data.api.GeminiApiClient
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -16,7 +17,7 @@ import org.robolectric.annotation.Config
 
 /**
  * ADR-001 불변식: Gemini API 키는 앱 바이너리에 존재하지 않으며, 키가 등록되지 않은 기기에서는
- * 네트워크 호출 없이 시뮬레이션 문장으로 폴백한다.
+ * 네트워크 호출 없이 즉시 예외로 끝난다(가짜 문장 폴백 없음, ADR-002).
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -30,16 +31,32 @@ class GeminiKeyPolicyTest {
   }
 
   @Test
-  fun withoutRegisteredKey_returnsSimulatedText() = runBlocking {
-    // 키가 없으면 isKeyValid=false로 OkHttp 블록을 건너뛴다. 네트워크 미발생 자체를 직접 검증하지는 않는다.
+  fun withoutRegisteredKey_throwsBeforeAnyNetworkCall_noFakeText() {
+    // 키가 없으면 isKeyValid=false로 OkHttp 블록을 건너뛰고 즉시 예외. 가짜 문장(ADR-002 Q2)은 더 이상 없다.
     val context = ApplicationProvider.getApplicationContext<Context>()
     val bitmap = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
 
-    val result = GeminiApiClient.extractUnderlinedText(context, bitmap, "데미안")
+    val error = assertThrows(IllegalStateException::class.java) {
+      runBlocking { GeminiApiClient.extractUnderlinedText(context, bitmap, "데미안") }
+    }
 
-    assertTrue(result.contains("아브락사스"))
-    assertTrue(result.contains("시뮬레이션"))
-    assertFalse(result.contains("GEMINI_API_KEY"))
+    assertTrue(error.message!!.contains("등록되지 않았"))
+    assertFalse(error.message!!.contains("아브락사스"))
+  }
+
+  @Test
+  fun geminiClient_isNotReferencedByAnyProductionPath() {
+    // ADR-002 Q3: 사진이 기기 밖으로 나가는 유일한 코드(GeminiApiClient)는 명시 동의 UI 없이는 어디서도 호출되면 안 된다.
+    // 테스트 작업 디렉터리는 app 모듈 루트다(GreetingScreenshotTest의 상대 경로 관례와 동일).
+    val mainSrc = java.io.File("src/main/java")
+    assertTrue("expected app/src/main/java to exist", mainSrc.isDirectory)
+    val offenders = mainSrc.walkTopDown()
+      .filter { it.isFile && it.extension == "kt" }
+      .filter { !it.path.replace('\\', '/').contains("/data/api/GeminiApiClient.kt") }
+      .filter { it.readText().contains("GeminiApiClient") }
+      .map { it.path }
+      .toList()
+    assertTrue("GeminiApiClient referenced from: $offenders", offenders.isEmpty())
   }
 
   @Test
