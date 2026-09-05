@@ -155,7 +155,7 @@ object GeminiApiClient {
             }
         }
 
-        val hint = "\n\n*(밑줄 구절 인식을 시뮬레이션한 예시 문장입니다. 실제 촬영 사진을 분석하려면 본인의 Gemini API 키를 앱에 등록해야 합니다.)*"
+        val hint = "\n\n*(밑줄 구절 인식을 시뮬레이션한 예시 문장입니다. 실제 촬영 사진 분석은 다음 업데이트에서 지원할 예정입니다.)*"
         return@withContext simulatedText + hint
     }
 }
