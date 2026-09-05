@@ -29,14 +29,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.viewmodel.ReadingViewModel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(viewModel: ReadingViewModel) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
 
     // Observe persistent general configurations
@@ -50,48 +47,6 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
     var showChangelog by remember { mutableStateOf(false) }
     var showTerms by remember { mutableStateOf(false) }
     var showPrivacyPolicy by remember { mutableStateOf(false) }
-
-    // Dialog state for simulated Backups and Image Restoration
-    var activeProgressTitle by remember { mutableStateOf<String?>(null) }
-    var activeProgressDescription by remember { mutableStateOf("") }
-    var showProgressDialog by remember { mutableStateOf(false) }
-
-    fun runSimulatedProgress(title: String, initialDesc: String, finalSuccessMsg: String) {
-        activeProgressTitle = title
-        activeProgressDescription = initialDesc
-        showProgressDialog = true
-        coroutineScope.launch {
-            delay(1000)
-            activeProgressDescription = "보안 확인 및 시그니처 체크 중..."
-            delay(1200)
-            activeProgressDescription = "로컬 저장소 인덱스 패키징 배치 실행..."
-            delay(1000)
-            showProgressDialog = false
-            Toast.makeText(context, finalSuccessMsg, Toast.LENGTH_LONG).show()
-        }
-    }
-
-    if (showProgressDialog && activeProgressTitle != null) {
-        AlertDialog(
-            onDismissRequest = {}, // Modal locks interaction during restore process
-            title = { Text(activeProgressTitle!!, fontWeight = FontWeight.Bold) },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                    Text(
-                        text = activeProgressDescription,
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            },
-            confirmButton = {}
-        )
-    }
 
     Scaffold(
         topBar = {
@@ -480,74 +435,36 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                 }
             }
 
-            // SECTION 2: BACKUP & RESTORE ARCHIVE (백업 및 복원 관련 설정)
+            // SECTION 2: DATA STORAGE — 사실 그대로. 가짜 "클라우드 백업·복원" 버튼은 ADR-003 Q7로 제거됐다.
             Text(
-                "💾 데이터 백업 및 복원",
+                "💾 데이터 저장 위치",
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.primary
             )
 
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("data_storage_card"),
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "기기 오작동, 분실 또는 앱 재설치 시에도 나의 소중한 서재 정보들과 발췌 사진, 다이어리 글을 원 클릭 시스템을 통해 안전하게 복구할 수 있는 클라우드 아카이브 센터입니다.",
+                        text = "기록은 이 기기에 저장됩니다. 안드로이드 자동 백업이 켜져 있으면 책·일기·일반 설정은 구글 계정 백업에 포함되고, Gemini 키는 포함되지 않습니다.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                        lineHeight = 15.sp
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        lineHeight = 16.sp
                     )
-
-                    // Button 1: Data Restore
-                    Button(
-                        onClick = {
-                            runSimulatedProgress(
-                                title = "독서 SQLite 데이터베이스 복구",
-                                initialDesc = "클라우드 스토리지 백업 매니페스트 다운로드 중...",
-                                finalSuccessMsg = "독서 기록 및 카테고리가 최신 백업 지점 정보로 성공적으로 복원되었습니다!"
-                            )
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("restore_data_button"),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    ) {
-                        Icon(imageVector = Icons.Default.CloudDownload, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("데이터 복원 진행하기", fontWeight = FontWeight.Bold)
-                    }
-
-                    // Button 2: Photos Restore
-                    Button(
-                        onClick = {
-                            runSimulatedProgress(
-                                title = "영감 구절 스캔 사진 리스토어",
-                                initialDesc = "스캔 압축 패키지 체크섬 무결성 검증 중...",
-                                finalSuccessMsg = "발췌된 도서 및 일러스트 원본 데이터 앨범 복원이 무사히 마쳤습니다!"
-                            )
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("restore_photos_button"),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    ) {
-                        Icon(imageVector = Icons.Default.CameraRoll, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("스캔 사진 앨범 복원 진행하기", fontWeight = FontWeight.Bold)
-                    }
+                    Text(
+                        text = "사진은 일기에 저장되지 않고 촬영 원본은 임시 캐시에만 남으며 백업에 포함되지 않습니다. 기기 밖으로 나가지 않습니다(직접 실행한 정밀 분석 제외).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        lineHeight = 16.sp
+                    )
                 }
             }
 
