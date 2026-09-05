@@ -17,7 +17,8 @@
 
 ## 오너 몫으로 남긴 것
 - 번들 전환 여부(APK 크기 판단). 전환은 `libs.versions.toml` 좌표 한 줄.
-- 설정 화면 Gemini 키 입력 UI + 전송 동의 문구(선행: 백업 규칙에서 `secure_user_prefs` 제외 — 별도 PR로 처리).
+- 설정 화면 Gemini 키 입력 UI + 전송 동의 문구(선행 조건이던 백업 규칙의 `secure_user_prefs` 제외는 완료 — ADR-001 참조.
+  키 UI에는 "백업·기기 이전에 포함되지 않음" 안내 필요).
 - `metadata.json` 문구, Room 스키마, Room DB 백업 포함 여부.
 
 ## 가장 강력한 반대(기록)와 그럼에도 진행한 이유

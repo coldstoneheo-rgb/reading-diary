@@ -1,19 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+   API 31+ 백업·기기 이전 규칙. ADR-001: API 키 저장소(SecureKeyManager, secure_user_prefs.xml — 키셋 예약 키 포함)와
+   그 .bak 사본을 클라우드 백업과 기기 이전 모두에서 제외한다. Room DB(일기 데이터)와 일반 설정은 그대로 포함한다.
+   GeminiKeyPolicyTest.backupRules_excludeSecureKeyPrefs가 리소스를 파싱해 이 규칙과 매니페스트 배선을 고정한다.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <exclude domain="sharedpref" path="secure_user_prefs.xml"/>
+        <exclude domain="sharedpref" path="secure_user_prefs.xml.bak"/>
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="sharedpref" path="secure_user_prefs.xml"/>
+        <exclude domain="sharedpref" path="secure_user_prefs.xml.bak"/>
     </device-transfer>
-    -->
 </data-extraction-rules>
