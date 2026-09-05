@@ -42,10 +42,131 @@ class ReadingViewModelOcrTest {
     override suspend fun extract(bitmap: Bitmap): OcrOutcome { calls++; return outcome }
   }
 
-  private fun viewModel(extractor: TextExtractor): ReadingViewModel =
-    ReadingViewModel(ApplicationProvider.getApplicationContext<Application>(), extractor)
+  private fun viewModel(
+    extractor: TextExtractor,
+    precise: TextExtractor = FakeExtractor(OcrOutcome.Text("precise")),
+    keyPresent: Boolean = false
+  ): ReadingViewModel =
+    ReadingViewModel(ApplicationProvider.getApplicationContext<Application>(), extractor, precise) { keyPresent }
+
+  @Test
+  fun preciseAnalysis_withKeyAndConsent_callsPreciseExtractorOnly_andKeepsDefaultStateIdle() = runTest(dispatcher) {
+    val onDevice = FakeExtractor(OcrOutcome.Text("on-device"))
+    val precise = FakeExtractor(OcrOutcome.Text("precise"))
+    val vm = viewModel(onDevice, precise, keyPresent = true)
+    awaitUntil { vm.geminiKeyRegistered.value } // 키 존재 여부는 IO에서 로드된다
+    vm.setGeminiPhotoConsent(true)
+    awaitUntil { vm.preciseAnalysisAvailable.value }
+    assertEquals(true, vm.preciseAnalysisAvailable.value)
+
+    // 디코드 가능한 실제 PNG
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val file = java.io.File(app.cacheDir, "precise.png")
+    file.outputStream().use { Bitmap.createBitmap(20, 20, Bitmap.Config.ARGB_8888).compress(Bitmap.CompressFormat.PNG, 100, it) }
+    vm.processPreciseAnalysis(android.net.Uri.fromFile(file), 0f, false, 0f, 0f, 1f, 1f)
+    awaitUntil { vm.preciseOcrState.value is OcrState.Success }
+
+    assertEquals(OcrState.Success("precise"), vm.preciseOcrState.value)
+    assertEquals(1, precise.calls)
+    assertEquals(0, onDevice.calls)
+    assertEquals(OcrState.Idle, vm.ocrState.value) // 결과는 편집창(기본 상태)에 자동 반영되지 않는다
+  }
+
+  @Test
+  fun preciseAnalysis_refusedWithKeyButNoConsent_extractorNotCalled() = runTest(dispatcher) {
+    val precise = FakeExtractor(OcrOutcome.Text("precise"))
+    val vm = viewModel(FakeExtractor(OcrOutcome.NoText), precise, keyPresent = true)
+    awaitUntil { vm.geminiKeyRegistered.value }
+    val uri = android.net.Uri.fromFile(java.io.File(ApplicationProvider.getApplicationContext<Application>().cacheDir, "x.png"))
+
+    vm.processPreciseAnalysis(uri, 0f, false, 0f, 0f, 1f, 1f) // 동의 없음
+    advanceUntilIdle()
+
+    assertEquals(OcrState.Error(ReadingViewModel.CONSENT_REQUIRED_MESSAGE), vm.preciseOcrState.value)
+    assertEquals(0, precise.calls)
+  }
+
+  @Test
+  fun consentRestoredWithoutKey_isRevokedAtStartup() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    app.getSharedPreferences("diary_general_settings", android.content.Context.MODE_PRIVATE)
+      .edit().putBoolean("gemini_photo_consent", true).commit()
+
+    val vm = viewModel(FakeExtractor(OcrOutcome.NoText), keyPresent = false)
+    awaitUntil { !vm.geminiPhotoConsent.value }
+
+    assertEquals(false, vm.geminiPhotoConsent.value)
+  }
+
+  @Test
+  fun enterPreciseScope_keepsResultForSameOwner_dropsForOtherOwner() {
+    val vm = viewModel(FakeExtractor(OcrOutcome.NoText))
+    vm.enterPreciseScope("1/null")
+    vm.preciseOcrState.value = OcrState.Success("paid result")
+
+    vm.enterPreciseScope("1/null") // 회전 등 재생성
+    assertEquals(OcrState.Success("paid result"), vm.preciseOcrState.value)
+
+    vm.enterPreciseScope("2/null") // 다른 책
+    assertEquals(OcrState.Idle, vm.preciseOcrState.value)
+  }
+
+  @Test
+  fun defaultOcr_neverTouchesPreciseExtractor() = runTest(dispatcher) {
+    val precise = FakeExtractor(OcrOutcome.Text("precise"))
+    val vm = viewModel(FakeExtractor(OcrOutcome.Text("on-device")), precise)
+
+    vm.processUnderlineOcr(bitmap)
+    advanceUntilIdle()
+
+    assertEquals(OcrState.Success("on-device"), vm.ocrState.value)
+    assertEquals(0, precise.calls)
+  }
+
+  @Test
+  fun preciseAnalysis_refusedWithoutKeyAndConsent_extractorNotCalled() = runTest(dispatcher) {
+    val precise = FakeExtractor(OcrOutcome.Text("precise"))
+    val vm = viewModel(FakeExtractor(OcrOutcome.NoText), precise)
+    val uri = android.net.Uri.fromFile(java.io.File(ApplicationProvider.getApplicationContext<Application>().cacheDir, "x.png"))
+
+    // Robolectric에서는 암호화 저장소가 없어 키가 등록되지 않은 상태 = 동의만 있어도 거부돼야 한다
+    vm.setGeminiPhotoConsent(true)
+    vm.processPreciseAnalysis(uri, 0f, false, 0f, 0f, 1f, 1f)
+    advanceUntilIdle()
+
+    assertEquals(OcrState.Error(ReadingViewModel.CONSENT_REQUIRED_MESSAGE), vm.preciseOcrState.value)
+    assertEquals(0, precise.calls)
+    assertEquals(OcrState.Idle, vm.ocrState.value) // 기본 경로 상태는 건드리지 않는다
+  }
+
+  @Test
+  fun clearGeminiApiKey_failure_keepsRegistrationAndConsent() = runTest(dispatcher) {
+    // Robolectric에는 AndroidKeyStore가 없어 암호화 저장소를 열 수 없다 → 삭제 실패 경로가 결정적으로 재현된다
+    val vm = viewModel(FakeExtractor(OcrOutcome.NoText), keyPresent = true)
+    awaitUntil { vm.geminiKeyRegistered.value }
+    vm.setGeminiPhotoConsent(true)
+    awaitUntil { vm.preciseAnalysisAvailable.value }
+    assertEquals(true, vm.preciseAnalysisAvailable.value)
+
+    var result: Boolean? = null
+    vm.clearGeminiApiKey { result = it }
+    awaitUntil { result != null }
+
+    assertEquals(false, result)
+    assertEquals(true, vm.geminiKeyRegistered.value)   // 실패했으므로 등록 상태 유지
+    assertEquals(true, vm.geminiPhotoConsent.value)    // 동의도 유지
+  }
 
   private val bitmap: Bitmap get() = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
+
+  /** IO 스레드(실 디스패처)와 테스트 Main 디스패처를 오가는 작업을 기다린다. */
+  private fun awaitUntil(timeoutMs: Long = 5_000, condition: () -> Boolean) {
+    val deadline = System.currentTimeMillis() + timeoutMs
+    while (!condition() && System.currentTimeMillis() < deadline) {
+      dispatcher.scheduler.advanceUntilIdle()
+      Thread.sleep(20)
+    }
+  }
 
   @Test
   fun recognizedText_becomesSuccessVerbatim() = runTest(dispatcher) {

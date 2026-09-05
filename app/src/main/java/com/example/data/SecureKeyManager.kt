@@ -68,6 +68,13 @@ object SecureKeyManager {
     fun getGeminiApiKey(context: Context): String =
         encryptedPrefsOrNull(context)?.getString(KEY_GEMINI_API_KEY, "") ?: ""
 
+    /** 등록된 Gemini 키 삭제. @return false = 암호화 저장소를 열 수 없어 삭제하지 못함(평문에 저장된 적은 없다). */
+    fun clearGeminiApiKey(context: Context): Boolean {
+        val prefs = encryptedPrefsOrNull(context) ?: return false
+        prefs.edit().remove(KEY_GEMINI_API_KEY).apply()
+        return true
+    }
+
     /** 헤더에 실어도 안전한 키인지(출력 가능한 ASCII만). */
     fun isHeaderSafe(value: String): Boolean = PRINTABLE_ASCII.matches(value)
 }
