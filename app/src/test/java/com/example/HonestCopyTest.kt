@@ -38,4 +38,21 @@ class HonestCopyTest {
     }
     assertTrue("fake backup/restore copy found:\n" + offenders.joinToString("\n"), offenders.isEmpty())
   }
+
+  /** ADR-003 Q6: 기억 서랍은 LLM 생성도, 타사 앱 연동도 하지 않는다. 그렇게 읽히는 단어를 app/src/main에서 금지한다. */
+  @Test
+  fun noOverstatedFeatureVocabularyInProductionSources() {
+    val forbidden = listOf(
+      Regex("\\bRAG\\b"), Regex("Obsidian"), Regex("옵시디언"), Regex("Logseq"),
+      Regex("뇌세포"), Regex("브레인 링킹"), Regex("매칭 연동률"), Regex("연결 성공 지식"), Regex("지능형 기억"),
+      Regex("v1\\.2\\.0")
+    )
+    val mainDir = File("src/main")
+    val files = mainDir.walkTopDown().filter { it.isFile && (it.extension == "kt" || it.extension == "xml") }.toList()
+    val offenders = files.flatMap { file ->
+      val text = file.readText()
+      forbidden.filter { it.containsMatchIn(text) }.map { "${file.path}: /${it.pattern}/" }
+    }
+    assertTrue("overstated vocabulary found:\n" + offenders.joinToString("\n"), offenders.isEmpty())
+  }
 }

@@ -27,6 +27,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.BuildConfig
 import com.example.ui.viewmodel.ReadingViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -492,10 +493,10 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Icon(imageVector = Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
-                            Text("현재 빌드 앱 번들 버전", style = MaterialTheme.typography.bodyMedium)
+                            Text("앱 버전", style = MaterialTheme.typography.bodyMedium)
                         }
                         Text(
-                            "v1.2.0-stable",
+                            BuildConfig.VERSION_NAME,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
@@ -516,7 +517,7 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Icon(imageVector = Icons.Default.HistoryToggleOff, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                Text("업데이트 내역 및 히스토리", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                Text("변경 이력", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                             }
                             Icon(
                                 imageVector = if (showChangelog) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
@@ -531,10 +532,13 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                                 shape = RoundedCornerShape(6.dp)
                             ) {
                                 Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text("• [v1.2.0] 독서 목표 설정 및 일속 권장 정렬 페이스 계산 모티베이터 통계 보드 추가", style = MaterialTheme.typography.bodySmall)
-                                    Text("• [v1.2.0] 문장 링킹 기술을 탑재한 Obsidian 마운트 호환 기억 서랍망 오픈 및 Local RAG 시스템 구축", style = MaterialTheme.typography.bodySmall)
-                                    Text("• [v1.1.2] 온디바이스 OCR 텍스트 자동 추출 속도 대폭 개선", style = MaterialTheme.typography.bodySmall)
-                                    Text("• [v1.0.0] 나만의 책장 생성 및 네이버 도서 검색 API 동기화 출시", style = MaterialTheme.typography.bodySmall)
+                                    // 실제 머지 이력만 적는다(ADR-003 Q8). 버전 번호는 릴리스 때 오너가 정한다.
+                                    Text("• 기억 서랍을 정직한 이름과 동작으로 정리 — 검색 결과에 일치 근거 표시", style = MaterialTheme.typography.bodySmall)
+                                    Text("• 실제 동작이 없던 클라우드 백업·복원 버튼 제거, 데이터 저장 위치를 사실대로 안내", style = MaterialTheme.typography.bodySmall)
+                                    Text("• 본인 Gemini 키로 쓰는 선택형 '정밀 분석' 추가(사진 전송 동의 필요)", style = MaterialTheme.typography.bodySmall)
+                                    Text("• API 키를 클라우드 백업·기기 이전에서 제외", style = MaterialTheme.typography.bodySmall)
+                                    Text("• 책 페이지 사진에서 밑줄 구절을 기기 안에서 인식(한국어)", style = MaterialTheme.typography.bodySmall)
+                                    Text("• 책장 만들기와 네이버 도서 검색", style = MaterialTheme.typography.bodySmall)
                                 }
                             }
                         }
