@@ -31,6 +31,14 @@ class IsbnTest {
   }
 
   @Test
+  fun fromQuery_onlyTreatsPureNumericInputAsIsbn() {
+    assertEquals("9788937460449", Isbn.fromQuery(" 978-89-374-6044-9 "))
+    assertNull(Isbn.fromQuery("데미안 9788937460449"))   // 제목이 섞이면 제목 검색
+    assertNull(Isbn.fromQuery("데미안"))
+    assertNull(Isbn.fromQuery("9788937460440"))          // 체크섬 오류
+  }
+
+  @Test
   fun nonBookBarcodes_areRejected() {
     assertNull(Isbn.fromBarcode("9771234567003"))   // 977 = 잡지(ISSN) EAN
     assertNull(Isbn.fromBarcode("8801234567890"))   // 880 = 한국 상품 바코드

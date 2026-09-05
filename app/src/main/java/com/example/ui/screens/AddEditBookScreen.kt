@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -104,7 +105,7 @@ fun AddEditBookScreen(
 
     // Inline search states
     var isSearchActive by remember { mutableStateOf(bookId == null && startWithSearch) }
-    var searchQuery by remember { mutableStateOf("") }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<SearchResultBook>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     var searchError by remember { mutableStateOf<String?>(null) }
@@ -112,14 +113,19 @@ fun AddEditBookScreen(
     var searchedWithNaver by remember { mutableStateOf<Boolean?>(null) }
 
     // ISBN 바코드 스캔(ADR-003 실행 8). 스캐너 UI는 Play 서비스가 띄우므로 카메라 권한·미리보기 코드가 없다. EAN-13만 받아 부가기호(5자리)를 거른다.
-    val barcodeScanner = remember(context) {
-        GmsBarcodeScanning.getClient(
-            context,
-            GmsBarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_EAN_13).build()
-        )
-    }
+    // 클라이언트는 버튼을 눌렀을 때만 만든다 — Play 서비스가 없는 기기에서 화면 진입 자체가 죽지 않게.
     fun startIsbnScan() {
-        barcodeScanner.startScan()
+        val scanner = runCatching {
+            GmsBarcodeScanning.getClient(
+                context,
+                GmsBarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_EAN_13).build()
+            )
+        }.getOrNull()
+        if (scanner == null) {
+            Toast.makeText(context, "바코드 스캐너를 사용할 수 없습니다. 제목이나 저자로 검색해 주세요.", Toast.LENGTH_LONG).show()
+            return
+        }
+        scanner.startScan()
             .addOnSuccessListener { barcode ->
                 val isbn = Isbn.fromBarcode(barcode.rawValue)
                 if (isbn != null) {
@@ -169,8 +175,13 @@ fun AddEditBookScreen(
                     val (configClientId, configClientSecret) = naverCredentials
                     try {
                         val client = OkHttpClient()
-                        val escapedQuery = URLEncoder.encode(trimmedQuery, "UTF-8")
-                        val url = "https://openapi.naver.com/v1/search/book.json?query=$escapedQuery&display=10"
+                        // ISBN이면 상세 검색의 d_isbn으로 정확히 한 권을 찍는다. 응답 형식은 book.json과 같아 파서를 공유한다.
+                        val isbn = Isbn.fromQuery(trimmedQuery)
+                        val url = if (isbn != null) {
+                            "https://openapi.naver.com/v1/search/book_adv.json?d_isbn=$isbn&display=10"
+                        } else {
+                            "https://openapi.naver.com/v1/search/book.json?query=${URLEncoder.encode(trimmedQuery, "UTF-8")}&display=10"
+                        }
                         
                         val request = Request.Builder()
                             .url(url)
@@ -198,7 +209,7 @@ fun AddEditBookScreen(
                 } else {
                     try {
                         val client = OkHttpClient()
-                        val googleQuery = Isbn.fromBarcode(trimmedQuery)?.let { "isbn:$it" } ?: trimmedQuery
+                        val googleQuery = Isbn.fromQuery(trimmedQuery)?.let { "isbn:$it" } ?: trimmedQuery
                         val escapedQuery = URLEncoder.encode(googleQuery, "UTF-8")
                         val url = "https://www.googleapis.com/books/v1/volumes?q=$escapedQuery&maxResults=10"
                         val request = Request.Builder()
@@ -272,38 +283,11 @@ fun AddEditBookScreen(
                     color = MaterialTheme.colorScheme.primary
                 )
 
-                // Sleek Search Input Field
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("search_book_input"),
-                    placeholder = {
-                        Text(
-                            text = "도서 제목, 저자 또는 ISBN",
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f)
-                        )
-                    },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Default.Clear, contentDescription = "지우기")
-                            }
-                        } else {
-                            IconButton(
-                                onClick = { startIsbnScan() },
-                                modifier = Modifier.testTag("search_isbn_scan_button")
-                            ) {
-                                Icon(Icons.Default.QrCodeScanner, contentDescription = "책 바코드(ISBN) 스캔")
-                            }
-                        }
-                    },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
-                    singleLine = true,
-                    shape = RoundedCornerShape(8.dp)
+                BookSearchField(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    onScanClick = { startIsbnScan() },
+                    onSearchAction = { focusManager.clearFocus() }
                 )
 
                 // Skip online search and go to direct manual input button
@@ -878,4 +862,49 @@ internal fun searchGuidanceText(query: String, error: String?, searchedWithNaver
         null -> "온라인 검색"
     }
     return "$route 중 오류가 났습니다.\n$error\n\n잠시 후 다시 시도하거나 직접 입력해 등록해 주세요."
+}
+
+
+/**
+ * 도서 검색창. ViewModel 없이 그릴 수 있어 Compose 테스트가 가능하다.
+ * 바코드 스캔 버튼은 검색어가 있어도 보인다 — 제목으로 안 나와서 바코드로 바꾸려는 사용자가 지우기부터 하지 않게.
+ */
+@Composable
+internal fun BookSearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onScanClick: () -> Unit,
+    onSearchAction: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("search_book_input"),
+        placeholder = {
+            Text(
+                text = "도서 제목, 저자 또는 ISBN",
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f)
+            )
+        },
+        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+        trailingIcon = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (query.isNotEmpty()) {
+                    IconButton(onClick = { onQueryChange("") }, modifier = Modifier.testTag("search_clear_button")) {
+                        Icon(Icons.Default.Clear, contentDescription = "지우기")
+                    }
+                }
+                IconButton(onClick = onScanClick, modifier = Modifier.testTag("search_isbn_scan_button")) {
+                    Icon(Icons.Default.QrCodeScanner, contentDescription = "책 바코드(ISBN) 스캔")
+                }
+            }
+        },
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { onSearchAction() }),
+        singleLine = true,
+        shape = RoundedCornerShape(8.dp)
+    )
 }

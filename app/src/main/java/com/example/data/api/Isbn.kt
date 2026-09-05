@@ -17,6 +17,12 @@ object Isbn {
         return if (checksumOk(digits)) digits else null
     }
 
+    private val ISBN_QUERY = Regex("^[0-9\\- ]+$")
+
+    /** 사용자가 친 검색어가 '전부' 숫자·하이픈·공백이고 유효한 ISBN-13일 때만 ISBN으로 본다. "데미안 9788937460449" 같은 혼합 입력은 제목 검색으로 둔다. */
+    fun fromQuery(query: String): String? =
+        query.trim().takeIf { ISBN_QUERY.matches(it) }?.let { fromBarcode(it) }
+
     /** ISBN-13(EAN-13) 체크섬: 홀수 자리×1 + 짝수 자리×3 의 합이 10의 배수. */
     internal fun checksumOk(digits: String): Boolean {
         if (digits.length != 13 || digits.any { !it.isDigit() }) return false

@@ -43,10 +43,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <!-- Google 코드 스캐너 모듈을 설치 시점에 미리 내려받게 한다(ISBN 바코드 검색). 없어도 첫 사용 시 내려받는다. -->
-        <meta-data
-            android:name="com.google.mlkit.vision.DEPENDENCIES"
-            android:value="barcode_ui" />
     </application>
 
 </manifest>
