@@ -27,6 +27,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.Book
 import com.example.data.Diary
+import com.example.data.knowledge.BookComparison
+import com.example.data.knowledge.BookMatch
+import com.example.data.knowledge.MatchedRecord
 import com.example.data.knowledge.QuoteSource
 import com.example.data.knowledge.SharedWord
 import com.example.ui.viewmodel.ReadingViewModel
@@ -56,34 +59,10 @@ fun KnowledgeDrawerScreen(
     )
 }
 
-/** 검색어가 기록의 어디에 맞았는지. 고정 점수 대신 근거를 보여준다(ADR-003 Q5). */
-enum class MatchKind(val label: String) {
-    TITLE_AND_TEXT("제목·구절 일치"),
-    TEXT("구절 일치"),
-    NOTES("메모 일치"),
-    TITLE("제목 일치")
-}
-
-/**
- * 순수 함수: 검색어가 비면 null(전체 표시), 아니면 일치 종류. 어디에도 안 맞으면 [MatchKind]가 아니라 결과에서 제외된다.
- * 조합 라벨은 "제목·구절"만 둔다(가장 흔한 조합). 제목+메모처럼 다른 조합은 우선순위가 높은 한 가지만 표시한다 — 알려진 단순화.
- */
-internal fun matchKind(diary: Diary, bookTitle: String, query: String): MatchKind? {
-    val q = query.trim().lowercase()
-    if (q.isEmpty()) return null
-    val inText = diary.selectedText.lowercase().contains(q)
-    val inNotes = diary.notes.lowercase().contains(q)
-    val inTitle = bookTitle.lowercase().contains(q)
-    return when {
-        inTitle && inText -> MatchKind.TITLE_AND_TEXT
-        inText -> MatchKind.TEXT
-        inNotes -> MatchKind.NOTES
-        inTitle -> MatchKind.TITLE
-        else -> null
-    }
-}
-
 private const val CONNECTIONS_COLLAPSED = 3
+
+/** 책 카드 하나가 한 번에 그리는 기록 수. 한 책에 수백 건이 걸려도 프레임이 무너지지 않게 한다. */
+private const val RECORDS_PER_BOOK_COLLAPSED = 3
 
 /** ViewModel 없이 그릴 수 있는 본문. 스크린샷 테스트가 고정 데이터로 이 함수를 그린다. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -93,27 +72,24 @@ fun KnowledgeDrawerContent(
     diaries: List<Diary>,
     sharedWords: List<SharedWord>,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** 테스트가 검색 상태를 포커스 없이 그리기 위한 초기값. 앱에서는 항상 빈 문자열이다. */
+    initialQuery: String = ""
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val titleById = remember(books) { books.associate { it.id to it.title } }
     val dateFormat = remember { SimpleDateFormat("yyyy.MM.dd", Locale.getDefault()) }
 
-    var searchKeyword by rememberSaveable { mutableStateOf("") }
+    var searchKeyword by rememberSaveable { mutableStateOf(initialQuery) }
     var showAllConnections by rememberSaveable { mutableStateOf(false) }
     val query = searchKeyword.trim()
 
-    val results: List<Pair<Diary, MatchKind?>> = remember(query, diaries, titleById) {
-        if (query.isEmpty()) {
-            diaries.map { it to null }
-        } else {
-            diaries.mapNotNull { d ->
-                val kind = matchKind(d, titleById[d.bookId] ?: "", query) ?: return@mapNotNull null
-                d to kind
-            }
-        }
-    }
+    /** 검색 중이면 책별로 묶은 비교 결과(ADR-004). 검색어가 없으면 빈 목록. */
+    val bookMatches = remember(query, books, diaries) { BookComparison.compare(query, books, diaries) }
+    val isSearching = query.isNotEmpty()
+    val matchedRecordCount = remember(bookMatches) { BookComparison.recordCount(bookMatches) }
+    val hasResults = if (isSearching) bookMatches.isNotEmpty() else diaries.isNotEmpty()
     val visibleConnections = if (showAllConnections) sharedWords else sharedWords.take(CONNECTIONS_COLLAPSED)
     val booksWithRecords = remember(diaries) { diaries.map { it.bookId }.toSet().size }
 
@@ -240,7 +216,7 @@ fun KnowledgeDrawerContent(
                 }
             }
 
-            if (results.isEmpty()) {
+            if (!hasResults) {
                 Text(
                     text = if (query.isEmpty()) "기록 0개" else "일치하는 기록 0개",
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
@@ -311,18 +287,181 @@ fun KnowledgeDrawerContent(
                             }
                         }
                         item(key = "records_header") {
-                            SectionHeader(title = "기록 ${results.size}개", subtitle = null)
+                            SectionHeader(title = "기록 ${diaries.size}개", subtitle = null)
+                        }
+                        items(diaries, key = { "diary_" + it.id }) { diary ->
+                            DiaryResultCard(diary = diary, bookTitle = titleById[diary.bookId], dateFormat = dateFormat)
                         }
                     } else {
-                        item(key = "records_header") {
-                            SectionHeader(title = "일치하는 기록 ${results.size}개", subtitle = null)
+                        // 검색 중: 책별 비교(ADR-004). "여러 책에서 나왔다"는 사실 자체를 먼저 보여준다.
+                        item(key = "compare_header") {
+                            CompareHeader(query = query, bookCount = bookMatches.size, recordCount = matchedRecordCount)
                         }
-                    }
-                    items(results, key = { "diary_" + it.first.id }) { (diary, kind) ->
-                        DiaryResultCard(diary = diary, bookTitle = titleById[diary.bookId], matchKind = kind, dateFormat = dateFormat)
+                        items(bookMatches, key = { "book_" + it.bookId }) { match ->
+                            BookMatchCard(match = match, dateFormat = dateFormat)
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * 검색 결과 머리말. 두 권 이상에서 나왔을 때가 이 화면의 주인공이다 —
+ * "A 책을 떠올리며 검색했는데 B 책에서도 그때 쓴 내 메모가 나온다"는 경험(ADR-004).
+ */
+@Composable
+private fun CompareHeader(query: String, bookCount: Int, recordCount: Int) {
+    if (bookCount >= 2) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("knowledgedrawer_compare_header"),
+            shape = RoundedCornerShape(10.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f))
+        ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.Link,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = "'$query'는 ${bookCount}권의 책에 있습니다",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Text(
+                    text = "기록 ${recordCount}개. 각 책에서 그때 내가 무엇을 썼는지 나란히 보세요.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+            }
+        }
+    } else {
+        SectionHeader(title = "일치하는 기록 ${recordCount}개", subtitle = null)
+    }
+}
+
+/** 책 한 권의 비교 열. 내가 쓴 메모를 발췌보다 앞에 둔다 — 비교의 대상은 문장이 아니라 그때의 생각이다. */
+@Composable
+private fun BookMatchCard(match: BookMatch, dateFormat: SimpleDateFormat) {
+    var expanded by rememberSaveable(match.bookId) { mutableStateOf(false) }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("knowledgedrawer_book_" + match.bookId),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = match.bookTitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    if (match.author.isNotBlank()) {
+                        Text(
+                            text = match.author,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                    }
+                }
+                Text(
+                    text = "기록 ${match.records.size}개",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
+            }
+
+            val visible = if (expanded) match.records else match.records.take(RECORDS_PER_BOOK_COLLAPSED)
+            visible.forEach { record ->
+                MatchedRecordRow(record = record, dateFormat = dateFormat)
+            }
+            if (match.records.size > RECORDS_PER_BOOK_COLLAPSED) {
+                TextButton(
+                    onClick = { expanded = !expanded },
+                    modifier = Modifier.testTag("knowledgedrawer_book_toggle_" + match.bookId)
+                ) {
+                    Text(
+                        text = if (expanded) "접기" else "기록 ${match.records.size - RECORDS_PER_BOOK_COLLAPSED}개 더 보기",
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MatchedRecordRow(record: MatchedRecord, dateFormat: SimpleDateFormat) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // 내 메모가 먼저. 검색어가 메모에서 나왔다면 그것이 이 기록의 핵심이다.
+        if (record.note.isNotBlank()) {
+            Surface(
+                shape = RoundedCornerShape(4.dp),
+                color = if (record.matchedInNote) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                else MaterialTheme.colorScheme.background,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = "그때 내 생각",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                    )
+                    Text(
+                        text = record.note,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
+                    )
+                }
+            }
+        }
+
+        Row(verticalAlignment = Alignment.Top) {
+            Icon(
+                imageVector = Icons.Default.FormatQuote,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = record.excerpt,
+                style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = record.matchKind.label,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+            )
+            Text(
+                text = "p.${record.page} • " + dateFormat.format(Date(record.createdAt)),
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+            )
         }
     }
 }
@@ -421,7 +560,7 @@ private fun ConnectionCard(sharedWord: SharedWord) {
 }
 
 @Composable
-private fun DiaryResultCard(diary: Diary, bookTitle: String?, matchKind: MatchKind?, dateFormat: SimpleDateFormat) {
+private fun DiaryResultCard(diary: Diary, bookTitle: String?, dateFormat: SimpleDateFormat) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -439,19 +578,6 @@ private fun DiaryResultCard(diary: Diary, bookTitle: String?, matchKind: MatchKi
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
-                if (matchKind != null) {
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = MaterialTheme.colorScheme.secondaryContainer
-                    ) {
-                        Text(
-                            text = matchKind.label,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-                }
             }
 
             Spacer(modifier = Modifier.height(6.dp))
