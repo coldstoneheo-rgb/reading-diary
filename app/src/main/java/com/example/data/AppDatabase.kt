@@ -9,7 +9,16 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-@Database(entities = [Bookcase::class, Book::class, Diary::class], version = 2, exportSchema = false)
+/**
+ * 스키마 JSON을 `app/schemas/`로 내보낸다(ADR-004 1단계 ③). **버전은 2 그대로다 — 이 PR은 스키마를 바꾸지 않는다.**
+ *
+ * 왜 지금 켜는가: 현재 [Room.databaseBuilder]가 `fallbackToDestructiveMigration()`을 쓰고 있어,
+ * 훗날 누군가 `version`을 올리면 마이그레이션 없이 **기존 설치의 데이터가 조용히 전부 삭제된다.**
+ * 안전한 마이그레이션을 쓰려면 "현재 v2가 정확히 어떤 스키마인가"를 파일로 갖고 있어야 하고,
+ * 그 정본은 지금(v2가 실제로 배포된 상태에서) 뽑아 커밋해 두어야만 신뢰할 수 있다.
+ * 이 PR은 그 정본만 만든다. `fallbackToDestructiveMigration` 제거와 `Migration(2,3)`은 실제로 스키마가 필요해질 때 별도 PR에서.
+ */
+@Database(entities = [Bookcase::class, Book::class, Diary::class], version = 2, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun bookcaseDao(): BookcaseDao
     abstract fun bookDao(): BookDao

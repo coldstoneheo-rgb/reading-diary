@@ -63,6 +63,11 @@ android {
   testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
+// Room 스키마 JSON 출력 위치(ADR-004 1단계 ③). 커밋해 두어야 훗날 Migration 작성·검증의 정본이 된다.
+ksp {
+  arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 // Configure the Secrets Gradle Plugin to use .env and .env.example files
 // to match the convention used in Web projects.
 secrets {
