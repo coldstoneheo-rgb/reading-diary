@@ -63,6 +63,14 @@ android {
   testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
+// Room 스키마 JSON 출력 위치(ADR-004 1단계 ③). 커밋해 두어야 훗날 Migration 작성·검증의 정본이 된다.
+// 이 방식은 KSP 태스크의 '선언된 출력'이 아니라, 엔티티가 바뀌었는데 태스크가 UP-TO-DATE 로 스킵되면 정본이 낡을 수 있다.
+// RoomSchemaExportTest.schemaDoesNotDriftWithinTheSameVersion 이 그 경우를 잡는다.
+// 배선을 Gradle 에 맡기려면 Room Gradle 플러그인(androidx.room + room { schemaDirectory(...) })으로 바꾼다 — 플러그인 1개 추가 비용.
+ksp {
+  arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 // Configure the Secrets Gradle Plugin to use .env and .env.example files
 // to match the convention used in Web projects.
 secrets {
