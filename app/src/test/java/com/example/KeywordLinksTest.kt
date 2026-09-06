@@ -64,6 +64,49 @@ class KeywordLinksTest {
   }
 
   @Test
+  fun stem_stripsParticlesAfterMultiSyllableNouns_knownFalsePositives() {
+    // ADR-004 Q3: 길이 휴리스틱이 조사까지 명사로 살려 두던 사례. 사전 기반 규칙으로 바로잡는다.
+    assertEquals("주인", KeywordExtractor.stem("주인이"))
+    assertEquals("습관", KeywordExtractor.stem("습관이"))
+    assertEquals("욕망", KeywordExtractor.stem("욕망이"))
+    assertEquals("가치", KeywordExtractor.stem("가치가"))
+  }
+
+  @Test
+  fun stem_protectsNounTailsThatLookLikeParticles() {
+    // 4글자 이상 합성어가 조사로 오인돼 잘리던 사례.
+    assertEquals("연구결과", KeywordExtractor.stem("연구결과"))
+    assertEquals("국무회의", KeywordExtractor.stem("국무회의"))
+    assertEquals("적정온도", KeywordExtractor.stem("적정온도"))
+    assertEquals("전문가", KeywordExtractor.stem("전문가"))
+    assertEquals("바다", KeywordExtractor.stem("바다"))
+  }
+
+  @Test
+  fun stem_dropsVerbFormsWhoseStemIsTooShort() {
+    // 어간이 1글자면 단어가 아니다. 원형을 남기면 두 책이 "간다"로만 겹쳐 가짜 연결이 생긴다.
+    assertNull(KeywordExtractor.stem("간다"))
+    assertNull(KeywordExtractor.stem("온다"))
+    assertNull(KeywordExtractor.stem("본다"))
+    assertNull(KeywordExtractor.stem("산다"))
+    // 서술격 조사 "다"도 뗀다 — 어간이 충분히 길면 살린다.
+    assertEquals("인격체", KeywordExtractor.stem("인격체다"))
+  }
+
+  @Test
+  fun stem_unifiesConjugationsOfTheSameVerb() {
+    // 같은 낱말이 활용에 따라 다른 단어로 남으면 책 사이 연결이 끊긴다.
+    val forms = listOf("생각하다", "생각한다", "생각했다", "생각하는", "생각하고", "생각하며")
+    assertEquals(setOf("생각"), forms.map { KeywordExtractor.stem(it) }.toSet())
+  }
+
+  @Test
+  fun stem_trimsMarkdownEmphasisUnderscores() {
+    assertEquals("성장", KeywordExtractor.stem("_성장_"))
+    assertEquals("자존감_회복", KeywordExtractor.stem("자존감_회복"))
+  }
+
+  @Test
   fun stem_dropsDigitsSingleCharsAndLowercasesLatin() {
     assertNull(KeywordExtractor.stem("2026"))
     assertNull(KeywordExtractor.stem("a"))
