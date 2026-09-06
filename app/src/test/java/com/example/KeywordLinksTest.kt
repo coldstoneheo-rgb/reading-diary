@@ -63,6 +63,65 @@ class KeywordLinksTest {
     assertNull(KeywordExtractor.stem("하는"))
   }
 
+  /**
+   * 골든 코퍼스. 규칙이 바뀌면 여기서 먼저 깨진다.
+   * **개선(고쳐야 할 것)과 알려진 한계(감수하기로 한 것)를 같은 표에 둔다** — 무엇이 대가인지 코드가 아니라 테스트가 증언하게 한다.
+   */
+  @Test
+  fun stem_goldenCorpus() {
+    val expected: List<Pair<String, String?>> = listOf(
+      // ── 명사 + 조사: 조사를 뗀다 ──────────────────────────────
+      "주인이" to "주인", "습관이" to "습관", "욕망이" to "욕망", "가치가" to "가치",
+      "생각도" to "생각", "정도로" to "정도", "여성의" to "여성", "이야기도" to "이야기",
+      "가능성의" to "가능성", "문제도" to "문제", "행복도" to "행복", "내용도" to "내용",
+      "사회의" to "사회", "운동의" to "운동", "학문의" to "학문", "혼자만" to "혼자",
+      "세계를" to "세계", "인격으로" to "인격", "도서관에서는" to "도서관", "학생들은" to "학생", "친구에게는" to "친구",
+      // ── 명사인데 조사처럼 끝난다: 사전이 보호한다 ─────────────
+      "고양이" to "고양이", "호랑이" to "호랑이", "전문가" to "전문가", "자본주의" to "자본주의", "민주주의를" to "민주주의",
+      "종이" to "종이", "나이" to "나이", "바다" to "바다", "붓다" to "붓다",
+      // ── 용언: 어간을 통일하거나 버린다 ─────────────────────────
+      "생각하다" to "생각", "생각한다" to "생각", "생각했다" to "생각", "생각하는" to "생각",
+      "생각하고" to "생각", "생각하며" to "생각", "생각하라는" to "생각", "필요하다는" to "필요",
+      "필요하다" to "필요", "중요하고" to "중요", "위대한" to "위대", "투쟁한다" to "투쟁", "세계이다" to "세계",
+      "간다" to null, "온다" to null, "본다" to null, "산다" to null,
+      "나온다" to null, "만든다" to null, "떠났다" to null, "몰랐다" to null, "아름답다" to null,
+      "했다" to null, "하는" to null, "그렇게" to null,
+      // ── 2글자 한자어 명사: 1글자 어미로 지워지면 안 된다 ────────
+      "제한" to "제한", "권한" to "권한", "무한" to "무한", "기한" to "기한", "인하" to "인하",
+      // ── 1글자 어미 "하"는 3글자에만: 합성어를 자르지 않는다 ─────
+      "가격인하" to "가격인하", "금리인하" to "금리인하", "체제하" to "체제",
+      // ── `~주의` 보호는 4글자 이상: 3글자 "명사+의"는 조사를 뗀다 ──
+      "위주의" to "위주", "이기주의" to "이기주의", "개인주의" to "개인주의", "부주의" to "부주의",
+      // ── 사전에 넣은 -다 고유명사는 사라지지 않는다 ──────────────
+      "캐나다" to "캐나다", "르완다" to "르완다", "플로리다" to "플로리다", "캐나다를" to "캐나다",
+      // ── 버리는 것 ─────────────────────────────────────────────
+      "2026" to null, "a" to null, "돈" to null, "하나의" to null,
+      // ── 그 밖 ─────────────────────────────────────────────────
+      "Demian" to "demian", "_성장_" to "성장", "자존감_회복" to "자존감_회복", "새는" to "새는", "알에서" to "알에서"
+    )
+    val wrong = expected.filter { (token, want) -> KeywordExtractor.stem(token) != want }
+      .map { (token, want) -> "$token → ${KeywordExtractor.stem(token)} (기대: $want)" }
+    assertTrue("골든 코퍼스 불일치:\n" + wrong.joinToString("\n"), wrong.isEmpty())
+  }
+
+  /**
+   * 감수하기로 한 한계. **고쳐야 할 버그가 아니라 선택한 대가다**(ADR-004 Q3).
+   * 조사로 끝나 보이는 2글자 명사를 `endsWith`로 보호하면 `생각도`·`정도로`·`여성의`가 통째로 살아남는데,
+   * 그쪽이 합성어보다 훨씬 흔해서 합성어를 포기했다. 이 기대값을 "고치려면" 위 골든 코퍼스의 명사+조사 항목이 함께 깨진다.
+   */
+  @Test
+  fun stem_knownLimitations_compoundNounsEndingLikeParticles() {
+    assertEquals("연구결", KeywordExtractor.stem("연구결과"))
+    assertEquals("적정온", KeywordExtractor.stem("적정온도"))
+    assertEquals("국무회", KeywordExtractor.stem("국무회의"))
+    // `다`로 끝나면 활용형으로 본다. 서술격 명사도 함께 버려진다.
+    assertNull(KeywordExtractor.stem("인격체다"))
+    // 사전에 없는 -다 명사는 **잘리는 게 아니라 사라진다**. 피해가 커서 사전을 먼저 채웠지만 완전할 수는 없다.
+    assertNull(KeywordExtractor.stem("아그리젠다"))
+    // `학생들에게`는 2글자 조사에서 멈춰 복수 접미사 `들`이 남는다(main 에서 온 기존 한계).
+    assertEquals("학생들", KeywordExtractor.stem("학생들에게"))
+  }
+
   @Test
   fun stem_dropsDigitsSingleCharsAndLowercasesLatin() {
     assertNull(KeywordExtractor.stem("2026"))
