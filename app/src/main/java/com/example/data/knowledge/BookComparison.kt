@@ -37,11 +37,14 @@ data class MatchedRecord(
     val excerpt: String,
     val note: String,
     val matchKind: MatchKind,
+    /**
+     * 검색어가 내가 쓴 메모 안에 있는가. 오너 비전의 "그때 내 생각"이 걸린 기록이다.
+     * [matchKind]에서 파생시키지 않는다 — 구절과 메모에 **둘 다** 있으면 라벨은 "구절 일치"가 되지만
+     * 그런 기록이야말로 가장 값진 비교 대상이므로 여기서는 true여야 한다.
+     */
+    val matchedInNote: Boolean,
     val createdAt: Long
-) {
-    /** 검색어가 내가 쓴 메모에서 나왔는가. 오너 비전의 "그때 내 생각"이 걸린 기록. */
-    val matchedInNote: Boolean get() = matchKind == MatchKind.NOTES
-}
+)
 
 /** 검색어가 발견된 책 하나와 그 안의 기록들. */
 data class BookMatch(
@@ -58,6 +61,7 @@ data class BookMatch(
  * 매우 색다른 경험이고 새로운 인사이트를 제공할 수 있다." 그 경험은 결과가 **책 단위로 나뉘어 나란히 보일 때** 생긴다.
  * 평면 리스트로 섞어 놓으면 "같은 단어가 다른 책에서도 나왔다"는 사실 자체가 눈에 띄지 않는다.
  *
+ * **[books]에 없는 책의 일기는 검색 대상이 아니다** — 비교의 단위가 책이므로 소속을 모르는 기록은 열을 만들 수 없다.
  * Room·Compose에 의존하지 않아 JVM 테스트가 가능하다.
  */
 object BookComparison {
@@ -81,6 +85,7 @@ object BookComparison {
                     excerpt = diary.selectedText,
                     note = diary.notes,
                     matchKind = kind,
+                    matchedInNote = diary.notes.lowercase().contains(q.lowercase()),
                     createdAt = diary.createdAt
                 )
             }

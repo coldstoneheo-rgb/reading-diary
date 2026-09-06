@@ -4,7 +4,6 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
-import androidx.compose.ui.test.performTextInput
 import com.example.data.Book
 import com.example.data.Diary
 import com.example.data.knowledge.KeywordLinks
@@ -107,10 +106,18 @@ class KnowledgeDrawerScreenshotTest {
   @Test
   fun knowledgeDrawer_searchAcrossTwoBooks_screenshot() {
     // 오너 비전(ADR-004): A 책을 떠올리며 검색했는데 B 책에서도 그때 쓴 내 메모가 나오는 화면.
+    // initialQuery로 그린다 — performTextInput은 검색창에 포커스와 캐럿을 남겨 기준 이미지가 Compose 버전에 흔들린다.
     composeTestRule.setContent {
-      MyApplicationTheme { KnowledgeDrawerContent(books = books, diaries = diaries, sharedWords = KeywordLinks.build(books, diaries), onBack = {}) }
+      MyApplicationTheme {
+        KnowledgeDrawerContent(
+          books = books,
+          diaries = diaries,
+          sharedWords = KeywordLinks.build(books, diaries),
+          onBack = {},
+          initialQuery = "세계"
+        )
+      }
     }
-    composeTestRule.onNodeWithTag("knowledgedrawer_search_field").performTextInput("세계")
     composeTestRule.onNodeWithTag("knowledgedrawer_compare_header").assertIsDisplayed()
     composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/knowledge_drawer_cross_book_search.png")
   }

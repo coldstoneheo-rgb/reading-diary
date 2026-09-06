@@ -29,7 +29,6 @@ import com.example.data.Book
 import com.example.data.Diary
 import com.example.data.knowledge.BookComparison
 import com.example.data.knowledge.BookMatch
-import com.example.data.knowledge.MatchKind
 import com.example.data.knowledge.MatchedRecord
 import com.example.data.knowledge.QuoteSource
 import com.example.data.knowledge.SharedWord
@@ -62,6 +61,9 @@ fun KnowledgeDrawerScreen(
 
 private const val CONNECTIONS_COLLAPSED = 3
 
+/** 책 카드 하나가 한 번에 그리는 기록 수. 한 책에 수백 건이 걸려도 프레임이 무너지지 않게 한다. */
+private const val RECORDS_PER_BOOK_COLLAPSED = 3
+
 /** ViewModel 없이 그릴 수 있는 본문. 스크린샷 테스트가 고정 데이터로 이 함수를 그린다. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,14 +72,16 @@ fun KnowledgeDrawerContent(
     diaries: List<Diary>,
     sharedWords: List<SharedWord>,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** 테스트가 검색 상태를 포커스 없이 그리기 위한 초기값. 앱에서는 항상 빈 문자열이다. */
+    initialQuery: String = ""
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val titleById = remember(books) { books.associate { it.id to it.title } }
     val dateFormat = remember { SimpleDateFormat("yyyy.MM.dd", Locale.getDefault()) }
 
-    var searchKeyword by rememberSaveable { mutableStateOf("") }
+    var searchKeyword by rememberSaveable { mutableStateOf(initialQuery) }
     var showAllConnections by rememberSaveable { mutableStateOf(false) }
     val query = searchKeyword.trim()
 
@@ -286,7 +290,7 @@ fun KnowledgeDrawerContent(
                             SectionHeader(title = "기록 ${diaries.size}개", subtitle = null)
                         }
                         items(diaries, key = { "diary_" + it.id }) { diary ->
-                            DiaryResultCard(diary = diary, bookTitle = titleById[diary.bookId], matchKind = null, dateFormat = dateFormat)
+                            DiaryResultCard(diary = diary, bookTitle = titleById[diary.bookId], dateFormat = dateFormat)
                         }
                     } else {
                         // 검색 중: 책별 비교(ADR-004). "여러 책에서 나왔다"는 사실 자체를 먼저 보여준다.
@@ -347,6 +351,7 @@ private fun CompareHeader(query: String, bookCount: Int, recordCount: Int) {
 /** 책 한 권의 비교 열. 내가 쓴 메모를 발췌보다 앞에 둔다 — 비교의 대상은 문장이 아니라 그때의 생각이다. */
 @Composable
 private fun BookMatchCard(match: BookMatch, dateFormat: SimpleDateFormat) {
+    var expanded by rememberSaveable(match.bookId) { mutableStateOf(false) }
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -381,8 +386,20 @@ private fun BookMatchCard(match: BookMatch, dateFormat: SimpleDateFormat) {
                 )
             }
 
-            match.records.forEach { record ->
+            val visible = if (expanded) match.records else match.records.take(RECORDS_PER_BOOK_COLLAPSED)
+            visible.forEach { record ->
                 MatchedRecordRow(record = record, dateFormat = dateFormat)
+            }
+            if (match.records.size > RECORDS_PER_BOOK_COLLAPSED) {
+                TextButton(
+                    onClick = { expanded = !expanded },
+                    modifier = Modifier.testTag("knowledgedrawer_book_toggle_" + match.bookId)
+                ) {
+                    Text(
+                        text = if (expanded) "접기" else "기록 ${match.records.size - RECORDS_PER_BOOK_COLLAPSED}개 더 보기",
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
             }
         }
     }
@@ -543,7 +560,7 @@ private fun ConnectionCard(sharedWord: SharedWord) {
 }
 
 @Composable
-private fun DiaryResultCard(diary: Diary, bookTitle: String?, matchKind: MatchKind?, dateFormat: SimpleDateFormat) {
+private fun DiaryResultCard(diary: Diary, bookTitle: String?, dateFormat: SimpleDateFormat) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -561,19 +578,6 @@ private fun DiaryResultCard(diary: Diary, bookTitle: String?, matchKind: MatchKi
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
-                if (matchKind != null) {
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = MaterialTheme.colorScheme.secondaryContainer
-                    ) {
-                        Text(
-                            text = matchKind.label,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-                }
             }
 
             Spacer(modifier = Modifier.height(6.dp))

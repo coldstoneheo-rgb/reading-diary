@@ -58,6 +58,39 @@ class BookComparisonTest {
   }
 
   @Test
+  fun recordMatchedInBothExcerptAndNote_stillCountsAsMyNote() {
+    // 라벨은 "구절 일치"가 되지만, 메모에도 있는 기록이야말로 가장 값진 비교 대상이다(ADR-004 Q5).
+    val diaries = listOf(
+      diary(10, 1, 50, "성장은 아프다", "성장에 관한 그때 내 생각"),  // 구절 + 메모
+      diary(11, 1, 10, "성장하는 사람")                                // 구절만, 더 앞 페이지
+    )
+
+    val records = BookComparison.compare("성장", books, diaries).single().records
+
+    assertEquals(MatchKind.TEXT, records[0].matchKind)
+    assertTrue(records[0].matchedInNote)
+    assertEquals(listOf(10, 11), records.map { it.diaryId })  // 메모가 걸린 쪽이 먼저
+    assertFalse(records[1].matchedInNote)
+  }
+
+  @Test
+  fun sameTitleAndCount_isBrokenByBookId() {
+    val twin1 = Book(id = 7, title = "같은 제목", author = "A", totalPages = 100, bookcaseId = 1, status = "READING")
+    val twin2 = Book(id = 4, title = "같은 제목", author = "B", totalPages = 100, bookcaseId = 1, status = "READING")
+    val diaries = listOf(diary(1, 7, 1, "기록"), diary(2, 4, 1, "기록"))
+
+    val matches = BookComparison.compare("기록", listOf(twin1, twin2), diaries)
+
+    assertEquals(listOf(4, 7), matches.map { it.bookId })
+  }
+
+  @Test
+  fun queryMatchingIsCaseInsensitive() {
+    val diaries = listOf(diary(1, 1, 1, "Kotlin in Action"), diary(2, 2, 1, "learning KOTLIN"))
+    assertEquals(2, BookComparison.compare("kotlin", books, diaries).size)
+  }
+
+  @Test
   fun booksAreOrderedByRecordCountThenTitle_deterministically() {
     val diaries = listOf(
       diary(1, 1, 1, "기록"),
