@@ -43,7 +43,7 @@ object BipartiteLayout {
     /**
      * 규칙: 단어는 [sharedWords] 순서(KeywordLinks.build 정렬)로 앞 [MAX_WORDS]개 → 그 단어들이 걸린 책을
      * 엣지 수 내림차순 → 제목 오름차순 → id 오름차순으로 앞 [MAX_BOOKS]권 → 엣지는 단어 순서(같은 단어 안에서는 책 id 순)로 [MAX_EDGES]개까지.
-     * 엣지가 하나도 남지 않은 노드는 그리지 않는다. 무엇이든 잘렸으면 [BipartiteGraph.truncated].
+     * 엣지가 하나도 남지 않은 노드는 그리지 않는다. 상한 때문에 무엇이든 잘렸으면 [BipartiteGraph.truncated].
      * 각 열은 `padding..height-padding`에 균등 간격(1개면 세로 가운데), 책 열 x = padding, 단어 열 x = width - padding.
      * [titleById]에 없는 책(지워진 책)은 그리지 않는다.
      */
@@ -78,10 +78,11 @@ object BipartiteLayout {
         val shownWords = words.filter { it.word in wordsWithEdges }
         val shownBooks = rankedBooks.filter { it in booksWithEdges }
 
+        // 상한 때문에 잃은 것만 센다. 책·엣지 상한으로 엣지를 모두 잃은 단어는 앞의 두 조건이 이미 잡는다.
+        // 지워진 책(titleById에 없음) 때문에 빠진 것은 "일부만 표시"가 아니다.
         val truncated = sharedWords.size > words.size ||
             rankedBooks.size > keptBooks.size ||
-            candidateEdges.size > edges.size ||
-            shownWords.size < words.size
+            candidateEdges.size > edges.size
 
         val bookNodes = shownBooks.mapIndexed { i, id ->
             GraphNode(id.toString(), titleById.getValue(id), GraphSide.BOOK, padding, columnY(i, shownBooks.size, height, padding))
