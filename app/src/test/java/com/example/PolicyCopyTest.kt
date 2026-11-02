@@ -41,5 +41,9 @@ class PolicyCopyTest {
   fun terms_useCurrentAppNameAndMentionSearchTransfer() {
     assertTrue(TERMS_SUMMARY.contains("'독서 다이어리'"))
     assertTrue(TERMS_SUMMARY.contains("검색어"))
+    // 처리방침 4항(자동 백업)·7항 단서(Google 구성요소의 진단 통계)를 약관에서도 빼지 않는다
+    assertTrue(TERMS_SUMMARY.contains("자동 백업"))
+    assertTrue(TERMS_SUMMARY.contains("ML Kit"))
+    assertTrue(TERMS_SUMMARY.contains("진단"))
   }
 }
