@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.example.data.displayableCoverUrl
+import com.example.ui.components.CoverPlaceholder
 import com.example.data.Book
 import com.example.data.Bookcase
 import com.example.ui.viewmodel.ReadingViewModel
@@ -82,26 +84,8 @@ fun AddEditBookScreen(
     var selectedBookcaseId by remember { mutableStateOf(0) }
     var selectedStatus by remember { mutableStateOf("TO_READ") } // "READING", "TO_READ", "COMPLETED"
 
-    val activeCoverUrl = if (coverUrl.isNotBlank()) coverUrl else {
-        val bookcaseName = bookcases.find { it.id == selectedBookcaseId }?.name ?: ""
-        when {
-            bookcaseName.contains("소설") -> "https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400"
-            bookcaseName.contains("재테크") -> "https://images.unsplash.com/photo-1592492159418-09f31333cca8?auto=format&fit=crop&q=80&w=400"
-            bookcaseName.contains("자기계발") -> "https://images.unsplash.com/photo-1610116306796-6fea9f4fae38?auto=format&fit=crop&q=80&w=400"
-            bookcaseName.contains("인문") -> "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=400"
-            else -> {
-                val defaultCovers = listOf(
-                    "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=400",
-                    "https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400",
-                    "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=400",
-                    "https://images.unsplash.com/photo-1592492159418-09f31333cca8?auto=format&fit=crop&q=80&w=400",
-                    "https://images.unsplash.com/photo-1610116306796-6fea9f4fae38?auto=format&fit=crop&q=80&w=400"
-                )
-                val index = Math.abs(title.hashCode()) % defaultCovers.size
-                defaultCovers[index]
-            }
-        }
-    }
+    // 표지는 검색 결과에서 온 것만 쓴다. 없으면 저장도 ""(화면은 플레이스홀더, ADR-003-2).
+    val activeCoverUrl = coverUrl
 
     var bookcaseExpanded by remember { mutableStateOf(false) }
     var statusExpanded by remember { mutableStateOf(false) }
@@ -571,7 +555,7 @@ fun AddEditBookScreen(
                             .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f), RoundedCornerShape(8.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (activeCoverUrl.startsWith("http")) {
+                        if (displayableCoverUrl(activeCoverUrl).isNotEmpty()) {
                             AsyncImage(
                                 model = ImageRequest.Builder(LocalContext.current)
                                     .data(activeCoverUrl)
@@ -582,12 +566,7 @@ fun AddEditBookScreen(
                                 contentScale = ContentScale.Crop
                             )
                         } else {
-                            Icon(
-                                imageVector = Icons.Default.MenuBook,
-                                contentDescription = null,
-                                modifier = Modifier.size(32.dp),
-                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                            )
+                            CoverPlaceholder(title = title, modifier = Modifier.fillMaxSize())
                         }
                     }
 
@@ -599,8 +578,8 @@ fun AddEditBookScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = if (coverUrl.isNotEmpty()) "선택하신 도서의 공식 이미지가 연동되었습니다."
-                                   else "도서를 직접 입력해 등록하시는 경우, 책장 분류에 맞는 분위기 있는 명화 디자인 도서 커버가 자동 매칭됩니다.",
+                            text = if (displayableCoverUrl(coverUrl).isNotEmpty()) "검색에서 고른 도서의 표지를 씁니다."
+                                   else "표지가 없는 책은 제목 첫 글자로 만든 표지를 기기 안에서 보여 줍니다.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
                             lineHeight = 16.sp

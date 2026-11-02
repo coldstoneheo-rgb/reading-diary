@@ -103,7 +103,7 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = "나만의 서재 다이어리",
+                            text = "독서 다이어리",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 16.sp),
                             color = MaterialTheme.colorScheme.onSurface,
                             lineHeight = 18.sp

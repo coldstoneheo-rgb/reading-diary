@@ -30,6 +30,32 @@ import androidx.compose.ui.unit.sp
 import com.example.BuildConfig
 import com.example.ui.viewmodel.ReadingViewModel
 
+/**
+ * 처리방침 공개 URL(INTERNAL-TEST-2026-11 U4). 오너가 docs/privacy/privacy-policy.html을 배포한 뒤 이 한 곳만 채운다.
+ * 비어 있으면 화면에 URL 줄을 띄우지 않는다(가짜 주소를 보여 주지 않는다).
+ */
+internal const val PRIVACY_POLICY_URL = ""
+
+/** 앱 안 이용약관 요약. 사실 서술만 둔다(발견 D8). */
+internal const val TERMS_SUMMARY =
+    "제1조 [목적]\n이 약관은 '독서 다이어리' 앱의 이용 조건을 정합니다. 앱은 계정과 서버 없이 이 기기 안에 독서 기록을 저장합니다.\n\n" +
+        "제2조 [기록의 관리]\n기록은 이 기기에 저장되며, 앱을 삭제하거나 앱 데이터를 지우면 함께 삭제됩니다(안드로이드 자동 백업이 켜져 있으면 본인 Google 계정 백업에 사본이 남을 수 있습니다). 앱은 광고·분석·추적 SDK를 쓰지 않으며 기록을 판매하지 않습니다. 다만 앱이 쓰는 Google 구성요소(ML Kit, Play 서비스 코드 스캐너)는 Google 정책에 따라 진단·사용 통계를 처리할 수 있습니다.\n\n" +
+        "제3조 [외부 전송]\n책을 검색하면 검색어가 도서 검색 서비스로 전송됩니다. 사용자가 설정에서 본인의 Google Gemini API 키를 등록하고 사진 전송에 명시적으로 동의한 경우에 한해, '정밀 분석'을 실행할 때마다 사용자가 선택한 페이지 사진이 Google Gemini로 전송됩니다. 그 외의 경우 사진은 기기 밖으로 나가지 않습니다."
+
+/** 개인정보처리방침 요약 5줄(docs/privacy/privacy-policy.html 1~5항 기준). */
+internal val PRIVACY_SUMMARY_LINES = listOf(
+    "1. 책·책장·독서 일기·설정은 이 기기에 저장됩니다. 개발자는 기록을 받아 보관하는 서버를 운영하지 않습니다.",
+    "2. 밑줄 구절 인식은 기기 안에서 실행되며, 사진은 기기 밖으로 전송되지 않습니다(5번 예외).",
+    "3. 책을 검색하면 입력한 검색어가 네이버 책 검색(네이버 키가 없는 빌드는 Google Books)으로 전송됩니다. 책 표지를 화면에 표시할 때는 표지 이미지 서버에 요청이 갑니다.",
+    "4. 안드로이드 자동 백업이 켜져 있으면 책·일기·일반 설정이 본인 Google 계정 백업에 포함될 수 있습니다(API 키는 제외).",
+    "5. 정밀 분석은 본인 Gemini 키 등록, 사진 전송 동의, 사진마다 확인을 모두 거친 경우에만 선택한 페이지 사진을 Google Gemini로 전송합니다."
+)
+
+internal fun privacySummaryText(url: String = PRIVACY_POLICY_URL): String {
+    val body = PRIVACY_SUMMARY_LINES.joinToString("\n")
+    return if (url.isBlank()) body else "$body\n\n전문: $url"
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(viewModel: ReadingViewModel) {
@@ -622,7 +648,7 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                                 shape = RoundedCornerShape(6.dp)
                             ) {
                                 Text(
-                                    text = "제 1조 [목적]\n본 이용약관은 '나만의 서재 다이어리' 서비스가 제공하는 스마트 온디바이스 독서 기록 관리에 대한 제반 권리와 의무 사항을 규정함을 목적으로 합니다.\n\n제 2조 [데이터 보안 책무]\n본 서비스는 사용자가 추출한 발췌 구절 및 다이어리를 제3의 광고 서버로 양도 및 무기명 판매하지 않는 청정 오프라인 우선 보안 환경을 유지할 것을 선언합니다.\n\n제 3조 [선택적 외부 전송]\n사용자가 설정에서 본인의 Google Gemini API 키를 등록하고 사진 전송에 명시적으로 동의한 경우에 한해, '정밀 분석'을 실행할 때마다 사용자가 선택한 페이지 사진이 Google Gemini로 전송됩니다. 그 외의 경우 사진은 기기 밖으로 나가지 않습니다.",
+                                    text = TERMS_SUMMARY,
                                     style = MaterialTheme.typography.bodySmall,
                                     modifier = Modifier.padding(10.dp),
                                     lineHeight = 16.sp
@@ -658,7 +684,7 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                                 shape = RoundedCornerShape(6.dp)
                             ) {
                                 Text(
-                                    text = "'나만의 서재 다이어리'는 개인정보 보호법 등 준법 기준을 엄격하게 엄수하며, 기기 바깥으로 식별 명세를 일체 요구하거나 비밀 수집·전송하지 않는 것을 철칙으로 삼으며 안전하게 보관 처리함을 알려 드립니다. 단, 사용자가 본인의 Gemini API 키를 등록하고 사진 전송에 동의한 뒤 직접 '정밀 분석'을 실행한 경우에는 해당 페이지 사진이 Google Gemini로 전송되며, 이는 사용자의 명시적 행위로만 이루어집니다.",
+                                    text = privacySummaryText(),
                                     style = MaterialTheme.typography.bodySmall,
                                     modifier = Modifier.padding(10.dp),
                                     lineHeight = 16.sp

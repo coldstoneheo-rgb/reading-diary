@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.example.ui.components.CoverPlaceholder
 import com.example.data.Book
 import com.example.data.Bookcase
 import com.example.ui.viewmodel.ReadingViewModel
@@ -449,15 +450,19 @@ fun BookCardItem(
                     .clip(RoundedCornerShape(topStart = 1.dp, bottomStart = 1.dp, topEnd = 2.dp, bottomEnd = 2.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(book.cleanCoverUrl)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = book.title,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
+                if (book.cleanCoverUrl.isEmpty()) {
+                    CoverPlaceholder(title = book.title, modifier = Modifier.fillMaxSize())
+                } else {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(book.cleanCoverUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = book.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
 
                 if (isSample) {
                     SampleBadge(modifier = Modifier.align(Alignment.TopStart).padding(4.dp))
