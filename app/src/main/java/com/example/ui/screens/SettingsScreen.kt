@@ -465,6 +465,40 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                         lineHeight = 16.sp
                     )
+
+                    // 예시 2권(ADR-003-1): 신규 설치는 빈 서재. 원할 때만 넣고, «예시» 배지가 붙으며 통계에서 빠진다.
+                    Text(
+                        text = "처음이라면 예시 책 2권(김소월·윤동주, 저작권이 끝난 작품)으로 기억 서랍의 연결을 미리 볼 수 있어요. 예시는 통계에 넣지 않습니다.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        lineHeight = 16.sp
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.insertSampleBooks { added ->
+                                    Toast.makeText(
+                                        context,
+                                        if (added > 0) "예시 책 ${added}권을 넣었어요." else "예시 책이 이미 있어요.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
+                            modifier = Modifier.weight(1f).testTag("settings_insert_samples")
+                        ) { Text("예시 2권 넣기") }
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.deleteSampleBooks { removed ->
+                                    Toast.makeText(
+                                        context,
+                                        if (removed > 0) "예시 책 ${removed}권을 지웠어요." else "지울 예시 책이 없어요.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
+                            modifier = Modifier.weight(1f).testTag("settings_delete_samples")
+                        ) { Text("예시 지우기") }
+                    }
                 }
             }
 

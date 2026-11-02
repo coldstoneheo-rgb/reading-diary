@@ -41,8 +41,12 @@ fun StatisticsScreen(
     val scrollState = rememberScrollState()
 
     // Key states from database
-    val books by viewModel.books.collectAsState()
-    val diaries by viewModel.diaries.collectAsState()
+    // 예시 책(ADR-003-1)과 그 일기는 통계에서 뺀다
+    val allBooks by viewModel.books.collectAsState()
+    val allDiaries by viewModel.diaries.collectAsState()
+    val sampleIds by viewModel.sampleBookIds.collectAsState()
+    val books = remember(allBooks, sampleIds) { allBooks.filterNot { it.id in sampleIds } }
+    val diaries = remember(allDiaries, sampleIds) { allDiaries.filterNot { it.bookId in sampleIds } }
     val yearlyGoal by viewModel.readingGoalYearly.collectAsState()
 
     // Calculated metrics

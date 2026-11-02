@@ -10,6 +10,7 @@ import com.example.data.Book
 import com.example.data.Bookcase
 import com.example.data.Diary
 import com.example.data.ReadingRepository
+import com.example.data.SampleBooks
 import com.example.data.SecureKeyManager
 import com.example.data.knowledge.KeywordLinks
 import com.example.data.knowledge.SharedWord
@@ -27,6 +28,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -106,6 +108,67 @@ class ReadingViewModel @JvmOverloads constructor(
     val diarySortNewestFirst = MutableStateFlow(prefs.getBoolean("diary_sort_newest_first", true))
     val diaryFontSize = MutableStateFlow(prefs.getFloat("diary_font_size", 14f))
     val readingGoalYearly = MutableStateFlow(prefs.getInt("reading_goal_yearly", 30))
+
+    // 예시 2권(ADR-003-1). 표식은 "id|title" 집합, 판정은 SampleBooks.isSample(id·제목 둘 다 일치).
+    private val sampleMarks = MutableStateFlow(readSampleMarks())
+
+    /** 지금 서재에 있는 예시 책 id. 배지·통계 제외에 쓴다. */
+    val sampleBookIds: StateFlow<Set<Int>> = combine(books, sampleMarks) { allBooks, marks ->
+        SampleBooks.sampleIds(allBooks, marks)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    private fun readSampleMarks(): Set<String> =
+        prefs.getStringSet(SampleBooks.KEY, emptySet()).orEmpty().toSet()
+
+    private fun writeSampleMarks(marks: Set<String>) {
+        prefs.edit().putStringSet(SampleBooks.KEY, marks).commit()
+        sampleMarks.value = marks
+    }
+
+    /** 예시 2권과 일기를 넣는다. 이미 예시가 하나라도 있으면 아무것도 넣지 않는다(중복 0). 넣은 책 수를 돌려준다. */
+    fun insertSampleBooks(onComplete: (Int) -> Unit = {}) {
+        viewModelScope.launch {
+            val marks = readSampleMarks()
+            val current = repository.allBooks.first()
+            if (current.any { SampleBooks.isSample(it, marks) }) {
+                onComplete(0)
+                return@launch
+            }
+            val bookcases = repository.allBookcases.first()
+            val bookcaseId = (bookcases.firstOrNull { it.name == "기본 책장" } ?: bookcases.firstOrNull())?.id
+                ?: repository.insertBookcase(Bookcase(name = "기본 책장", isSystem = true)).toInt()
+            val newMarks = mutableSetOf<String>()
+            for (sample in SampleBooks.BOOKS) {
+                val book = Book(
+                    title = sample.title,
+                    author = sample.author,
+                    totalPages = sample.totalPages,
+                    currentPage = sample.currentPage,
+                    bookcaseId = bookcaseId,
+                    status = "READING"
+                )
+                val id = repository.insertBook(book).toInt()
+                sample.diaries.forEach { d ->
+                    repository.insertDiary(Diary(bookId = id, page = d.page, selectedText = d.selectedText, notes = d.notes))
+                }
+                newMarks += SampleBooks.markOf(book.copy(id = id))
+            }
+            // 이전 표식 중 더는 서재에 없는 것은 버린다
+            writeSampleMarks(newMarks)
+            onComplete(SampleBooks.BOOKS.size)
+        }
+    }
+
+    /** 예시 책만 지운다(일기는 CASCADE). 사용자 책은 건드리지 않는다. 지운 책 수를 돌려준다. */
+    fun deleteSampleBooks(onComplete: (Int) -> Unit = {}) {
+        viewModelScope.launch {
+            val marks = readSampleMarks()
+            val targets = repository.allBooks.first().filter { SampleBooks.isSample(it, marks) }
+            targets.forEach { repository.deleteBook(it.id) }
+            writeSampleMarks(emptySet())
+            onComplete(targets.size)
+        }
+    }
 
     fun selectTheme(id: Int) {
         currentThemeId.value = id

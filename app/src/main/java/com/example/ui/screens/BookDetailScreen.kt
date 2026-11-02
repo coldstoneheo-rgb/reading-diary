@@ -44,6 +44,7 @@ fun BookDetailScreen(
 ) {
     val context = LocalContext.current
     val book by viewModel.activeBook.collectAsState()
+    val sampleIds by viewModel.sampleBookIds.collectAsState()
     val diaries by viewModel.activeBookDiaries.collectAsState()
     val bookcases by viewModel.bookcases.collectAsState()
 
@@ -260,6 +261,9 @@ fun BookDetailScreen(
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.testTag("book_detail_title")
                         )
+                        if (currentBook.id in sampleIds) {
+                            SampleBadge(modifier = Modifier.padding(top = 4.dp))
+                        }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "저자: ${currentBook.author}",
