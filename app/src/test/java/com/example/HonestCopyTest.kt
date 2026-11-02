@@ -60,7 +60,9 @@ class HonestCopyTest {
     val forbidden = listOf(
       Regex("\\bRAG\\b", RegexOption.IGNORE_CASE), Regex("Obsidian", RegexOption.IGNORE_CASE), Regex("옵시디언"),
       Regex("Logseq", RegexOption.IGNORE_CASE), Regex("뇌세포"), Regex("브레인 링킹"), Regex("매칭 연동률"),
-      Regex("연결 성공 지식"), Regex("지능형 기억"), Regex("v1\\.2\\.0")
+      Regex("연결 성공 지식"), Regex("지능형 기억"), Regex("v1\\.2\\.0"),
+      // 옛 앱 이름(발견 D8). 앱 이름은 «독서 다이어리»(ADR-005).
+      Regex("나만의 서재 다이어리")
     )
     val offenders = mainSources().flatMap { file ->
       val text = file.readText()
