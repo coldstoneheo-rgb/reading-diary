@@ -38,19 +38,9 @@ data class Book(
     val progressPercent: Float
         get() = if (totalPages > 0) (currentPage.toFloat() / totalPages.toFloat()) else 0f
 
+    /** 화면에 그릴 표지 URL. 표지가 없거나 예전 스톡 사진이면 ""(화면은 CoverPlaceholder). DB 값은 고치지 않는다. */
     val cleanCoverUrl: String
-        get() {
-            if (coverUrl.startsWith("http")) return coverUrl
-            val defaultCovers = listOf(
-                "https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400",
-                "https://images.unsplash.com/photo-1592492159418-09f31333cca8?auto=format&fit=crop&q=80&w=400",
-                "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=400",
-                "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=400",
-                "https://images.unsplash.com/photo-1610116306796-6fea9f4fae38?auto=format&fit=crop&q=80&w=400"
-            )
-            val index = Math.abs(title.hashCode()) % defaultCovers.size
-            return defaultCovers[index]
-        }
+        get() = displayableCoverUrl(coverUrl)
 }
 
 @Entity(
@@ -72,3 +62,15 @@ data class Diary(
     val notes: String,        // User diary notes
     val createdAt: Long = System.currentTimeMillis()
 )
+
+/**
+ * ADR-003-2: 예전 버전이 표지 없는 책에 넣던 스톡 사진 호스트. 그 URL은 이미 기존 설치의 Room에 저장돼 있으므로
+ * 코드 폴백만 지워서는 계속 불려 나간다 → 표시 시점에 걸러 플레이스홀더로 바꾼다. 판정 상수는 이 한 곳뿐.
+ */
+private const val STOCK_COVER_HOST = "images.unsplash.com"
+
+fun isStockCover(url: String): Boolean = url.contains(STOCK_COVER_HOST)
+
+/** 네트워크로 불러올 표지면 그 URL, 아니면 "". */
+fun displayableCoverUrl(url: String): String =
+    if (url.startsWith("http") && !isStockCover(url)) url else ""

@@ -68,7 +68,7 @@ abstract class AppDatabase : RoomDatabase() {
                                 author = "헤르만 헤세",
                                 totalPages = 240,
                                 currentPage = 120,
-                                coverUrl = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400",
+                                coverUrl = "",
                                 bookcaseId = novelId,
                                 status = "READING",
                                 startDate = "2026-05-20"
@@ -81,7 +81,7 @@ abstract class AppDatabase : RoomDatabase() {
                                 author = "김승호",
                                 totalPages = 390,
                                 currentPage = 390,
-                                coverUrl = "https://images.unsplash.com/photo-1592492159418-09f31333cca8?auto=format&fit=crop&q=80&w=400",
+                                coverUrl = "",
                                 bookcaseId = financeId,
                                 status = "COMPLETED",
                                 startDate = "2026-05-01",
@@ -95,7 +95,7 @@ abstract class AppDatabase : RoomDatabase() {
                                 author = "유발 하라리",
                                 totalPages = 630,
                                 currentPage = 0,
-                                coverUrl = "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=400",
+                                coverUrl = "",
                                 bookcaseId = humanId,
                                 status = "TO_READ"
                             )

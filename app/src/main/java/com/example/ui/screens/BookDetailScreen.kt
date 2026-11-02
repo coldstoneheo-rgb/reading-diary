@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.example.ui.components.CoverPlaceholder
 import com.example.data.Book
 import com.example.data.Bookcase
 import com.example.data.Diary
@@ -241,15 +242,19 @@ fun BookDetailScreen(
                             .clip(RoundedCornerShape(8.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
                     ) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(LocalContext.current)
-                                .data(currentBook.cleanCoverUrl)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = currentBook.title,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
+                        if (currentBook.cleanCoverUrl.isEmpty()) {
+                            CoverPlaceholder(title = currentBook.title, modifier = Modifier.fillMaxSize())
+                        } else {
+                            AsyncImage(
+                                model = ImageRequest.Builder(LocalContext.current)
+                                    .data(currentBook.cleanCoverUrl)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = currentBook.title,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
                     }
 
                     // Metadata Text Column
