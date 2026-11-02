@@ -10,7 +10,11 @@ import com.example.data.SampleBooks
 import com.example.data.ocr.OcrOutcome
 import com.example.data.ocr.TextExtractor
 import com.example.ui.viewmodel.ReadingViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -46,11 +50,19 @@ class ReadingViewModelSampleBooksTest {
   }
 
   @Before fun setUp() = resetDatabase()
-  @After fun tearDown() = resetDatabase()
+  @After fun tearDown() {
+    collectors.forEach { it.cancel() }
+    resetDatabase()
+  }
 
   private fun prefs() = app.getSharedPreferences(SampleBooks.PREFS_NAME, Context.MODE_PRIVATE)
 
-  private fun viewModel() = ReadingViewModel(app, NoCallExtractor, NoCallExtractor) { false }
+  private val collectors = mutableListOf<Job>()
+
+  /** sampleBookIds는 WhileSubscribed라 화면처럼 구독자가 있어야 값이 흐른다. */
+  private fun viewModel() = ReadingViewModel(app, NoCallExtractor, NoCallExtractor) { false }.also { vm ->
+    collectors += CoroutineScope(Dispatchers.Main).launch { vm.sampleBookIds.collect { } }
+  }
 
   /** viewModelScope(Main) 작업과 Room IO가 끝날 때까지 메인 루퍼를 돌린다. */
   private fun awaitUntil(timeoutMs: Long = 10_000, condition: () -> Boolean) {
