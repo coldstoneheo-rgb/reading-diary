@@ -50,6 +50,7 @@ fun DashboardScreen(
     modifier: Modifier = Modifier
 ) {
     val books by viewModel.filteredBooks.collectAsState()
+    val sampleIds by viewModel.sampleBookIds.collectAsState()
     val bookcases by viewModel.bookcases.collectAsState()
     val selectedFilter by viewModel.selectedFilter.collectAsState()
     val selectedBookcaseId by viewModel.selectedBookcaseId.collectAsState()
@@ -252,6 +253,7 @@ fun DashboardScreen(
                         items(books, key = { it.id }) { book ->
                             BookCardItem(
                                 book = book,
+                                isSample = book.id in sampleIds,
                                 onClick = { viewModel.navigateTo(Screen.BookDetail(book.id)) }
                             )
                         }
@@ -269,6 +271,21 @@ fun DashboardScreen(
             }
         }
     }
+}
+
+/** 예시 책 표시(ADR-003-1). 설정 «예시 지우기»로 한 번에 지울 수 있다. */
+@Composable
+fun SampleBadge(modifier: Modifier = Modifier) {
+    Text(
+        text = "예시",
+        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+        color = MaterialTheme.colorScheme.onTertiary,
+        modifier = modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(MaterialTheme.colorScheme.tertiary)
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .testTag("sample_badge")
+    )
 }
 
 @Composable
@@ -384,7 +401,8 @@ fun FilterChipRow(
 @Composable
 fun BookCardItem(
     book: Book,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    isSample: Boolean = false
 ) {
     Column(
         modifier = Modifier
@@ -444,6 +462,10 @@ fun BookCardItem(
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
+                }
+
+                if (isSample) {
+                    SampleBadge(modifier = Modifier.align(Alignment.TopStart).padding(4.dp))
                 }
 
                 // Complete Badge: Yellow shiny medal icon sticker overlay

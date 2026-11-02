@@ -73,6 +73,7 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
     var showChangelog by remember { mutableStateOf(false) }
     var showTerms by remember { mutableStateOf(false) }
     var showPrivacyPolicy by remember { mutableStateOf(false) }
+    var confirmDeleteSamples by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -491,6 +492,56 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                         lineHeight = 16.sp
                     )
+
+                    // 예시 2권(ADR-003-1): 신규 설치는 빈 서재. 원할 때만 넣고, «예시» 배지가 붙으며 통계에서 빠진다.
+                    Text(
+                        text = "처음이라면 예시 책 2권(김소월·윤동주, 저작권이 끝난 작품)으로 기억 서랍의 연결을 미리 볼 수 있어요. 예시는 통계 화면 집계에 넣지 않습니다.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        lineHeight = 16.sp
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.insertSampleBooks { added ->
+                                    Toast.makeText(
+                                        context,
+                                        if (added > 0) "예시 책 ${added}권을 넣었어요." else "예시 책이 이미 있어요.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
+                            modifier = Modifier.weight(1f).testTag("settings_insert_samples")
+                        ) { Text("예시 2권 넣기") }
+                        OutlinedButton(
+                            onClick = { confirmDeleteSamples = true },
+                            modifier = Modifier.weight(1f).testTag("settings_delete_samples")
+                        ) { Text("예시 지우기") }
+                    }
+                    if (confirmDeleteSamples) {
+                        AlertDialog(
+                            onDismissRequest = { confirmDeleteSamples = false },
+                            title = { Text("예시 책을 지울까요?") },
+                            text = { Text("예시 책과 함께 넣은 기록이 지워집니다. 예시 책에 직접 쓴 기록이 있으면 그 책은 지우지 않고 내 책으로 남깁니다.") },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = {
+                                        confirmDeleteSamples = false
+                                        viewModel.deleteSampleBooks { removed, kept ->
+                                            val msg = when {
+                                                removed == 0 && kept == 0 -> "지울 예시 책이 없어요."
+                                                kept == 0 -> "예시 책 ${removed}권을 지웠어요."
+                                                else -> "예시 책 ${removed}권을 지우고, 기록을 쓴 ${kept}권은 내 책으로 남겼어요."
+                                            }
+                                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier.testTag("settings_delete_samples_confirm")
+                                ) { Text("지우기") }
+                            },
+                            dismissButton = { TextButton(onClick = { confirmDeleteSamples = false }) { Text("취소") } }
+                        )
+                    }
                 }
             }
 
