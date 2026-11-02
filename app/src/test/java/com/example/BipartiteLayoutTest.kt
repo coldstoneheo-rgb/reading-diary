@@ -73,7 +73,7 @@ class BipartiteLayoutTest {
   @Test
   fun overLimits_13words_11books_41edges_becomes_12_10_40_truncated() {
     val bookTitles = (1..11).associateWith { "B%02d".format(it) }
-    val all11 = (1..11).toIntArray()
+    val all11 = IntArray(11) { it + 1 }
     val words = buildList {
       add(word("w00", *all11))                      // 책 10권에 남는 엣지 10개(책 11은 잘림)
       for (i in 1..9) add(word("w%02d".format(i), 1, 2)) // 18개
@@ -113,6 +113,11 @@ class BipartiteLayoutTest {
     val g = BipartiteLayout.layout(listOf(word("세계", 1, 9)), titles, w, h)
     assertEquals(listOf("1"), g.bookNodes.map { it.key })
     assertEquals(listOf(GraphEdge(1, "세계")), g.edges)
+    // 지워진 책 때문에 빠진 것은 상한 고지 대상이 아니다
+    assertFalse(g.truncated)
+    val gone = BipartiteLayout.layout(listOf(word("세계", 1, 2), word("투쟁", 8, 9)), titles, w, h)
+    assertEquals(listOf("세계"), gone.wordNodes.map { it.key })
+    assertFalse(gone.truncated)
   }
 
   @Test
@@ -130,7 +135,7 @@ class BipartiteLayoutTest {
     val mx = (book1.x + world.x) / 2f
     val my = (book1.y + world.y) / 2f
     assertEquals(GraphHit.Edge(1, "세계"), BipartiteLayout.hitTest(g, mx, my + 2f, nodeRadius = 20f, edgeTolerance = 8f))
-    // 두 엣지 사이 왼쪽 위 구석: 노드에서도 선분에서도 멀다
+    // 위쪽 가운데(두 엣지보다 위): 노드에서도 선분에서도 멀다
     assertNull(BipartiteLayout.hitTest(g, w / 2f, 2f, nodeRadius = 20f, edgeTolerance = 8f))
   }
 
