@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onRoot
 import com.example.data.Book
 import com.example.data.Diary
 import com.example.data.knowledge.KeywordLinks
+import com.example.ui.screens.ConnectionView
 import com.example.ui.screens.KnowledgeDrawerContent
 import com.example.data.knowledge.MatchKind
 import com.example.ui.screens.buildMarkdown
@@ -120,6 +121,24 @@ class KnowledgeDrawerScreenshotTest {
     }
     composeTestRule.onNodeWithTag("knowledgedrawer_compare_header").assertIsDisplayed()
     composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/knowledge_drawer_cross_book_search.png")
+  }
+
+  @Test
+  fun knowledgeDrawer_graphView_screenshot() {
+    // STAGE2-PLAN ①: 같은 픽스처를 «그림»으로. 데미안·사피엔스 ↔ «세계» 두 선. 난수 0이라 기준 이미지가 흔들리지 않는다.
+    composeTestRule.setContent {
+      MyApplicationTheme {
+        KnowledgeDrawerContent(
+          books = books,
+          diaries = diaries,
+          sharedWords = KeywordLinks.build(books, diaries),
+          onBack = {},
+          initialConnectionView = ConnectionView.GRAPH
+        )
+      }
+    }
+    composeTestRule.onNodeWithTag("knowledgedrawer_graph").assertIsDisplayed()
+    composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/knowledge_drawer_graph.png")
   }
 
   @Test
