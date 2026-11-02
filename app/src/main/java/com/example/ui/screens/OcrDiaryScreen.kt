@@ -87,29 +87,6 @@ fun OcrDiaryScreen(
     val dateFormatter = remember { SimpleDateFormat("yyyy년 MM월 dd일", Locale.KOREA) }
     val timeFormatter = remember { SimpleDateFormat("a h:mm", Locale.KOREA) }
 
-    // Presets with highlighter mimics
-    val presets = listOf(
-        UnderlinePreset(
-            id = 1,
-            label = "데미안 (알 투쟁)",
-            url = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=400",
-            title = "새는 알에서 나오려고 투쟁한다"
-        ),
-        UnderlinePreset(
-            id = 2,
-            label = "돈의 속성 (인격체)",
-            url = "https://images.unsplash.com/photo-1592492159418-09f31333cca8?auto=format&fit=crop&q=80&w=400",
-            title = "돈은 인격체다"
-        ),
-        UnderlinePreset(
-            id = 3,
-            label = "사피엔스 (인지혁명)",
-            url = "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=400",
-            title = "호모 사피엔스의 가상 세계"
-        )
-    )
-
-    var selectedPresetId by remember { mutableStateOf(1) }
     var showShareCardDialog by remember { mutableStateOf(false) }
     var selectedPaletteIndex by remember { mutableStateOf(0) }
 
@@ -194,11 +171,7 @@ fun OcrDiaryScreen(
             extractedText = it.selectedText
             notes = it.notes
             selectedTimestamp = it.createdAt
-            
-            // In Edit mode, make image transformation states active initially so they can save directly
-            activeImageUrl = presets.first().url
-            isImageTaken = true
-            isCroppedReady = true
+            // 편집 모드는 사진 없이 연다. 저장은 사진 상태와 무관하다(예전엔 스톡 사진 URL을 띄웠다, ADR-003-2).
         }
     }
 
@@ -1499,13 +1472,6 @@ fun OcrDiaryScreen(
         }
     }
 }
-
-data class UnderlinePreset(
-    val id: Int,
-    val label: String,
-    val url: String,
-    val title: String
-)
 
 data class PastelPalette(
     val name: String,
