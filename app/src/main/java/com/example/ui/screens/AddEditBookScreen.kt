@@ -578,8 +578,8 @@ fun AddEditBookScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = if (coverUrl.isNotEmpty()) "선택하신 도서의 공식 이미지가 연동되었습니다."
-                                   else "도서를 직접 입력해 등록하시는 경우, 책장 분류에 맞는 분위기 있는 명화 디자인 도서 커버가 자동 매칭됩니다.",
+                            text = if (displayableCoverUrl(coverUrl).isNotEmpty()) "검색에서 고른 도서의 표지를 씁니다."
+                                   else "표지가 없는 책은 제목 첫 글자로 만든 표지를 기기 안에서 보여 줍니다.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
                             lineHeight = 16.sp

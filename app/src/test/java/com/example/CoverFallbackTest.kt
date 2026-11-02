@@ -65,6 +65,17 @@ class CoverFallbackTest {
     assertEquals("?", placeholderInitial("  "))
   }
 
+  /** 폴백을 지운 뒤에도 화면 문구가 «자동 매칭되는 표지»를 약속하지 않게(ADR-003 정직한 문구). */
+  @Test
+  fun noStockCoverPromiseInProductionCopy() {
+    val forbidden = listOf("자동 매칭", "명화 디자인")
+    val offenders = File("src/main").walkTopDown()
+      .filter { it.isFile && (it.extension == "kt" || it.extension == "xml") }
+      .flatMap { f -> forbidden.filter { f.readText().contains(it) }.map { "${f.path}: \"$it\"" } }
+      .toList()
+    assertTrue("stale stock-cover copy found:\n" + offenders.joinToString("\n"), offenders.isEmpty())
+  }
+
   /** STAGE2-PLAN ④ 완료 조건: 스톡 사진 URL 리터럴 0, 판정용 호스트 상수 1곳. */
   @Test
   fun noStockPhotoUrlLiteralsInProductionSources() {
