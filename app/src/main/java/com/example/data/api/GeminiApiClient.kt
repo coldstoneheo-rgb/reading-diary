@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit
  */
 object GeminiApiClient {
     private const val TAG = "LocalOcrAnalyzer"
-    // ADR-001: 2단계 착수 시 이 모델 ID가 실재하는지 최우선 확인
+    // ADR-001:82 — 2026-09 GA 확인. 프로덕션 승급 전 재확인
     private const val MODEL = "gemini-3.5-flash"
     private const val ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/$MODEL:generateContent"
 
@@ -45,7 +45,6 @@ object GeminiApiClient {
      * @throws IllegalStateException 키가 없거나 요청이 실패한 경우
      */
     suspend fun extractUnderlinedText(context: Context, bitmap: Bitmap, bookTitle: String = ""): String = withContext(Dispatchers.IO) {
-        Log.d(TAG, "Initiating OCR analyzer for book: $bookTitle")
 
         // 1. Resolve Gemini API key from the user's encrypted on-device store (never from BuildConfig)
         val apiKey = try {
