@@ -8,7 +8,7 @@
 ## 체크리스트 (완료 조건 번호)
 
 - [x] 1. PR-A #30 `BipartiteLayout.kt` + `BipartiteLayoutTest.kt`(JVM 12건) — critic 6 → **8/10 PASS** · LC 게이트 **PASS** · **머지 대기(사용자 손)**
-- [x] 2. PR-B #31 캔버스·전환(`knowledgedrawer_view_toggle`)·`initialConnectionView`·단어 탭 카드·선 탭 강조·«일부만 표시» + Robolectric 6건 — critic 5 → **8/10 PASS** · LC 게이트 진행 중(이 문서 작성 시점)
+- [x] 2. PR-B #31 캔버스·전환(`knowledgedrawer_view_toggle`)·`initialConnectionView`·단어 탭 카드·선 탭 강조·«일부만 표시» + Robolectric 6건 — critic 5 → **8/10 PASS** · LC 게이트 **PASS** · **머지 대기(사용자 손, #30 뒤)**
 - [x] 3. 골든: `knowledge_drawer_graph.png` 신규 + `knowledge_drawer_records.png` re-record(전환 버튼 — LC 수용 대안 A) · 나머지 6장 diff 0 · verify 131/25/0
 - [ ] 4. critic → LC 게이트 → checks(«no checks reported» ×2) → **squash 머지 = auto mode 분류기 거부 [Merge Without Review]** → 우회 0, 사용자 손
 - [x] 5. 기록 — 이 REPORT · AGENT_STATUS · WORKLOG 블록(이 기록 PR)
@@ -19,7 +19,7 @@
 | PR | 브랜치 | 내용 | critic | LC 게이트 | 머지 |
 |---|---|---|---|---|---|
 | #30 | `feat/bipartite-layout` | 좌표 순수 함수 + JVM 12 | 6 → 8/10 PASS | PASS(`b1ac397`) | 대기 — 사용자 |
-| #31 | `feat/knowledge-graph-canvas` | 캔버스·전환·탭 카드 + Robolectric 6 + 골든 2 | 5 → 8/10 PASS | 진행 중(`62e01ff`) | 대기 — #30 뒤 |
+| #31 | `feat/knowledge-graph-canvas` | 캔버스·전환·탭 카드 + Robolectric 6 + 골든 2 | 5 → 8/10 PASS | PASS(`62e01ff`) | 대기 — #30 뒤 |
 | (이 PR) | `docs/stage2-02-records` | REPORT·STATUS·WORKLOG | — | — | 대기 |
 
 `gh pr checks 30/31`: «no checks reported»(CI 워크플로 없음).
@@ -52,12 +52,12 @@ PR-A 단독 브랜치는 그래들 미실행 — 두 파일이 PR-B와 동일(cr
 ## 인계 블록
 
 1. 사용자: `! gh pr merge 30 --squash`
-2. 그 뒤 #31: LC 게이트 PASS 확인 → `.claude/worktrees/graph-canvas`에서 `git fetch origin` + `git merge origin/main`(squash된 #30과 내용 동일 → 충돌 0 예상) → push → `! gh pr merge 31 --squash`
+2. 그 뒤 #31(LC 게이트 PASS): `.claude/worktrees/graph-canvas`에서 `git fetch origin` + `git merge origin/main`(squash된 #30과 내용 동일 → 충돌 0 예상) → diff가 #31 몫 6파일(소스 2·테스트 2·PNG 2)로 줄었는지 확인 → push → `! gh pr merge 31 --squash`
 3. 이 기록 PR: AGENT_STATUS `head`를 머지 SHA로 고친 뒤 머지
 4. 정리: worktree 3개(`graph-layout`·`graph-canvas`·`stage2-02-records`) 제거 전 junction 확인·해제 → `git worktree remove` → 로컬·원격 브랜치 삭제 → main `pull --ff-only`
-5. 후속(경미, critic #31): 전환 시 `graphHit` 초기화 · `GraphHeight` 주석/큰 글꼴 12단어 라벨 겹침 · 캔버스 노드별 스크린리더 · (#30 관찰) 제목 정렬 로케일 비교
+5. 후속(경미, critic #31·LC 관찰): 전환 시 `graphHit` 초기화(그림→목록→그림에 이전 카드 잔존, 회전 시 소실) · `GraphPadding` 16dp/`GraphHeight` 280dp가 글꼴 배율 1.0 기준 — 1.5↑에서 12단어 라벨 겹침 · 캔버스 노드별 스크린리더 · (#30 관찰) 제목 정렬 로케일 비교
 
 ## LC·사용자에게 필요한 것
 
 - 사용자: 위 인계 1~3(머지 3건) · `debug.keystore` 있는 메인 체크아웃에서 `gradle :app:assembleDebug` 1회 + 실기기에서 기억 서랍 «그림» 확인(예시 2권 → «#그리움» 한 단어 그래프) · U1~U8 · 스토어 부제 [ASK]
-- LC: #31 게이트 결과 · 다음 회차 ② SAF 내보내기 발주
+- LC: 다음 회차 ② SAF 내보내기 발주(이 창 그래들 0 — baby 창 차례)
