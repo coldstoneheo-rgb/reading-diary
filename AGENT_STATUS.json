@@ -1,0 +1,33 @@
+{
+  "as_of": "2026-11-02T15:35:00+09:00",
+  "phase": "stage2-kickoff (기억 서랍 2단계 + Play 내부 테스트 병행, ADR-005)",
+  "current_task": "CLOUD-2026-1102 rd-stage2-docs — 착수 문서(ADR-005, 등록정보·데이터 안전 초안, 처리방침 초안, 2단계 계획). 코드 0",
+  "waiting_on": [
+    "LC 게이트 → 사용자 1줄 머지 승인 (PR cloud/rd-stage2-docs)",
+    "사용자: 스토어 부제 확정 [ASK] — 후보 «밑줄이 책과 책을 잇는 독서 다이어리»",
+    "사용자 손: 업로드 키스토어 · Play Console 앱 생성 · 아이콘 512 · 처리방침 배포 URL · 테스터 ≤5 등록"
+  ],
+  "next_actions": [
+    "⑤ applicationId → com.woodpeckerai.readingdiary (docs/STAGE2-PLAN-2026-11.md ⑤)",
+    "④ Unsplash 표지 폴백 제거 + 로컬 플레이스홀더 (저장된 URL 표시 필터 포함)",
+    "③ 신규 설치 빈 상태 + 설정 «예시 2권 넣기»",
+    "① 이분 그래프 캔버스 보조 뷰 + 탭→원문 카드",
+    "② SAF 마크다운 내보내기(새 파일 생성만) + HonestCopyTest 조건화",
+    "2단계 머지 후 사용자 bundleRelease → 내부 테스트 «제공됨»"
+  ],
+  "metrics": {
+    "owner_holds_total": 11,
+    "owner_hold_disposition_rows": 12,
+    "owner_holds_closed": 5,
+    "owner_holds_default_adopted": 3,
+    "owner_holds_deferred": 3,
+    "owner_holds_user_value": 1,
+    "unsplash_lines_in_app_src": 20,
+    "unit_test_files": 16,
+    "screenshot_baselines": 6,
+    "room_schema_version": 2,
+    "app_dir_changes_this_pr": 0,
+    "days_since_last_code_commit": 56
+  },
+  "last_commit": "41c44cf (이 커밋 직전; PR 머리 SHA는 PR 참조)"
+}
