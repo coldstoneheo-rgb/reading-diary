@@ -17,6 +17,7 @@
   ],
   "metrics": {
     "owner_holds_total": 11,
+    "owner_hold_disposition_rows": 12,
     "owner_holds_closed": 5,
     "owner_holds_default_adopted": 3,
     "owner_holds_deferred": 3,

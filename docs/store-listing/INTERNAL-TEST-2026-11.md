@@ -25,7 +25,7 @@
 
 > 밑줄이 책과 책을 잇는 독서 다이어리
 
-(대안 — ADR-003 Q9 가치 제안을 짧은 설명으로: «읽은 책의 밑줄이 서로 이어질 때, 새로운 생각이 태어납니다.» 39자)
+(대안 — ADR-003 Q9 가치 제안을 짧은 설명으로: «읽은 책의 밑줄이 서로 이어질 때, 새로운 생각이 태어납니다.» 34자)
 
 **전체 설명(4000자 이내) 초안**
 
@@ -93,10 +93,10 @@
 |---|------|---------------|---------|------|-----------|
 | N1 | 도서 검색(네이버) | **검색어**(제목·저자·ISBN) + 앱에 포함된 네이버 앱 키(헤더) | `openapi.naver.com` | 책 추가 화면에서 2글자 이상 입력 후 400ms(자동) | `AddEditBookScreen.kt:169-200` (`LaunchedEffect(searchQuery)`, URL `:187`·`:189`, 헤더 `:194-195`) |
 | N2 | 도서 검색(Google Books, 네이버 키가 없을 때만) | **검색어** | `www.googleapis.com/books` | N1과 같음, 키 없음 | `AddEditBookScreen.kt:219-223` |
-| N3 | 표지 이미지 표시 | 이미지 요청(기기 IP·User-Agent). 사용자 기록은 실리지 않음 | 검색 결과의 표지 호스트(네이버/Google 이미지 서버), Unsplash(ADR-003-2 제거 전까지) | 표지가 화면에 그려질 때 | Coil `DashboardScreen.kt:436`, `BookDetailScreen.kt:246`, `AddEditBookScreen.kt:445`; Unsplash 20줄(STAGE2-PLAN ④) |
+| N3 | 표지 이미지 표시 | 이미지 요청(기기 IP·User-Agent). 사용자 기록은 실리지 않음 | 검색 결과의 표지 호스트(네이버/Google 이미지 서버), Unsplash(ADR-003-2 제거 전까지) | 표지가 화면에 그려질 때 | Coil `DashboardScreen.kt:436`, `BookDetailScreen.kt:246`, `AddEditBookScreen.kt:445`·`:574-577`, `OcrDiaryScreen.kt:550`; Unsplash 20줄(STAGE2-PLAN ④) |
 | N4 | ISBN 바코드 스캔 | 앱은 보내지 않음. 스캐너 UI·인식은 Google Play 서비스(코드 스캐너)가 기기에서 처리하고 앱은 숫자만 받음 | — (Play 서비스) | 바코드 버튼을 눌렀을 때 | `AddEditBookScreen.kt:120-130` (`GmsBarcodeScanning.getClient`, EAN-13만) |
 | N5 | 밑줄 글자 인식(기본) | **사진은 나가지 않음.** ML Kit 한국어 인식은 기기 안에서 실행(모델은 Play 서비스가 첫 사용 시 내려받음) | — | 크롭 후 인식 | `MlKitTextExtractor.kt:25` (`KoreanTextRecognizerOptions`) |
-| N6 | **정밀 분석(선택)** | **선택한 페이지 사진**(JPEG, base64) + 사용자 본인 Gemini 키(`x-goog-api-key` 헤더) | `generativelanguage.googleapis.com` (Google) | ① 설정에서 본인 키 등록 ② 사진 전송 동의 체크 ③ 사진마다 확인 다이얼로그(«사진을 Google Gemini로 보낼까요?»)에서 «전송하고 분석» — 셋 다 있을 때만 | 동의 체크 `SettingsScreen.kt:418-424`, 버튼 노출 조건 `OcrDiaryScreen.kt:1032`, 확인 다이얼로그 `:1053-1077`, ViewModel 차단 `ReadingViewModel.kt:509-512`, 전송 `GeminiApiClient.kt:40-41`·`:69-71` |
+| N6 | **정밀 분석(선택)** | **선택한 페이지 사진**(JPEG, base64) + 사용자 본인 Gemini 키(`x-goog-api-key` 헤더) | `generativelanguage.googleapis.com` (Google) | ① 설정에서 본인 키 등록 ② 사진 전송 동의 체크 ③ 사진마다 확인 다이얼로그(«사진을 Google Gemini로 보낼까요?»)에서 «전송하고 분석» — 셋 다 있을 때만 | 동의 체크 `SettingsScreen.kt:418-424`, 버튼 노출 조건 `OcrDiaryScreen.kt:1033-1034`, 확인 다이얼로그 `:1053-1077`, ViewModel 차단 `ReadingViewModel.kt:509-512`, 엔드포인트 `GeminiApiClient.kt:40-41`, JPEG/base64 인코딩 `:69-71`, 헤더·전송 `:107-116` |
 | N7 | Android 자동 백업 | Room DB(책·일기)·일반 설정 | 사용자 본인 Google 계정 백업 | OS가 수행 | `AndroidManifest.xml:17-19`, `res/xml/backup_rules.xml`·`data_extraction_rules.xml`(키 저장소만 제외) |
 
 Play 기준상 **N7(OS 자동 백업)은 앱의 «수집»이 아니다**(사용자 계정으로 OS가 처리). N4·N5는 Google SDK 자체의 진단·사용 통계 전송이 있을 수 있어(ADR-002 «후속 발견»)
@@ -109,7 +109,7 @@ Google이 공개한 ML Kit/코드 스캐너 데이터 공개 문서를 오너가
 | 질문 | 답 초안 |
 |------|---------|
 | 앱이 필수 사용자 데이터 유형을 수집하거나 공유하나요? | **예** (N1·N2 검색어, N6 사진 — 보수적으로 선언) |
-| 전송 중 암호화되나요? | **예** — N1·N2·N6 모두 HTTPS. 검색 결과 표지 URL은 `http://`→`https://`로 바꿔 씀(`BookSearchParsers.kt:79`) |
+| 전송 중 암호화되나요? | **예** — N1·N2·N6 모두 HTTPS. Google Books 표지는 `http://`→`https://`로 재작성(`BookSearchParsers.kt:79`), 네이버 표지는 응답의 원본 URL을 그대로 씀(`:52`, 통상 https) |
 | 사용자가 데이터 삭제를 요청할 수 있나요? | 서버에 저장하는 데이터가 없다. 기기 안 기록은 앱에서 책·일기 삭제 또는 앱 삭제로 지워진다. 콘솔에서 «삭제 요청 방법 제공» 대신 «데이터를 서버에 보관하지 않음»에 해당하는 선택지가 있으면 그쪽 — [사용자 확인] |
 | 계정 생성 | 없음 |
 

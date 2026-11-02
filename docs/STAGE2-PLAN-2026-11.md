@@ -3,6 +3,7 @@
 - 상위 결정: [ADR-005](adr/ADR-005-internal-test-and-stage2-boundary.md) §3(묶음 경계) · §6(보류 처분)
 - 상태: **계획(코드 0).** 이 문서가 다음 클라우드/로컬 발주의 입력이다. 항목마다 1 PR(CLAUDE.md «1 PR = 1 의도»).
 - 근거 파일:줄은 2026-11-02 origin/main `47900e1` 기준.
+- **번호 체계:** ①~⑤는 이 문서 내부 번호다(⑤ = applicationId). «3단계 ⑥~⑧»은 ADR-004 «실행 단계» 표의 번호다(ADR-004의 ④⑤는 이 문서의 ①②에 해당).
 
 ## 공통 DoD(모든 항목)
 
@@ -197,12 +198,12 @@ Robolectric: 넣기 → 2권, 다시 누르면 중복 안 들어감 · 지우기
 
 **플레이스홀더:** 새 `ui/components/CoverPlaceholder.kt` — `@Composable fun CoverPlaceholder(title: String, modifier: Modifier)`: 제목 첫 글자 + 제목 해시로 고른 테마 색(네트워크 0).
 색 선택은 순수 함수 `placeholderColorIndex(title: String, paletteSize: Int): Int`(JVM 테스트).
-Coil 호출부: `DashboardScreen.kt:436`, `BookDetailScreen.kt:246`, `AddEditBookScreen.kt:445` — URL이 비었으면 `AsyncImage` 대신 플레이스홀더.
+Coil 호출부: `DashboardScreen.kt:436`, `BookDetailScreen.kt:246`(둘 다 `cleanCoverUrl` 경유), `AddEditBookScreen.kt:445`(검색 결과 썸네일), **`AddEditBookScreen.kt:574-577`(표지 미리보기 — `activeCoverUrl`을 직접 로드, `cleanCoverUrl`을 거치지 않음. 편집 진입 시 `:156` `coverUrl = it.coverUrl`로 저장된 Unsplash URL이 들어오므로 여기에도 `isStockCover` 필터 필수)**, `OcrDiaryScreen.kt:550`(`AsyncImage(activeImageUrl)` — `:199` 정리로 해소되는지 확인) — URL이 비었거나 스톡이면 `AsyncImage` 대신 플레이스홀더.
 
 **테스트:** 새 `CoverFallbackTest.kt`(JVM): `cleanCoverUrl`이 빈 값·Unsplash 값에 `""` · 네이버/Google 표지 URL은 그대로 · `placeholderColorIndex` 결정성.
-`HonestCopyTest` 또는 새 테스트에 **`app/src/main`에서 `unsplash` 0회** grep 고정. Roborazzi: 플레이스홀더 1장(선택) — 기존 기준 이미지는 표지를 그리지 않으므로 불변 예상.
+`HonestCopyTest` 또는 새 테스트에 **`app/src/main`에서 `images.unsplash.com/photo-` URL 리터럴 0회** grep 고정(판정용 호스트 상수 `"images.unsplash.com"` 1곳은 허용, `app/src/test`는 검색 범위 밖). Roborazzi: 플레이스홀더 1장(선택) — 기존 기준 이미지는 표지를 그리지 않으므로 불변 예상.
 
-**완료 조건:** `grep -rn "unsplash" app/src --include=*.kt | wc -l` = 0 · 기존 DB에 남은 Unsplash URL도 화면에서 플레이스홀더 · 데이터 안전 폼 N3에서 Unsplash 삭제.
+**완료 조건:** `grep -rn "images.unsplash.com/photo-" app/src/main --include=*.kt | wc -l` = 0 · 호스트 판정 상수는 1곳(`isStockCover`) · 기존 DB에 남은 Unsplash URL도 화면에서 플레이스홀더 · 데이터 안전 폼 N3에서 Unsplash 삭제.
 **추정:** 2~3h.
 
 ---
@@ -216,7 +217,7 @@ Coil 호출부: `DashboardScreen.kt:436`, `BookDetailScreen.kt:246`, `AddEditBoo
 Robolectric은 병합 매니페스트의 패키지를 따르므로 단위 테스트 영향 없음 예상 — `testDebugUnitTest`로 확인.
 
 **테스트:** 새 테스트 1개 제안 — `BuildConfig.APPLICATION_ID == "com.woodpeckerai.readingdiary"`(되돌림 방지). `testDebugUnitTest` 통과. `assembleDebug` 1회(로컬, 키스토어 복사 후).
-**완료 조건:** 위 통과 · `grep -rn '"com.example"' app/src` 결과가 `namespace` 1곳뿐.
+**완료 조건:** 위 통과 · `grep -rn '"com.example"' app/` 결과가 `app/build.gradle.kts:10`(`namespace`) 1곳뿐.
 **추정:** 0.5~1h.
 
 ---

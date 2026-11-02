@@ -32,6 +32,7 @@
 - `grep -c "<script" docs/privacy/privacy-policy.html` → 0, `python3 html.parser` 파싱 OK
 - `python3 -c "json.load(open('AGENT_STATUS.json'))"` → OK
 - 그래들 빌드: 실행 안 함(코드 0, 발주 규약 6)
+- **Critic(독립 서브에이전트): PASS 7/10, 심각 0 · 중요 2 · 경미 8 → 10건 전부 반영**(커밋 「docs: apply critic findings」). 중요 2건: ④ 완료 조건 모순(필터 상수 vs «unsplash 0회» → «`images.unsplash.com/photo-` 리터럴 0회 + 호스트 상수 1곳»으로 정정), ④ Coil 호출부 누락(`AddEditBookScreen.kt:574-577` 표지 미리보기가 `cleanCoverUrl`을 거치지 않음 → 추가). 경미: ⑤ grep 범위, 네이버 폴백 조건(무효 키는 폴백 안 함), https 재작성 범위(Google만), 한도 추정 근거, 처분 행 12 필드, 번호 체계 주석, 글자 수 34자, N6·버튼 줄 인용
 
 ## 발견
 
@@ -49,6 +50,7 @@
 - **D12 «제공됨» 해석.** 내부 테스트 트랙 출시 상태 «내부 테스터에게 제공됨»으로 해석해 ADR-005 §2 완료 정의에 적었다. 다르면 LC가 정정.
 - **D13 로그.** `GeminiApiClient.kt:48`이 `Log.d`로 책 제목을 남긴다(`isMinifyEnabled=false`라 릴리스에도 남음). 비밀은 아니지만 개인 독서 정보 — 범위 밖, 후속 후보.
 - **D14 촬영 캐시.** `cacheDir`의 `camera_photo_*.jpg` 삭제 코드 없음(`OcrDiaryScreen.kt:134-136`, ADR-002 후속 발견 그대로) → 처리방침 2항에 사실대로 «임시 캐시에 남을 수 있음».
+- **D16 네이버 무효 키 폴백 없음.** 키가 401/403/429거나 헤더 불가 문자면 Google로 폴백하지 않고 오류만 보인다(`AddEditBookScreen.kt:177-217`) — 키가 APK에 박힌 내부 테스트에서 키가 폐기되면 검색이 통째로 막힌다. ADR-005 §4 재검토 조건과 연결(Critic 지적에서 파생).
 - **D15 SDK 데이터 공개 미확인.** ML Kit·코드 스캐너의 SDK 자체 수집 항목은 이 VM에서 확인하지 않았다 → 데이터 안전 §5에 [사용자 확인].
 
 ## LC·사용자에게 필요한 것
@@ -59,4 +61,4 @@
 - LC 판단: STAGE2-PLAN 부록 B(앱 안 약관 문구)를 내부 테스트 전 필수로 넣을지.
 - 머지: LC 게이트 뒤 사용자 1줄.
 
-총 경과: 약 25분(벽시계 15:23→15:48 +09:00 기준) · 사용 모델: claude-opus-5-5(세션 설정값, 서빙 모델은 다를 수 있음)
+총 경과: 약 16분(벽시계 2026-11-02T06:23Z→06:39Z, `date -Iseconds` 기준) · 사용 모델: claude-opus-5-5(세션 설정값, 서빙 모델은 다를 수 있음)
