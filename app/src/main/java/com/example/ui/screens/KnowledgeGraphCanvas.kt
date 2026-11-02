@@ -4,6 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -72,6 +74,7 @@ fun KnowledgeGraphCanvas(
     selected: GraphHit? = null
 ) {
     val textMeasurer = rememberTextMeasurer()
+    val currentOnHit by rememberUpdatedState(onHit)
     val colors = MaterialTheme.colorScheme
     val labelStyle = MaterialTheme.typography.labelSmall
     val bookStyle = labelStyle.copy(color = colors.onSurface.copy(alpha = 0.8f))
@@ -87,7 +90,7 @@ fun KnowledgeGraphCanvas(
             }
             .pointerInput(graph) {
                 detectTapGestures { tap ->
-                    BipartiteLayout.hitTest(graph, tap.x, tap.y, TouchRadius.toPx(), EdgeTolerance.toPx())?.let(onHit)
+                    BipartiteLayout.hitTest(graph, tap.x, tap.y, TouchRadius.toPx(), EdgeTolerance.toPx())?.let(currentOnHit)
                 }
             }
     ) {

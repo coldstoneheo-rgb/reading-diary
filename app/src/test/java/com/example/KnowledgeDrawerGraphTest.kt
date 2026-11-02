@@ -2,8 +2,10 @@ package com.example
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import com.example.data.Book
@@ -79,7 +81,10 @@ class KnowledgeDrawerGraphTest {
       click(Offset(width - GraphLabelGutter.toPx() - GraphPadding.toPx(), height / 2f))
     }
     composeTestRule.onNodeWithTag("knowledgedrawer_connection_세계").assertExists()
-    composeTestRule.onNodeWithTag("knowledgedrawer_connection_highlight_1").assertDoesNotExist()
+    // 두 책의 원문이 나란히 — 카드가 열렸다는 것만이 아니라 두 책 구절이 다 있는지
+    composeTestRule.onNodeWithText("데미안 p.92", useUnmergedTree = true).assertExists()
+    composeTestRule.onNodeWithText("사피엔스 p.31", useUnmergedTree = true).assertExists()
+    composeTestRule.onNodeWithTag("knowledgedrawer_connection_highlight_1", useUnmergedTree = true).assertDoesNotExist()
   }
 
   @Test
@@ -94,8 +99,8 @@ class KnowledgeDrawerGraphTest {
       click(Offset((bookX + wordX) / 2f, (bookY + wordY) / 2f))
     }
     composeTestRule.onNodeWithTag("knowledgedrawer_connection_세계").assertExists()
-    composeTestRule.onNodeWithTag("knowledgedrawer_connection_highlight_1").assertExists()
-    composeTestRule.onNodeWithTag("knowledgedrawer_connection_highlight_2").assertDoesNotExist()
+    composeTestRule.onNodeWithTag("knowledgedrawer_connection_highlight_1", useUnmergedTree = true).assertExists()
+    composeTestRule.onNodeWithTag("knowledgedrawer_connection_highlight_2", useUnmergedTree = true).assertDoesNotExist()
   }
 
   @Test

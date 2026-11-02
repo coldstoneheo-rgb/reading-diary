@@ -19,6 +19,8 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -527,7 +529,10 @@ private fun ConnectionViewToggle(view: ConnectionView, onToggle: () -> Unit) {
         onClick = onToggle,
         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
         modifier = Modifier
-            .heightIn(min = 32.dp)
+            .semantics {
+                // 굵기·색만으로 알리지 않는다: 스크린리더가 지금 상태를 읽게 한다.
+                stateDescription = if (view == ConnectionView.LIST) "목록 보기 중" else "그림 보기 중"
+            }
             .testTag("knowledgedrawer_view_toggle")
     ) {
         Text(
@@ -561,7 +566,7 @@ private fun ConnectionGraphSection(
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val widthPx = with(density) { maxWidth.toPx() }
         val heightPx = with(density) { GraphHeight.toPx() }
-        val graph = remember(sharedWords, titleById, widthPx, heightPx) {
+        val graph = remember(sharedWords, titleById, widthPx, heightPx, density) {
             knowledgeGraphFor(sharedWords, titleById, widthPx, heightPx, density)
         }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
