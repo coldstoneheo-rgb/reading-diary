@@ -42,6 +42,18 @@ class SampleBooksTest {
   }
 
   @Test
+  fun isUntouched_onlyWhenEveryDiaryIsAnOriginalSampleDiary() {
+    val sample = SampleBooks.BOOKS[1]
+    val b = book(5, sample.title)
+    val originals = sample.diaries.map { Diary(bookId = 5, page = it.page, selectedText = it.selectedText, notes = it.notes) }
+    assertTrue(SampleBooks.isUntouched(b, originals))
+    assertTrue(SampleBooks.isUntouched(b, originals.take(1))) // 예시 일기만 지운 경우
+    assertFalse(SampleBooks.isUntouched(b, originals + Diary(bookId = 5, page = 1, selectedText = "내 문장", notes = "")))
+    assertFalse(SampleBooks.isUntouched(b, listOf(originals[0].copy(notes = "고친 메모"))))
+    assertFalse(SampleBooks.isUntouched(book(5, "예시가 아닌 제목"), emptyList()))
+  }
+
+  @Test
   fun samples_doNotQuoteTheOldCopyrightedSeed() {
     val old = listOf("데미안", "돈의 속성", "사피엔스", "헤르만 헤세", "김승호", "유발 하라리",
       "알에서 나오려고 투쟁", "돈은 인격체", "솟아 나오려는 것")

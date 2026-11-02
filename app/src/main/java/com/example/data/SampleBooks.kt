@@ -66,4 +66,14 @@ object SampleBooks {
 
     fun sampleIds(books: List<Book>, marks: Set<String>): Set<Int> =
         books.filter { isSample(it, marks) }.map { it.id }.toSet()
+
+    /**
+     * 예시 책에 붙은 기록이 넣을 때 그대로인지. 사용자가 일기를 더 쓰거나 고쳤으면 false — 그 책은 «예시 지우기»로 지우지 않는다.
+     * 예시 일기를 지우기만 한 경우는 사용자 기록이 없으므로 true.
+     */
+    fun isUntouched(book: Book, diariesOfBook: List<Diary>): Boolean {
+        val sample = BOOKS.firstOrNull { it.title == book.title } ?: return false
+        val original = sample.diaries.map { Triple(it.page, it.selectedText, it.notes) }.toSet()
+        return diariesOfBook.all { Triple(it.page, it.selectedText, it.notes) in original }
+    }
 }

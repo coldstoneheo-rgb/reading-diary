@@ -103,12 +103,51 @@ class ReadingViewModelSampleBooksTest {
     assertEquals(3, allBooks().size)
 
     var removed = -1
-    vm.deleteSampleBooks { removed = it }
+    vm.deleteSampleBooks { r, _ -> removed = r }
     awaitUntil { removed >= 0 }
     assertEquals(2, removed)
     assertEquals(listOf(userBookId), allBooks().map { it.id })
     assertTrue("sample diaries must be gone with their books (CASCADE)", allDiaryBookIds().all { it == userBookId })
     assertFalse(prefs().contains(SampleBooks.KEY) && prefs().getStringSet(SampleBooks.KEY, emptySet())!!.isNotEmpty())
+  }
+
+  @Test
+  fun deleteSamples_keepsASampleBookTheUserWroteIn() {
+    val vm = viewModel()
+    var added = -1
+    vm.insertSampleBooks { added = it }
+    awaitUntil { added >= 0 }
+    val touched = allBooks().first()
+    vm.saveDiary(bookId = touched.id, page = 3, selectedText = "내가 직접 옮긴 문장", notes = "내 메모") {}
+    awaitUntil { allDiaryBookIds().size == SampleBooks.BOOKS.sumOf { it.diaries.size } + 1 }
+
+    var removed = -1; var kept = -1
+    vm.deleteSampleBooks { r, k -> removed = r; kept = k }
+    awaitUntil { removed >= 0 }
+    assertEquals(1, removed)
+    assertEquals(1, kept)
+    assertEquals(listOf(touched.id), allBooks().map { it.id })
+    // 남긴 책은 더 이상 예시가 아니다(배지·통계 제외 해제)
+    awaitUntil { vm.sampleBookIds.value.isEmpty() }
+  }
+
+  @Test
+  fun insertSamples_tappedTwiceQuickly_addsOnlyOnce() {
+    val vm = viewModel()
+    val results = mutableListOf<Int>()
+    vm.insertSampleBooks { results += it }
+    vm.insertSampleBooks { results += it }
+    awaitUntil { results.size == 2 }
+    assertEquals(listOf(2, 0), results.sorted().reversed())
+    assertEquals(2, allBooks().size)
+    awaitUntil { vm.sampleBookIds.value.size == 2 }
+  }
+
+  @Test
+  fun destructiveMigrationCallback_clearsStaleSampleMarks() {
+    prefs().edit().putStringSet(SampleBooks.KEY, setOf("1|진달래꽃")).commit()
+    AppDatabase.clearSampleMarks(app) // onCreate·onDestructiveMigration이 공유하는 정리 함수
+    assertFalse(prefs().contains(SampleBooks.KEY))
   }
 
   @Test

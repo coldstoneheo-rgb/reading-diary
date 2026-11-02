@@ -32,6 +32,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import androidx.room.withTransaction
 
 sealed class Screen {
     object Dashboard : Screen()
@@ -111,62 +114,76 @@ class ReadingViewModel @JvmOverloads constructor(
 
     // 예시 2권(ADR-003-1). 표식은 "id|title" 집합, 판정은 SampleBooks.isSample(id·제목 둘 다 일치).
     private val sampleMarks = MutableStateFlow(readSampleMarks())
+    /** 넣기·지우기 연타로 표식 없는 예시가 생기지 않게 한 번에 하나만 돈다. */
+    private val sampleMutex = Mutex()
 
     /** 지금 서재에 있는 예시 책 id. 배지·통계 제외에 쓴다. */
     val sampleBookIds: StateFlow<Set<Int>> = combine(books, sampleMarks) { allBooks, marks ->
         SampleBooks.sampleIds(allBooks, marks)
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     private fun readSampleMarks(): Set<String> =
         prefs.getStringSet(SampleBooks.KEY, emptySet()).orEmpty().toSet()
 
-    private fun writeSampleMarks(marks: Set<String>) {
-        prefs.edit().putStringSet(SampleBooks.KEY, marks).commit()
+    private suspend fun writeSampleMarks(marks: Set<String>) {
+        withContext(Dispatchers.IO) { prefs.edit().putStringSet(SampleBooks.KEY, marks).commit() }
         sampleMarks.value = marks
     }
 
-    /** 예시 2권과 일기를 넣는다. 이미 예시가 하나라도 있으면 아무것도 넣지 않는다(중복 0). 넣은 책 수를 돌려준다. */
+    /** 예시 2권과 일기를 한 트랜잭션으로 넣는다. 이미 예시가 하나라도 있으면 아무것도 넣지 않는다(중복 0). 넣은 책 수를 돌려준다. */
     fun insertSampleBooks(onComplete: (Int) -> Unit = {}) {
         viewModelScope.launch {
-            val marks = readSampleMarks()
-            val current = repository.allBooks.first()
-            if (current.any { SampleBooks.isSample(it, marks) }) {
-                onComplete(0)
-                return@launch
-            }
-            val bookcases = repository.allBookcases.first()
-            val bookcaseId = (bookcases.firstOrNull { it.name == "기본 책장" } ?: bookcases.firstOrNull())?.id
-                ?: repository.insertBookcase(Bookcase(name = "기본 책장", isSystem = true)).toInt()
-            val newMarks = mutableSetOf<String>()
-            for (sample in SampleBooks.BOOKS) {
-                val book = Book(
-                    title = sample.title,
-                    author = sample.author,
-                    totalPages = sample.totalPages,
-                    currentPage = sample.currentPage,
-                    bookcaseId = bookcaseId,
-                    status = "READING"
-                )
-                val id = repository.insertBook(book).toInt()
-                sample.diaries.forEach { d ->
-                    repository.insertDiary(Diary(bookId = id, page = d.page, selectedText = d.selectedText, notes = d.notes))
+            val added = sampleMutex.withLock {
+                val marks = withContext(Dispatchers.IO) { readSampleMarks() }
+                if (repository.allBooks.first().any { SampleBooks.isSample(it, marks) }) return@withLock 0
+                // Flow 조회는 트랜잭션 밖에서(트랜잭션 안의 Flow 수집은 연결을 기다리며 멈출 수 있다)
+                val bookcases = repository.allBookcases.first()
+                val existingBookcaseId = (bookcases.firstOrNull { it.name == "기본 책장" } ?: bookcases.firstOrNull())?.id
+                val newMarks = database.withTransaction {
+                    val bookcaseId = existingBookcaseId
+                        ?: repository.insertBookcase(Bookcase(name = "기본 책장", isSystem = true)).toInt()
+                    SampleBooks.BOOKS.map { sample ->
+                        val book = Book(
+                            title = sample.title,
+                            author = sample.author,
+                            totalPages = sample.totalPages,
+                            currentPage = sample.currentPage,
+                            bookcaseId = bookcaseId,
+                            status = "READING"
+                        )
+                        val id = repository.insertBook(book).toInt()
+                        sample.diaries.forEach { d ->
+                            repository.insertDiary(Diary(bookId = id, page = d.page, selectedText = d.selectedText, notes = d.notes))
+                        }
+                        SampleBooks.markOf(book.copy(id = id))
+                    }.toSet()
                 }
-                newMarks += SampleBooks.markOf(book.copy(id = id))
+                // 표식은 커밋된 뒤에만 쓴다. 이전 표식 중 서재에 없는 것은 버린다.
+                writeSampleMarks(newMarks)
+                newMarks.size
             }
-            // 이전 표식 중 더는 서재에 없는 것은 버린다
-            writeSampleMarks(newMarks)
-            onComplete(SampleBooks.BOOKS.size)
+            onComplete(added)
         }
     }
 
-    /** 예시 책만 지운다(일기는 CASCADE). 사용자 책은 건드리지 않는다. 지운 책 수를 돌려준다. */
-    fun deleteSampleBooks(onComplete: (Int) -> Unit = {}) {
+    /**
+     * 예시 책을 지운다(일기는 CASCADE). 사용자가 예시 책에 직접 쓴 기록이 있으면 그 책은 지우지 않고 표식만 떼어
+     * 사용자 책으로 남긴다. 결과: (지운 책 수, 남긴 책 수).
+     */
+    fun deleteSampleBooks(onComplete: (removed: Int, kept: Int) -> Unit = { _, _ -> }) {
         viewModelScope.launch {
-            val marks = readSampleMarks()
-            val targets = repository.allBooks.first().filter { SampleBooks.isSample(it, marks) }
-            targets.forEach { repository.deleteBook(it.id) }
-            writeSampleMarks(emptySet())
-            onComplete(targets.size)
+            val (removed, kept) = sampleMutex.withLock {
+                val marks = withContext(Dispatchers.IO) { readSampleMarks() }
+                val targets = repository.allBooks.first().filter { SampleBooks.isSample(it, marks) }
+                val allDiaries = repository.allDiaries.first()
+                val (untouched, touched) = targets.partition { book ->
+                    SampleBooks.isUntouched(book, allDiaries.filter { it.bookId == book.id })
+                }
+                untouched.forEach { repository.deleteBook(it.id) }
+                writeSampleMarks(emptySet())
+                untouched.size to touched.size
+            }
+            onComplete(removed, kept)
         }
     }
 

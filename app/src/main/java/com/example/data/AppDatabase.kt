@@ -43,15 +43,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        internal fun clearSampleMarks(context: Context) {
+            context.getSharedPreferences(SampleBooks.PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().remove(SampleBooks.KEY).commit()
+        }
+
         private class DatabaseCallback(
             private val context: Context
         ) : RoomDatabase.Callback() {
+            /** 파괴적 마이그레이션은 onCreate를 부르지 않고 테이블을 다시 만든다 — 같은 이유로 표식을 지운다. */
+            override fun onDestructiveMigration(db: SupportSQLiteDatabase) {
+                super.onDestructiveMigration(db)
+                clearSampleMarks(context)
+            }
+
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)
-                // DB가 새로 만들어졌으면(신규 설치·파괴적 마이그레이션·부분 복원) 예전 예시 표식은 무효다.
+                // DB가 새로 만들어졌으면(신규 설치·DB 없이 설정만 복원) 예전 예시 표식은 무효다.
                 // 남겨 두면 id가 다시 1부터 매겨진 진짜 책을 예시로 오인할 수 있다(SampleBooks).
-                context.getSharedPreferences(SampleBooks.PREFS_NAME, Context.MODE_PRIVATE)
-                    .edit().remove(SampleBooks.KEY).commit()
+                clearSampleMarks(context)
                 CoroutineScope(Dispatchers.IO).launch {
                     val dbInstance = getDatabase(context)
                     val bookcaseDao = dbInstance.bookcaseDao()
