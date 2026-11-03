@@ -81,11 +81,29 @@ object PhraseRecall {
             .toList()
     }
 
-    private fun stemMatch(diary: Diary, stem: String): MatchKind? = when {
-        stem in KeywordExtractor.extract(diary.selectedText) -> MatchKind.TEXT
-        // `#태그`도 여기서 잡힌다: `#`은 토큰 구분자라 extract(notes)가 태그 본문을 같은 정규형으로 뽑는다.
-        stem in KeywordExtractor.extract(diary.notes) -> MatchKind.NOTES
-        else -> null
+    /**
+     * 검색어 정규형과 기록 단어 정규형을 **둘 다 끝까지** 정규화해 비교한다.
+     * `stem`은 조사를 한 번만 떼므로 «제주도를»→«제주도»인데, 기록의 «제주도»는 `extract`에서 «도»를 한 번 더 떼어 «제주»가 된다.
+     * 양쪽을 고정점까지 돌리면 둘 다 «제주»로 만난다. `#태그`도 `#`이 토큰 구분자라 같은 경로로 잡힌다.
+     */
+    private fun stemMatch(diary: Diary, stem: String): MatchKind? {
+        val key = settle(stem)
+        return when {
+            KeywordExtractor.extract(diary.selectedText).any { settle(it) == key } -> MatchKind.TEXT
+            KeywordExtractor.extract(diary.notes).any { settle(it) == key } -> MatchKind.NOTES
+            else -> null
+        }
+    }
+
+    /** 정규형이 더 바뀌지 않을 때까지 `stem`을 다시 적용한다(최대 3회 — 조사·어미 겹침은 그 안에서 끝난다). 버릴 단어가 되면 직전 값. */
+    internal fun settle(word: String): String {
+        var cur = word
+        repeat(3) {
+            val next = KeywordExtractor.stem(cur) ?: return cur
+            if (next == cur) return cur
+            cur = next
+        }
+        return cur
     }
 
     private fun hit(diary: Diary, book: Book, ex: Pair<String, IntRange?>, kind: MatchKind?) = RecallHit(

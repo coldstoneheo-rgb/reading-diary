@@ -67,7 +67,7 @@
 | 구분 | 규칙 | 재사용 |
 |------|------|--------|
 | 구절·문구 검색 | 검색어(앞뒤 공백 제거, 소문자 비교)가 `selectedText` 또는 `notes`에 **부분 문자열**로 있으면 일치. 책 제목만 맞은 기록도 포함하되 라벨로 구분 | `matchKind`(`BookComparison.kt:18-31`) 그대로 — 라벨 «제목·구절 일치/구절 일치/메모 일치/제목 일치»(`BookComparison.kt:10-15`) |
-| 단어 검색(조사 차이 흡수) | 검색어가 공백 없는 한 단어면, 기록의 `KeywordExtractor.extract(…)` 토큰과 **같은 정규형**이면 일치(예: «그리움을» ↔ «그리움이»). 부분 문자열 일치가 이미 있으면 중복 표시 0 | `KeywordExtractor.extract`(`KeywordExtractor.kt:87`) · `#태그`는 `tags`(`:98`) |
+| 단어 검색(조사 차이 흡수) | 검색어가 공백 없는 한 단어면, 기록의 `KeywordExtractor.extract(…)` 토큰과 **같은 정규형**이면 일치(예: «그리움을» ↔ «그리움이»). 정규형은 검색어·토큰 **양쪽 모두** `stem`을 더 바뀌지 않을 때까지 다시 적용한 값(«제주도를»→«제주도»→«제주» ↔ «#제주도»→«제주», `PhraseRecall.settle`). 부분 문자열 일치가 이미 있으면 중복 표시 0 | `KeywordExtractor.extract`(`KeywordExtractor.kt:87`) · `#태그`는 `#`이 토큰 구분자라 `extract(notes)`로 같은 경로(별도 `tags` 분기 없음) |
 | 단어 칩 | 검색창 아래에 `KeywordLinks.build` 결과 상위 N개(기억 서랍과 같은 목록) | `ReadingViewModel.sharedWords`(`:281-282`) |
 | 책 필터 | 책 다중 선택. 비우면 전체 | `books` StateFlow |
 | 기간 필터 | 전체 · 최근 1개월 · 최근 1년 · 직접 지정(시작~끝 날짜). 기준 = `Diary.createdAt`(사용자가 저장 화면에서 날짜·시각을 고칠 수 있는 값, 날짜 `OcrDiaryScreen.kt:209-226`·시각 `:228-243`) | — |

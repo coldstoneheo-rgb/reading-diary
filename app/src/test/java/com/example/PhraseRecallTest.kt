@@ -134,6 +134,23 @@ class PhraseRecallTest {
   }
 
   @Test
+  fun particleQuery_matchesHashTagWhoseStemGoesOneStepFurther() {
+    // LC 게이트 반례: stem(«제주도를»)=«제주도», extract(«#제주도»)=«제주» — 양쪽을 끝까지 정규화해야 만난다.
+    val tagged = listOf(Diary(id = 50, bookId = 1, page = 1, selectedText = "본문", notes = "#제주도", createdAt = 0))
+    val hit = PhraseRecall.search("제주도를", RecallFilter(), books, tagged).single()
+    assertEquals(MatchKind.NOTES, hit.matchKind)
+  }
+
+  @Test
+  fun particleQuery_matchesTextWordWhoseStemGoesOneStepFurther() {
+    val text = listOf(Diary(id = 51, bookId = 1, page = 1, selectedText = "그해 여름 제주도", notes = "", createdAt = 0))
+    val hit = PhraseRecall.search("제주도를", RecallFilter(), books, text).single()
+    assertEquals(MatchKind.TEXT, hit.matchKind)
+    assertNull(hit.highlight)
+    assertTrue(hit.excerpt.contains("제주도"))
+  }
+
+  @Test
   fun multiWordQuery_doesNotUseStemMatching() {
     assertTrue(PhraseRecall.search("그리움을 닮은", RecallFilter(), books, diaries).isEmpty())
   }
