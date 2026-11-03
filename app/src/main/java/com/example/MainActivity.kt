@@ -36,6 +36,7 @@ import com.example.ui.screens.OcrDiaryScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.StatisticsScreen
 import com.example.ui.screens.KnowledgeDrawerScreen
+import com.example.ui.screens.PhraseRecallScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.ReadingViewModel
 import com.example.ui.viewmodel.Screen
@@ -295,6 +296,24 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("기억 서랍", fontWeight = FontWeight.Bold)
                     }
+
+                    Button(
+                        onClick = {
+                            coroutineScope.launch { drawerState.close() }
+                            viewModel.openPhraseRecall()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("drawer_phraserecall_button"),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    ) {
+                        Icon(imageVector = Icons.Default.FormatQuote, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("문구 회상", fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         },
@@ -354,6 +373,12 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                         is Screen.KnowledgeDrawer -> {
                             KnowledgeDrawerScreen(
                                 viewModel = viewModel
+                            )
+                        }
+                        is Screen.PhraseRecall -> {
+                            PhraseRecallScreen(
+                                viewModel = viewModel,
+                                initialQuery = screen.initialQuery
                             )
                         }
                     }

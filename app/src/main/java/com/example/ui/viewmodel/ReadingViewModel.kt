@@ -44,6 +44,8 @@ sealed class Screen {
     object Settings : Screen()
     object Statistics : Screen()
     object KnowledgeDrawer : Screen()
+    /** 문구 회상(PHRASE-RECALL-SPEC P1). [initialQuery]는 기억 서랍 검색에서 넘어올 때의 검색어. */
+    data class PhraseRecall(val initialQuery: String = "") : Screen()
 }
 
 sealed class OcrState {
@@ -305,6 +307,11 @@ class ReadingViewModel @JvmOverloads constructor(
         if (screen is Screen.BookDetail) {
             loadBookDetail(screen.bookId)
         }
+    }
+
+    /** 문구 회상으로 간다. 기억 서랍 검색어를 이어받을 수 있다. */
+    fun openPhraseRecall(query: String = "") {
+        navigateTo(Screen.PhraseRecall(query.trim()))
     }
 
     fun navigateBack() {

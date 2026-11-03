@@ -60,7 +60,8 @@ fun KnowledgeDrawerScreen(
         diaries = diaries,
         sharedWords = sharedWords,
         onBack = { viewModel.navigateBack() },
-        modifier = modifier
+        modifier = modifier,
+        onOpenPhraseRecall = { q -> viewModel.openPhraseRecall(q) }
     )
 }
 
@@ -84,7 +85,12 @@ fun KnowledgeDrawerContent(
     /** 테스트가 검색 상태를 포커스 없이 그리기 위한 초기값. 앱에서는 항상 빈 문자열이다. */
     initialQuery: String = "",
     /** 테스트가 그림 보기를 바로 그리기 위한 초기값. 앱에서는 항상 목록이다. */
-    initialConnectionView: ConnectionView = ConnectionView.LIST
+    initialConnectionView: ConnectionView = ConnectionView.LIST,
+    /**
+     * 검색 결과에서 같은 검색어로 «문구 회상»(기간·쪽 필터)으로 간다. null이면 링크를 그리지 않는다 —
+     * 스크린샷 테스트는 넘기지 않으므로 기존 기준 이미지가 그대로다.
+     */
+    onOpenPhraseRecall: ((String) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
@@ -332,6 +338,18 @@ fun KnowledgeDrawerContent(
                         // 검색 중: 책별 비교(ADR-004). "여러 책에서 나왔다"는 사실 자체를 먼저 보여준다.
                         item(key = "compare_header") {
                             CompareHeader(query = query, bookCount = bookMatches.size, recordCount = matchedRecordCount)
+                        }
+                        if (onOpenPhraseRecall != null) {
+                            item(key = "phrase_recall_link") {
+                                TextButton(
+                                    onClick = { onOpenPhraseRecall(query) },
+                                    modifier = Modifier.testTag("knowledgedrawer_phrase_recall_link")
+                                ) {
+                                    Icon(Icons.Default.FormatQuote, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("문구 회상에서 기간·쪽으로 좁혀 보기")
+                                }
+                            }
                         }
                         items(bookMatches, key = { "book_" + it.bookId }) { match ->
                             BookMatchCard(match = match, dateFormat = dateFormat)

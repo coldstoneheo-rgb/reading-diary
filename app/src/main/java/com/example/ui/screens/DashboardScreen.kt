@@ -102,6 +102,16 @@ fun DashboardScreen(
                         }
                     }
                     IconButton(
+                        onClick = { viewModel.openPhraseRecall() },
+                        modifier = Modifier.testTag("dashboard_phraserecall_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FormatQuote,
+                            contentDescription = "문구 회상",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    IconButton(
                         onClick = { viewModel.navigateTo(Screen.Settings) },
                         modifier = Modifier.testTag("dashboard_settings_button")
                     ) {

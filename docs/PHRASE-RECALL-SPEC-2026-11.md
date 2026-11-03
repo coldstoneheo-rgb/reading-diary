@@ -1,7 +1,7 @@
 # «문구 회상» 기능 명세 + 구현 계획 (2026-11)
 
 - 상태: **명세·계획(코드 0) — 오너 결정 4건 반영(2026-11-03).** 사진 보관 = [ADR-006](adr/ADR-006-phrase-recall-photo-storage.md) **결정됨**(A-선행 + `diary_photos` 테이블) · 순서 §4 (다) · 부제 §5 후보 3. 결정 정본: life-coordinator `DEC-2026-1103-rd-phrase-recall.md`.
-- 구현 순서: P1 → P2 → P3 → P4 → (② SAF 마크다운(② 위치는 결정 3 목록에 없어 (다)의 정의 «회상 전체 → SAF ②»로 둔 **해석 — 오너 확인 대상**)) → P5 → 첫 AAB 업로드. 코드는 로컬 창(그래들), 이 문서 개정은 클라우드.
+- 구현 순서: P1 → P2 → P3 → P4 → (② SAF 마크다운 — P4 뒤·P5 앞 확정, LC 11-03) → P5 → 첫 AAB 업로드. 코드는 로컬 창(그래들), 이 문서 개정은 클라우드.
 - 근거 파일:줄은 2026-11-03 origin/main `c0bccd2` 기준(결정 반영 개정은 `4edd80f` 기준 — 앱 코드는 두 커밋 사이 변경 0).
 - 관련: [ADR-002](adr/ADR-002-on-device-ocr-rollout.md)(온디바이스 OCR, 사진 비전송) · [ADR-003](adr/ADR-003-memory-drawer-and-honest-features.md)(기억 서랍, 근거 없는 연결 금지) ·
   [ADR-004](adr/ADR-004-reading-knowledge-base-architecture.md)(3단계 ⑧ `Migration(2,3)`) · [ADR-005](adr/ADR-005-internal-test-and-stage2-boundary.md)(§2 스키마 동결) · [STAGE2-PLAN](STAGE2-PLAN-2026-11.md)(공통 DoD · ② SAF)
@@ -262,7 +262,7 @@ STAGE2-PLAN ② 마크다운 내보내기(책당 1파일 + 인덱스 노트, 덮
 
 **결정(2026-11-03, 오너): (다) 회상 전체(사진 포함) 먼저 → SAF.** 정본: life-coordinator `DEC-2026-1103-rd-phrase-recall.md`.
 순서 = **P1 회상(스키마 0) → P2 사진 저장소 → P3 Room v3 + `diary_photos` + `Migration(2,3)` + M1~M7 → P4 일기↔사진 연결·카드·편집(유지/교체/삭제) → P5 SAF zip 내보내기 + 가져오기(사진 포함) → 첫 AAB 업로드.**
-STAGE2-PLAN ② 마크다운 내보내기는 유지되며 P4 뒤, P5 앞에 둔다(② 위치는 결정 3 목록에 없어 (다)의 정의 «회상 전체 → SAF ②»로 둔 **해석 — 오너 확인 대상**)(STAGE2-PLAN «문구 회상과의 순서»). 1 PR = 1 의도.
+STAGE2-PLAN ② 마크다운 내보내기는 유지되며 P4 뒤, P5 앞에 둔다(확정 — LC 11-03 판정)(STAGE2-PLAN «문구 회상과의 순서»). 1 PR = 1 의도.
 
 검토했던 선택지(기록):
 
