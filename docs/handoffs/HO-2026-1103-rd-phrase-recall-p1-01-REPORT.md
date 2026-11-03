@@ -38,3 +38,8 @@
 - 사용자: PR 검토 · 머지 위임 1줄(이 창은 위임 없음 — «[DONE] PR #n» 대기).
 - 사용자: 머지 뒤 디버그 APK로 대시보드 상단 «문구 회상» 아이콘 · 내비 서랍 버튼 진입 1회 확인.
 - 사용자: 새 세션에서 `/effort` 상태 1회 확인(#35).
+
+## LC 게이트 보정(11-03, PASS-관찰 · 보정 2건)
+
+- [x] 보정 1: 반례 «제주도를» ↔ 메모 «#제주도»(결과 0) — 원인은 `stem`이 조사를 1회만 떼고 `extract`는 «도»를 한 번 더 떼어 양쪽 정규형이 어긋남. 방식 (나): 검색어·토큰 양쪽을 `PhraseRecall.settle`로 고정점까지 정규화. 테스트 2건(메모 #태그 · 구절 «제주도») 추가, 명세 §2.3 문구를 구현과 맞춤. 커밋 `c9718d5`.
+- [x] 보정 2: HEAD `c9718d5`에서 재실행 — `gradle :app:testDebugUnitTest` 28 클래스 **170/170** · `gradle :app:verifyRoborazziDebug` **170/170**(PhraseRecallTest 34). 이후 커밋은 docs(AGENT_STATUS·REPORT)뿐.
