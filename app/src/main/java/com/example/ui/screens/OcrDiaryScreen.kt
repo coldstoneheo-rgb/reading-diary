@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.data.Book
+import com.example.data.photo.CameraTempFiles
 import com.example.ui.viewmodel.OcrState
 import com.example.ui.viewmodel.ReadingViewModel
 import com.example.ui.viewmodel.Screen
@@ -110,8 +111,8 @@ fun OcrDiaryScreen(
     fun createCameraTempUri(): Uri {
         val storageDir = context.cacheDir
         val tempFile = java.io.File.createTempFile(
-            "camera_photo_",
-            ".jpg",
+            CameraTempFiles.PREFIX,
+            CameraTempFiles.SUFFIX,
             storageDir
         )
         val authority = "${context.packageName}.fileprovider"
@@ -180,7 +181,14 @@ fun OcrDiaryScreen(
         viewModel.resetOcrState()
         // 정밀 분석(유료·외부 전송)은 소유자(책/일기)가 바뀔 때만 버린다. 회전 등 재생성에서는 요청과 결과가 살아남는다.
         viewModel.enterPreciseScope("$bookId/$diaryId")
-        onDispose { viewModel.resetOcrState() }
+        onDispose {
+            viewModel.resetOcrState()
+            // 촬영 임시 파일은 화면을 떠날 때 지운다(ADR-002 후속 발견). 회전 등 재생성에서는 지우지 않는다 —
+            // 재생성을 견디는 정밀 분석 작업이 아직 그 파일을 읽고 있을 수 있다. 보관 사진 복사는 P4에서 이보다 먼저 끝나야 한다.
+            if ((context as? android.app.Activity)?.isChangingConfigurations != true) {
+                CameraTempFiles.deleteAll(context.cacheDir)
+            }
+        }
     }
 
     // 정밀 분석 실패는 토스트로만 알리고 편집창은 건드리지 않는다

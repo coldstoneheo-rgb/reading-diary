@@ -15,8 +15,9 @@
 정본 `docs/PHRASE-RECALL-SPEC-2026-11.md` §3.3 · LC 발주 `HO-2026-1103-rd-phrase-recall-p2-01`(LC 레포). 요지:
 - 새 `data/photo/DiaryPhotoStore.kt`: `save(source: Uri, rotationDegrees: Float, flipped: Boolean): String?` · `fileFor(rel): File?`(경로 탈출·파일 부재 null) · `delete` · `sweep(referenced): Int`.
 - `InternalDiaryPhotoStore(context)`: 루트 `noBackupFilesDir/diary_photos/`, 이름 `UUID.jpg`, JPEG 85. 디코드는 `BitmapDecoding.decodeDownsampled`(EXIF 포함, 긴 변 ≤ `MAX_SIDE` 2048) → 사용자 플립 후 회전(`decodeForOcr`와 같은 순서) → 크롭 없음(페이지 전체).
-- 카메라 임시 파일 삭제(`OcrDiaryScreen.kt` cacheDir, ADR-002:30 후속 발견) 포함. 화면·DB 연결 0(P3·P4). 기록당 사진 상한 가정 0(P4 때 사용자 질문).
+- 카메라 임시 파일 삭제(`OcrDiaryScreen.kt` cacheDir, ADR-002:30 후속 발견) 포함. 화면·DB 연결 0(P3·P4). 기록당 사진 상한 가정 0(기록당 장수 상한은 P4 PR에서 근거 1줄과 함께 정한다 — 명세 :83).
 - `DiaryPhotoStoreTest`(Robolectric) — 명세 §3.3 목록 + 루트가 noBackupFilesDir 아래임을 고정. `GeminiKeyPolicyTest`·`RoomSchemaExportTest` 불변.
+- 명세 §3.3 완료 조건 2건을 PR 본문에 명시: :167 JPEG 85 저장 1장 크기 실측(예상 0.3~1MB/장은 실측 아님) · :171 새 권한 0 · 새 의존성 0 · 클라우드 백업 경로 0.
 - 게이트: critic PASS → PR → «[DONE] PR #n» → **LC 게이트 PASS 전 머지 0(위임 있어도)**.
 
 ## 후속 소형(P2 이후, next_actions에 등록)
