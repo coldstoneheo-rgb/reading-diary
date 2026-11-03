@@ -483,7 +483,7 @@ class ReadingViewModel @JvmOverloads constructor(
     // Diary CRUD Operations
     fun saveDiary(bookId: Int, page: Int, selectedText: String, notes: String, id: Int? = null, createdAt: Long? = null, onComplete: () -> Unit) {
         viewModelScope.launch {
-            repository.insertDiary(
+            repository.saveDiary(
                 Diary(
                     id = id ?: 0,
                     bookId = bookId,
