@@ -16,9 +16,9 @@
 **새로 드러난 전제(사진을 보관하면 생기는 것):**
 
 - **F4 Auto Backup.** `android:allowBackup="true"`(`AndroidManifest.xml:17`)이고 백업 규칙은 키 저장소만 뺀다(`res/xml/backup_rules.xml`, `res/xml/data_extraction_rules.xml`).
-  사진을 `filesDir`에 그냥 두면 **Google 드라이브 자동 백업으로 기기 밖에 나간다** → F3과 충돌. 자동 백업 한도(앱당 25MB)를 사진이 금방 넘겨 **일기 DB 백업까지 멈출 수 있다.**
-  → 사진 폴더는 클라우드 백업에서 반드시 제외(§3.3).
-- **F5 처리방침 문구.** `privacy-policy.html:41` «사진 자체는 일기에 저장되지 않습니다» — 사진 보관을 켜는 PR이 **같은 PR에서** 고쳐야 한다(WORKLOG 2026-11-02 learning: «코드는 바꿨는데 설명 문구가 남는 결함»).
+  사진을 `filesDir`에 그냥 두면 **Google 드라이브 자동 백업으로 기기 밖에 나간다** → F3과 충돌. 자동 백업에는 앱당 용량 한도(25MB로 알고 있음 — **[확인 필요: 기억, 이 세션은 외부 문서를 열지 않음]**)가 있어 사진이 이를 넘기면 **일기 DB 백업까지 멈출 수 있다.**
+  → 사진은 백업에서 반드시 빠지는 곳에 둔다(§2.4·§3.3).
+- **F5 처리방침 문구.** `privacy-policy.html:41` «사진 자체는 일기에 저장되지 않습니다» — 사진 보관을 켜는 PR이 **같은 PR에서** 고쳐야 한다(`WORKLOG.md:29` learning: «'코드는 바꿨는데 그 코드를 설명하는 문구·단서가 남는' 결함»).
 - **F6 일기 저장이 `REPLACE`다.** `Daos.kt:63-64` `@Insert(onConflict = REPLACE)`, 편집도 `saveDiary`가 새 `Diary`를 만들어 insert한다(`ReadingViewModel.kt:465-473`).
   사진 경로를 `Diary` 컬럼에 두면 편집 때 경로를 함께 넘기지 않으면 **null로 덮인다.** 별도 테이블 + `ON DELETE CASCADE`면 REPLACE의 삭제 단계에서 **사진 행이 지워진다.** 어느 설계든 회귀 테스트 필수(§3.4 M5·§3.5).
 - **F7 검색 엔진은 이미 둘 있다.** `KeywordLinks.build`(`data/knowledge/KeywordLinks.kt:42-88`)는 **서로 다른 책 2권 이상**에 나온 단어만, 상위 30개(`:45-46`)를 돌려준다 → 한 책에만 있는 문구를 찾는 «회상»에는 단독으로 부족하다.
@@ -65,11 +65,11 @@
 
 | 구분 | 규칙 | 재사용 |
 |------|------|--------|
-| 구절·문구 검색 | 검색어(앞뒤 공백 제거, 소문자 비교)가 `selectedText` 또는 `notes`에 **부분 문자열**로 있으면 일치. 책 제목만 맞은 기록도 포함하되 라벨로 구분 | `matchKind`(`BookComparison.kt:18-31`) 그대로 — 라벨 «구절 일치/메모 일치/제목 일치» |
+| 구절·문구 검색 | 검색어(앞뒤 공백 제거, 소문자 비교)가 `selectedText` 또는 `notes`에 **부분 문자열**로 있으면 일치. 책 제목만 맞은 기록도 포함하되 라벨로 구분 | `matchKind`(`BookComparison.kt:18-31`) 그대로 — 라벨 «제목·구절 일치/구절 일치/메모 일치/제목 일치»(`BookComparison.kt:10-15`) |
 | 단어 검색(조사 차이 흡수) | 검색어가 공백 없는 한 단어면, 기록의 `KeywordExtractor.extract(…)` 토큰과 **같은 정규형**이면 일치(예: «그리움을» ↔ «그리움이»). 부분 문자열 일치가 이미 있으면 중복 표시 0 | `KeywordExtractor.extract`(`KeywordExtractor.kt:87`) · `#태그`는 `tags`(`:98`) |
 | 단어 칩 | 검색창 아래에 `KeywordLinks.build` 결과 상위 N개(기억 서랍과 같은 목록) | `ReadingViewModel.sharedWords`(`:281-282`) |
 | 책 필터 | 책 다중 선택. 비우면 전체 | `books` StateFlow |
-| 기간 필터 | 전체 · 최근 1개월 · 최근 1년 · 직접 지정(시작~끝 날짜). 기준 = `Diary.createdAt`(사용자가 저장 화면에서 날짜·시각을 고칠 수 있는 값, `OcrDiaryScreen.kt:209-226`) | — |
+| 기간 필터 | 전체 · 최근 1개월 · 최근 1년 · 직접 지정(시작~끝 날짜). 기준 = `Diary.createdAt`(사용자가 저장 화면에서 날짜·시각을 고칠 수 있는 값, 날짜 `OcrDiaryScreen.kt:209-226`·시각 `:228-243`) | — |
 | 쪽 필터 | `from..to` 정수 범위(책 필터가 1권일 때만 노출 — 여러 책의 쪽 범위는 의미가 없다) | — |
 | 정렬 | **`createdAt` 내림차순 → `diaryId` 내림차순**(결정적). 고정 점수·관련도 점수 0(ADR-003 Q5) | — |
 | 빈 결과 | «일치하는 기록 0개» + 검색어가 있으면 «다른 표현으로 찾아보세요» 1줄. 거짓 제안 0 | — |
@@ -78,11 +78,12 @@
 
 ### 2.4 사진 (ADR-006 선택 후)
 
-- **무엇을 보관하나:** OCR에 쓴 **그 사진**(카메라 촬영·갤러리 선택 모두)을, 회전·뒤집기를 적용하고 긴 변 2048px로 줄인 JPEG 1장(`BitmapDecoding.MAX_SIDE`, `BitmapDecoding.kt:17`). 크롭 전 **페이지 전체**를 보관한다(«당시 사진» 복기가 목적 — 크롭 영역만 남기면 앞뒤 맥락이 사라진다).
-- **어디에:** 앱 내부 저장소 `filesDir/diary_photos/` (다른 앱 접근 불가, 앱 삭제 시 함께 삭제). **클라우드 백업 제외**(F4). 기기 간 직접 이전(device-transfer) 포함 여부는 ADR-006 부속 질문.
-- **언제:** 일기 «저장»을 누를 때만. OCR 실행·취소·뒤로가기로는 저장 0. 저장 화면에 체크박스 «이 사진을 기록과 함께 보관»(기본값 = ADR-006 부속 질문).
-- **지우기:** 일기 삭제·책 삭제(CASCADE)·책장 삭제 시 해당 사진 파일도 삭제. 앱 시작 시 고아 파일 정리 1회.
-- **편집 모드:** 보관된 사진이 있으면 보여 주고 «사진 바꾸기 / 사진 지우기». 지금처럼 «사진 없이 열기»(`OcrDiaryScreen.kt:167-176`)는 사진이 없을 때만.
+- **무엇을 보관하나:** OCR에 쓴 **그 사진**(카메라 촬영·갤러리 선택 모두)을, 회전·뒤집기를 적용하고 긴 변 **≤ 2048px**로 줄인 JPEG 1장(`inSampleSize`가 2의 거듭제곱이라 3000px 사진은 1500px가 된다, `BitmapDecoding.kt:23-31`)(`BitmapDecoding.MAX_SIDE`, `BitmapDecoding.kt:17`). 크롭 전 **페이지 전체**를 보관한다(«당시 사진» 복기가 목적 — 크롭 영역만 남기면 앞뒤 맥락이 사라진다).
+- **어디에(보수적 기본값):** 앱 내부 저장소 `noBackupFilesDir/diary_photos/` — 다른 앱 접근 불가, 앱 삭제 시 함께 삭제, **클라우드 백업·기기 간 이전 모두에서 자동 제외**(API 24+ 전부, 백업 XML 변경 0). 기기 간 이전에 사진을 넣고 싶다면 `filesDir` + 백업 규칙 제외로 바꿔야 하며, API 24~30은 `backup_rules.xml`이 클라우드·이전을 구분하지 못한다(`minSdk = 24`, `app/build.gradle.kts:15`) — **ADR-006 부속 [ASK] Q-b**.
+- **언제:** 일기 «저장»을 누를 때만. OCR 실행·취소·뒤로가기로는 저장 0. 저장 화면에 체크박스 «이 사진을 기록과 함께 보관» — 오너 답 전 기본값 **끔**(opt-in, **ADR-006 부속 [ASK] Q-a**).
+- **지우기:** 일기 삭제·책 삭제(CASCADE)·책장 삭제·예시 책 지우기(`deleteSampleBooks`, `ReadingViewModel.kt:173`) 시 해당 사진 파일도 삭제. 앱 시작 시 고아 파일 정리(sweep) 1회 — 누락된 삭제 경로도 여기서 걷힌다.
+- **경로는 있는데 파일이 없을 때(dangling):** 백업 복원(DB는 백업되고 사진은 빠짐)·저장 공간 정리 등으로 생긴다. 화면은 **«사진 없음(이 기기에 없음)»**으로 표시하고 깨진 이미지를 그리지 않는다. DB 경로는 지우지 않는다(되돌리기 쉬움).
+- **편집 모드:** 보관된 사진이 있으면 보여 주고 «사진 바꾸기 / 사진 지우기». 저장 시 사진 처리는 **유지·교체·삭제 3가지**로 구분한다(null 하나로 «유지»와 «삭제»를 겸하지 않는다, §3.4). 지금처럼 «사진 없이 열기»(`OcrDiaryScreen.kt:167-176`)는 사진이 없을 때만.
 - **외부 전송 0.** 보관 사진을 정밀 분석·공유 카드로 자동으로 보내는 경로 0. 정밀 분석은 지금처럼 사용자가 그 화면에서 사진마다 확인할 때만(`GeminiKeyPolicyTest` 참조 범위 불변).
 - **기존 기록:** 이 기능 이전에 남긴 기록에는 사진이 없다(애초에 보관하지 않았으므로 복구 불가) — 카드에 «사진 없음».
 
@@ -97,11 +98,11 @@
 | 단계 | 의도 | 스키마 | ADR-006 의존 | 추정 |
 |------|------|--------|--------------|------|
 | **P1** | 사진 없는 «문구 회상»: 검색 순수 함수 + 화면 + 내비 | 0 | 없음 — 2단계 DoD 안에서 착수 가능 | 3~4h |
-| **P2** | 사진 저장소 경계 `DiaryPhotoStore` + 백업 제외 규칙 + 고아 정리 | 0 | 있음(파일 이름 규약이 선택지마다 다름) | 2~3h |
-| **P3** 🔴 | Room `version = 3` + `Migration(2,3)` + `fallbackToDestructiveMigration` 제거 + `3.json` + 마이그레이션 테스트 | **변경** | 선택지 A만 | 3~4h |
+| **P2** | 사진 저장소 경계 `DiaryPhotoStore`(`noBackupFilesDir`) + 고아 정리 | 0 | 있음(파일 이름 규약·저장 순서가 선택지마다 다름) | 2~3h |
+| **P3** 🔴 | Room `version = 3` + `Migration(2,3)` + `fallbackToDestructiveMigration` 제거 + `3.json` + 마이그레이션 테스트 | **변경** | 선택지 A(선행·후행)만 | 3~4h |
 | **P4** | OCR 저장 화면 연결 + 편집 모드 사진 + 회상 카드 썸네일·복기 화면 사진 + 삭제 연동 + **처리방침·데이터 안전·스토어 문구** | 0 | 있음 | 4~5h |
 
-순서: P1 → (ADR-006 선택) → A면 P3 → P2 → P4 · B면 P2 → P4 · C면 P1에서 멈춤. 합계 12~16h(검증·critic 포함, 빌드 시간 제외).
+순서: P1 → (ADR-006 선택) → A-선행이면 바로 P3 → P2 → P4 · A-후행이면 2단계는 P1까지, P3 → P2 → P4는 내부 테스트 뒤 · B면 P2 → P4(B 전용 저장 순서, §3.3). 합계 12~16h(검증·critic 포함, 빌드 시간 제외).
 P3는 UI와 섞지 않는다(CLAUDE.md «UI + Room 스키마는 PR을 나눈다»).
 
 ### 3.2 P1 — 사진 없는 문구 회상
@@ -151,16 +152,20 @@ interface DiaryPhotoStore {
     /** 참조되지 않는 파일 삭제. 반환 = 지운 개수. */
     suspend fun sweep(referenced: Set<String>): Int
 }
-class InternalDiaryPhotoStore(context: Context) : DiaryPhotoStore   // filesDir/diary_photos/
+class InternalDiaryPhotoStore(context: Context) : DiaryPhotoStore   // noBackupFilesDir/diary_photos/
 ```
 
-- 파일 이름: **UUID.jpg**(선택지 A — DB가 경로를 가짐) / **`{diaryId}-{createdAt}.jpg`**(선택지 B — DB 없이 대조, ADR-006).
+- `fileFor`는 경로 탈출(`../` 등)**과 파일 부재** 모두 null — 화면은 null이면 «사진 없음»(dangling 처리, §2.4).
+
+- 파일 이름: **UUID.jpg**(선택지 A — DB가 경로를 가짐, 저장 순서 = 파일 쓰기 → `saveDiary(photo = Replace(경로))`) /
+  **`{diaryId}-{createdAt}.jpg`**(선택지 B — DB 없이 대조). **B는 위 시그니처로 구현할 수 없다:** 새 일기는 insert 전에 id가 없으므로 순서가 `insertDiary`(반환 `Long`, `ReadingRepository.kt:34`) → id를 받아 파일 쓰기여야 하고,
+  `saveDiary`가 id를 돌려주도록 바꾸고(`ReadingViewModel.kt:463-477`는 지금 `onComplete: () -> Unit`), `save(source, …, diaryId, createdAt)`로 인자를 늘리며, 날짜를 고치면 파일 이름도 바꿔야 한다(ADR-006 B 리스크).
 - 디코드는 기존 `BitmapDecoding.decodeDownsampled`(`BitmapDecoding.kt:65`) 재사용, JPEG 품질 85(예상 0.3~1MB/장 — 실측 아님, P2 PR에서 기기 1장 실측해 기록).
 - 카메라 임시 파일은 보관 복사 후(또는 보관하지 않기로 했을 때) **삭제** → ADR-002:30 후속 발견 해소.
-- 백업 제외: `backup_rules.xml`에 `<exclude domain="file" path="diary_photos/"/>`, `data_extraction_rules.xml` `<cloud-backup>`에 같은 줄(device-transfer는 ADR-006 부속 질문).
-- **테스트:** 새 `DiaryPhotoStoreTest.kt`(Robolectric) — 저장 후 파일 존재·긴 변 ≤ 2048 · 경로 탈출 거부 · 삭제 · sweep이 참조된 파일을 지우지 않음 · 디코드 실패 시 null.
-  `GeminiKeyPolicyTest.backupRules_excludeSecureKeyPrefs` 옆에 **`backupRules_excludeDiaryPhotos`**(두 XML을 파싱해 `diary_photos/` 제외를 고정).
-- **완료 조건:** 위 통과 · 사진 폴더가 클라우드 백업 규칙 두 곳에서 제외됨 · 새 권한 0 · 새 의존성 0.
+- 백업 제외: 기본값 `noBackupFilesDir`이면 XML 변경 0. ADR-006 Q-b에서 «기기 간 이전 포함»을 고르면 `filesDir/diary_photos/` + `backup_rules.xml` `<exclude domain="file" path="diary_photos/"/>` + `data_extraction_rules.xml` `<cloud-backup>` 같은 줄 — API 24~30에서는 이전에서도 빠진다(구분 불가).
+- **테스트:** 새 `DiaryPhotoStoreTest.kt`(Robolectric) — 저장 후 파일 존재·긴 변 ≤ 2048 · 저장 루트가 `noBackupFilesDir` 아래 · 경로 탈출 거부 · 파일 부재 시 `fileFor` null · 삭제 · sweep이 참조된 파일을 지우지 않음 · 디코드 실패 시 null.
+  Q-b로 `filesDir`을 고르면 `GeminiKeyPolicyTest.backupRules_excludeSecureKeyPrefs` 옆에 **`backupRules_excludeDiaryPhotos`**(두 XML 파싱)를 추가.
+- **완료 조건:** 위 통과 · 사진이 클라우드 백업에 들어가는 경로 0 · 새 권한 0 · 새 의존성 0.
 
 ### 3.4 P3 🔴 — Room version 3 + 마이그레이션 (선택지 A일 때만)
 
@@ -176,10 +181,16 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 
 별도 테이블(`diary_photos`, 일기 1건에 사진 여러 장)은 F6 때문에 `saveDiary`를 `@Update`로 바꾸는 선행 작업이 필요하고, 원문 요구(«당시 촬영 사진»)는 1장이면 충분하다 → 열 1개를 기본안으로 하고 ADR-006에 대안으로만 적는다.
 
+**첫 단계(실패하는 테스트 먼저):** `MigrationTest`가 `2.json`을 읽어 v2 DB를 만드는 것만 하는 테스트를 먼저 올려, Robolectric 단위 테스트에서 `MigrationTestHelper`가 스키마 JSON을 찾는지 확인한다.
+`sourceSets["test"].assets.srcDir(...)`이 단위 테스트 병합 assets에 들어가는지는 **미검증**(`isIncludeAndroidResources = true`는 이미 있음, `app/build.gradle.kts:63`). 안 되면 대안 = 테스트가 `app/schemas/…/2.json`을 파일로 직접 읽어 `createSql`로 v2 DB를 손수 만든 뒤 `Room.databaseBuilder(...).addMigrations(MIGRATION_2_3)`로 연다.
+`debug`/`main` 소스셋 assets에 스키마를 넣는 방법은 **금지**(APK에 들어간다).
+
 **건드릴 파일:** `data/Entities.kt`(`Diary.photoPath: String? = null`) · `data/AppDatabase.kt`(`version = 3`, `.addMigrations(MIGRATION_2_3)`, **`fallbackToDestructiveMigration()` 제거**(`:38`), `:12-20` 주석 갱신) · 새 `data/Migrations.kt` ·
 `app/schemas/com.example.data.AppDatabase/3.json`(컴파일로 생성 후 커밋) · `app/build.gradle.kts`(테스트가 스키마 JSON을 읽도록 `sourceSets["test"].assets.srcDir("$projectDir/schemas")`, `testImplementation(libs.androidx.room.testing)`) ·
 `gradle/libs.versions.toml`(`androidx-room-testing`, 버전 = `roomRuntime` `2.7.0` 재사용 — **새 의존성 1개**, 현재 카탈로그 grep 0) ·
-`ui/viewmodel/ReadingViewModel.kt`(`saveDiary`에 `photoPath` 인자 — 편집 시 **기존 값 유지**가 기본) · `app/src/test/java/com/example/RoomSchemaExportTest.kt`(identityHash·컬럼 단언을 v3로).
+`data/Daos.kt`(`DiaryDao`에 id 한 건 조회 `getByIdOneShot` — 지금 없음, `Daos.kt:55-68`) · `data/ReadingRepository.kt`(그 조회 노출) ·
+`ui/viewmodel/ReadingViewModel.kt`(`saveDiary`에 `photo: PhotoEdit = PhotoEdit.Keep` 인자 — `sealed interface PhotoEdit { object Keep; data class Replace(val path: String); object Remove }`. `Keep`이면 기존 행을 조회해 그 `photoPath`를 그대로 넣는다(F6 REPLACE 대응), `Remove`면 null + 파일 삭제, `Replace`면 새 경로 + 옛 파일 삭제) ·
+`app/src/test/java/com/example/RoomSchemaExportTest.kt`(identityHash·컬럼 단언을 v3로).
 
 **마이그레이션 테스트 계획(새 `app/src/test/java/com/example/MigrationTest.kt`, Robolectric + `MigrationTestHelper`):**
 
@@ -189,21 +200,21 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 | M2 | M1 뒤 행 대조 | 일기 5행의 `id·bookId·page·selectedText·notes·createdAt` **바이트 동일**, `photoPath` 전부 null |
 | M3 | 외래키 | `PRAGMA foreign_key_check` 결과 0행 · 책 삭제 → 그 책 일기 CASCADE 삭제 유지 · `ON DELETE CASCADE` 2개 유지 |
 | M4 | 실제 빌더 경로 | M1 파일을 `AppDatabase.getDatabase`와 같은 빌더 설정(마이그레이션 등록)으로 열어 `diaryDao().getAllDiaries().first()` 5건 |
-| M5 | 편집 회귀(F6) | `photoPath = "a.jpg"`인 일기를 `saveDiary(id = 그 id, …)`로 편집 → `photoPath` 그대로 |
+| M5 | 편집 회귀(F6) | `photoPath = "a.jpg"`인 일기를 `saveDiary(id = 그 id, photo = Keep)`로 편집 → `photoPath` 그대로 · `Remove` → null · `Replace("b.jpg")` → `"b.jpg"` (세 경우가 서로 구분됨) |
 | M6 | 파괴 폴백 부재 | 기존 `migrationDebtIsVisible_whenMoreThanOneSchemaVersionExists`(`RoomSchemaExportTest.kt:81-91`)가 `2.json`+`3.json` 두 파일로 **자동 활성화** → `fallbackToDestructiveMigration` 문자열 0 |
 | M7 | 빈 DB | v2 빈 DB(책장만) → 3 마이그레이션 통과 |
 
-**완료 조건:** M1~M7 통과 · `testDebugUnitTest` 전체 통과 · `verifyRoborazziDebug` 기준 불변(UI 0) · **오너 기기 수동 확인 1회**(v2 디버그 설치 위에 v3 디버그 덮어 설치 → 기록 수 동일, 같은 `debug.keystore`) · critic PASS · ADR-005 §2·STAGE2-PLAN 공통 DoD 문구를 ADR-006 결정대로 같은 PR에서 개정.
+**완료 조건:** M1~M7 통과 · `testDebugUnitTest` 전체 통과 · `verifyRoborazziDebug` 기준 불변(UI 0) · **오너 기기 수동 확인 1회**(v2 디버그 설치 위에 v3 디버그 덮어 설치 → 기록 수 동일, 같은 `debug.keystore`) · critic PASS · ADR-006 결정대로 같은 PR에서 문서 개정 — ADR-005 §2(`:39`)·STAGE2-PLAN 공통 DoD(`:10`), 그리고 `Migration(2,3)`을 «3단계 태그 컬럼»으로 적은 ADR-004 «실행 단계» ⑧(`:53`)·ADR-005 §3(`:54`)·§6 ADR-004-4(`:100`)(태그 컬럼은 이후 `Migration(3,4)`).
 
 ### 3.5 P4 — 화면 연결
 
-**건드릴 파일:** `ui/screens/OcrDiaryScreen.kt`(저장 시 `DiaryPhotoStore.save` → `saveDiary(photoPath=…)`, 체크박스 testTag `ocrdiary_keep_photo`, 편집 모드 사진 표시·바꾸기·지우기) ·
-`ui/viewmodel/ReadingViewModel.kt`(`deleteDiary`·`deleteBook`·`deleteBookcase`에서 사진 삭제 — 책·책장은 CASCADE 전에 해당 일기들의 경로를 먼저 조회, 앱 시작 시 `sweep` 1회) ·
+**건드릴 파일:** `ui/screens/OcrDiaryScreen.kt`(체크박스 testTag `ocrdiary_keep_photo`, 편집 모드 사진 표시·바꾸기·지우기 — 화면은 의도만 넘긴다) ·
+`ui/viewmodel/ReadingViewModel.kt`(**사진 쓰기는 ViewModel 스코프에서**: `saveDiaryWithPhoto(…, source: Uri?, rotation, flipped, keep: Boolean)` → `DiaryPhotoStore.save` → `saveDiary(photo = …)` — 디코드를 ViewModel에 두는 기존 관례(`ReadingViewModel.kt:506-509`)와 같아 회전·뒤로가기에도 끊기지 않는다 · `deleteDiary`·`deleteBook`·`deleteBookcase`·`deleteSampleBooks`에서 사진 삭제 — 책·책장은 CASCADE 전에 해당 일기들의 경로를 먼저 조회, 앱 시작 시 `sweep` 1회) ·
 `ui/screens/PhraseRecallScreen.kt`(썸네일 — Coil `AsyncImage(model = File)`, 로컬 파일만 · 복기 화면 확대) ·
 `docs/privacy/privacy-policy.html:41`(«사진 자체는 일기에 저장되지 않습니다» → «보관을 선택한 사진은 앱 내부 저장소에만 남고 자동 백업에서 제외되며, 기록·책을 지우면 함께 지워집니다») ·
 `docs/store-listing/INTERNAL-TEST-2026-11.md`(§5 데이터 안전 표에 «N8 사진 보관(기기 안) — 전송 0» 행, §2 문안) · 앱 안 처리방침 요약(`PolicyCopyTest` 대상 문구가 사진을 언급하면 함께).
-**테스트:** `OcrDiaryEditSaveTest` 확장(편집 저장 시 사진 유지·지우기) · Robolectric 삭제 연동(일기·책·책장 삭제 후 파일 0, 다른 일기 파일 유지) · `HonestCopyTest`에 «사진 자체는 일기에 저장되지 않습니다» 문구가 `app/src/main`에 없음 · Roborazzi 회상 카드 썸네일 1장(테스트 리소스 이미지).
-**완료 조건:** 위 통과 · 사진을 보관하지 않은 기록은 지금과 같은 흐름 · 외부 전송 경로 추가 0(`GeminiKeyPolicyTest` 불변) · 오너 기기에서 촬영 → 저장 → 회상 카드 사진 확인 1회.
+**테스트:** `OcrDiaryEditSaveTest` 확장(편집 저장 시 사진 유지·교체·지우기) · Robolectric 삭제 연동(일기·책·책장·예시 책 삭제 후 파일 0, 다른 일기 파일 유지) · **dangling**(경로는 있고 파일은 없는 일기 → 카드·복기 화면이 «사진 없음(이 기기에 없음)», 크래시 0) · `HonestCopyTest`에 «사진 자체는 일기에 저장되지 않습니다» 문구가 `app/src/main`에 없음 · Roborazzi 회상 카드 썸네일 1장(테스트 리소스 이미지).
+**완료 조건:** 위 통과 · dangling 표시 규칙 적용 · 사진을 보관하지 않은 기록은 지금과 같은 흐름 · 외부 전송 경로 추가 0(`GeminiKeyPolicyTest` 불변) · 오너 기기에서 촬영 → 저장 → 회상 카드 사진 확인 1회.
 
 ## 4. 2단계 ② SAF 내보내기와의 순서 — [ASK]
 
@@ -211,7 +222,7 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 |--------|-----------|-----------|
 | (가) **SAF ② 먼저** → 문구 회상 P1~P4 | 2단계 계획(STAGE2-PLAN 권장 순서 5번, AAB 직전)과 스키마 동결을 그대로 지켜 첫 업로드가 가장 빠르다 | 오너가 방금 요청한 기능이 가장 늦고, 내보내기에 사진 포함 여부를 나중에 다시 설계해야 할 수 있다 |
 | (나) **회상 P1(사진 없음) 먼저** → SAF ② → 사진(P2~P4) | 스키마 0인 절반을 바로 쓰게 하면서 SAF 일정도 지킨다 | 사진 없는 회상은 원문 요구의 절반이고, 그동안 찍은 사진은 보관되지 않아 나중에 붙일 수 없다 |
-| (다) **회상 전체(사진·v3 포함) 먼저** → SAF ② | 첫 업로드에 핵심 기능이 들어가고 SAF가 처음부터 사진 포함/제외를 정해 설계된다 | 가장 위험한 변경 두 개(마이그레이션·파일 쓰기)가 연달아 오고, ADR-006 A-선행 선택과 ADR-005 §2 개정이 전제다 |
+| (다) **회상 전체(사진·v3 포함) 먼저** → SAF ② | 첫 업로드에 핵심 기능이 들어가고 SAF가 처음부터 사진 포함/제외를 정해 설계된다 | 가장 위험한 변경 두 개(마이그레이션·파일 쓰기)가 연달아 오고, ADR-006 A-선행(또는 B) 선택과 ADR-005 §2 개정이 전제다 |
 
 ## 5. 스토어 부제 후보(새 기능 포함) — [ASK]
 
@@ -219,16 +230,17 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 
 | # | 후보 | 글자 수(공백 포함) | 강조점 |
 |---|------|--------------------|--------|
-| 1 | 떠오른 한 문장, 언제 어느 책에서 읽었는지 찾아 주는 독서 다이어리 | 38 | 원문 요구 그대로(회상) |
+| 1 | 떠오른 한 문장, 언제 어느 책에 남긴 밑줄인지 찾아 주는 독서 다이어리 | 40 | 원문 요구(회상) — «읽었는지»가 아니라 «남긴 밑줄»: 앱은 읽은 날을 저장하지 않는다(§2.3) |
 | 2 | 밑줄과 그날의 페이지 사진으로 다시 만나는 독서 다이어리 | 31 | 사진 복기 |
 | 3 | 밑줄이 책과 책을 잇고, 떠오른 문장을 사진과 함께 되찾는 독서 다이어리 | 40 | 기존 후보(연결) + 회상 |
 
 - 짧은 설명 한도 80자 이내(`INTERNAL-TEST-2026-11.md:24`) — 셋 다 충족(글자 수는 `python3 len()` 실측).
-- **정직 조건:** 2·3은 사진 보관(P4)이 머지된 빌드에서만 쓸 수 있다. P4 전 업로드라면 1(사진 언급 없음) 또는 기존 후보.
+- **정직 조건:** ① 2·3은 사진 보관(P4)이 머지된 빌드에서만 쓸 수 있다. P4 전 업로드라면 1(사진 언급 없음) 또는 기존 후보. ② 어느 후보도 «읽은 날»을 약속하지 않는다 — 앱이 아는 것은 기록한 날(`createdAt`)뿐.
 
 ## 6. 남은 질문 요약
 
-- [ASK] ADR-006 선택(A-선행 / A-후행 / B / C) — [ADR-006](adr/ADR-006-phrase-recall-photo-storage.md)
+- [ASK] ADR-006 선택(A-선행 / A-후행 / B) — [ADR-006](adr/ADR-006-phrase-recall-photo-storage.md)
+- [ASK] ADR-006 부속 Q-a «이 사진을 기록과 함께 보관» 기본값(답 전 = 끔) · Q-b 기기 간 이전에 사진 포함(답 전 = 제외, `noBackupFilesDir`)
 - [ASK] §4 SAF 순서 (가)/(나)/(다)
 - [ASK] §5 부제 1/2/3/기존
-- 막지 않는 기본값(이견 있으면 알려 주세요): 진입점 = 대시보드 버튼 + 기억 서랍 링크 · 「이 사진을 기록과 함께 보관」 기본 켬 · 기기 간 직접 이전에는 사진 포함 — ADR-006 «부속 질문»
+- 막지 않는 기본값(프라이버시와 무관한 것만): 진입점 = 대시보드 버튼 + 기억 서랍 링크
