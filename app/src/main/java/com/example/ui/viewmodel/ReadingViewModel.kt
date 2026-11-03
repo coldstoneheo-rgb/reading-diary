@@ -9,6 +9,7 @@ import com.example.data.AppDatabase
 import com.example.data.Book
 import com.example.data.Bookcase
 import com.example.data.Diary
+import com.example.data.PhotoEdit
 import com.example.data.ReadingRepository
 import com.example.data.SampleBooks
 import com.example.data.SecureKeyManager
@@ -19,6 +20,8 @@ import com.example.data.ocr.GeminiTextExtractor
 import com.example.data.ocr.MlKitTextExtractor
 import com.example.data.ocr.OcrOutcome
 import com.example.data.ocr.TextExtractor
+import com.example.data.photo.DiaryPhotoStore
+import com.example.data.photo.InternalDiaryPhotoStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -67,11 +70,13 @@ class ReadingViewModel @JvmOverloads constructor(
     private val textExtractor: TextExtractor = MlKitTextExtractor(),
     /** "정밀 분석" 전용. 키 등록 + 사진 전송 동의가 있을 때만 [processPreciseAnalysis]가 호출한다. */
     private val preciseExtractor: TextExtractor = GeminiTextExtractor(application),
+    /** 일기 사진 파일 저장소(P2). 사진 행은 Room, 파일은 여기. */
+    private val photoStore: DiaryPhotoStore = InternalDiaryPhotoStore(application),
     /** 기기 암호화 저장소에 Gemini 키가 있는지. 테스트에서 주입한다. IO 스레드에서 호출된다. */
     private val geminiKeyPresence: () -> Boolean = { SecureKeyManager.getGeminiApiKey(application).isNotEmpty() }
 ) : AndroidViewModel(application) {
     private val database = AppDatabase.getDatabase(application)
-    private val repository = ReadingRepository(database)
+    private val repository = ReadingRepository(database, photoStore)
 
     init {
         viewModelScope.launch {
@@ -481,7 +486,8 @@ class ReadingViewModel @JvmOverloads constructor(
     }
 
     // Diary CRUD Operations
-    fun saveDiary(bookId: Int, page: Int, selectedText: String, notes: String, id: Int? = null, createdAt: Long? = null, onComplete: () -> Unit) {
+    /** [photos]: 사진 처리. 기본 [PhotoEdit.Unchanged]는 사진 행을 건드리지 않는다(화면 연결은 P4). */
+    fun saveDiary(bookId: Int, page: Int, selectedText: String, notes: String, id: Int? = null, createdAt: Long? = null, photos: PhotoEdit = PhotoEdit.Unchanged, onComplete: () -> Unit) {
         viewModelScope.launch {
             repository.saveDiary(
                 Diary(
@@ -491,7 +497,8 @@ class ReadingViewModel @JvmOverloads constructor(
                     selectedText = selectedText,
                     notes = notes,
                     createdAt = createdAt ?: System.currentTimeMillis()
-                )
+                ),
+                photos
             )
             onComplete()
         }

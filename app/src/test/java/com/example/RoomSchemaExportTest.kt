@@ -8,7 +8,7 @@ import java.io.File
 /**
  * ADR-004 1단계 ③. Room 스키마 JSON이 **현재 DB 버전과 함께** 커밋되어 있고, 그 버전 안에서 **드리프트하지 않는지** 지킨다.
  *
- * 이 앱은 아직 `fallbackToDestructiveMigration()`을 쓴다. 두 가지 사고를 막아야 한다.
+ * v3부터 파괴적 폴백은 없다(마이그레이션 [com.example.data.MIGRATION_2_3], MigrationTest M1~M7). 두 가지 사고를 막아야 한다.
  * 1. `version`만 올리고 마이그레이션을 안 붙이면 기존 설치의 데이터가 조용히 전부 삭제된다.
  *    그때 필요한 "이전 버전의 정확한 스키마"는 버전을 올리기 **전에** 커밋되어 있어야만 쓸 수 있다.
  * 2. **버전을 그대로 둔 채 엔티티를 바꾸면** KSP가 `2.json`을 조용히 덮어쓰고, 기존 기기에서는
@@ -57,7 +57,7 @@ class RoomSchemaExportTest {
     assertTrue(
       "엔티티가 바뀌어 v${declaredVersion()} 스키마가 달라졌다. 버전을 올리고 Migration 을 붙이거나 변경을 되돌려라. " +
         "이 해시를 갱신하는 것으로 해결하지 말 것 — 기존 기기는 DB 를 열 때 크래시한다.",
-      schemaText().contains("\"identityHash\": \"37116ccbab73af381a7228fbf099a9db\"")
+      schemaText().contains("\"identityHash\": \"7723c7e08820834966d46a8b1d6f7cf6\"")
     )
   }
 
@@ -69,12 +69,25 @@ class RoomSchemaExportTest {
       "diaries 의 사용자 기록 컬럼(selectedText·notes·createdAt)이 사라졌다",
       text.contains("`selectedText` TEXT NOT NULL, `notes` TEXT NOT NULL, `createdAt` INTEGER NOT NULL")
     )
-    // 책·책장을 지우면 하위 기록도 함께 지워진다는 계약. 이게 깨지면 고아 행이 남는다.
+    // 책장·책·일기를 지우면 하위 기록·사진 행도 함께 지워진다는 계약. 이게 깨지면 고아 행이 남는다.
     assertEquals(
-      "ON DELETE CASCADE 외래키가 2개(books→bookcases, diaries→books)여야 한다",
-      2,
+      "ON DELETE CASCADE 외래키가 3개(books→bookcases, diaries→books, diary_photos→diaries)여야 한다",
+      3,
       Regex("ON DELETE CASCADE").findAll(text).count()
     )
+  }
+
+  /** 스키마 이력 불변: v2 정본은 남아 있고, v3는 diaries를 바꾸지 않았다(ADR-006 — 새 테이블 1개만). */
+  @Test
+  fun v2SchemaStaysCommitted_andV3KeepsDiariesUnchanged() {
+    val v2 = File(schemaDir, "2.json")
+    val v3 = File(schemaDir, "3.json")
+    assertTrue("2.json 이 있어야 한다", v2.isFile)
+    assertTrue("3.json 이 있어야 한다", v3.isFile)
+    assertTrue("2.json identityHash 불변", v2.readText().contains("\"identityHash\": \"37116ccbab73af381a7228fbf099a9db\""))
+    val diariesSql = Regex(""""tableName": "diaries",\s*"createSql": "([^"]*)"""")
+    assertEquals(diariesSql.find(v2.readText())!!.groupValues[1], diariesSql.find(v3.readText())!!.groupValues[1])
+    assertTrue("diary_photos 테이블", v3.readText().contains("\"tableName\": \"diary_photos\""))
   }
 
   @Test

@@ -73,3 +73,20 @@ interface DiaryDao {
     @Query("DELETE FROM diaries WHERE id = :id")
     suspend fun deleteById(id: Int)
 }
+
+@Dao
+interface DiaryPhotoDao {
+    /** 화면 표시 순서(sortOrder) 그대로. */
+    @Query("SELECT * FROM diary_photos WHERE diaryId = :diaryId ORDER BY sortOrder ASC, id ASC")
+    suspend fun photosFor(diaryId: Int): List<DiaryPhoto>
+
+    @Insert
+    suspend fun insertAll(photos: List<DiaryPhoto>)
+
+    @Query("DELETE FROM diary_photos WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Int>)
+
+    /** 고아 파일 정리(DiaryPhotoStore.sweep)의 참조 집합. */
+    @Query("SELECT path FROM diary_photos")
+    suspend fun allPaths(): List<String>
+}

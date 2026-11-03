@@ -10,19 +10,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 /**
- * 스키마 JSON을 `app/schemas/`로 내보낸다(ADR-004 1단계 ③). **버전은 2 그대로다 — 이 PR은 스키마를 바꾸지 않는다.**
+ * 스키마 JSON을 `app/schemas/`로 내보낸다(ADR-004 1단계 ③). 정본은 커밋된 `2.json`·`3.json`이다.
  *
- * 왜 지금 켜는가: 현재 [Room.databaseBuilder]가 `fallbackToDestructiveMigration()`을 쓰고 있어,
- * 훗날 누군가 `version`을 올리면 마이그레이션 없이 **기존 설치의 데이터가 조용히 전부 삭제된다.**
- * 안전한 마이그레이션을 쓰려면 "현재 v2가 정확히 어떤 스키마인가"를 파일로 갖고 있어야 하고,
- * 그 정본은 지금(v2가 실제로 배포된 상태에서) 뽑아 커밋해 두어야만 신뢰할 수 있다.
- * 이 PR은 그 정본만 만든다. `fallbackToDestructiveMigration` 제거와 `Migration(2,3)`은 실제로 스키마가 필요해질 때 별도 PR에서.
+ * v3(ADR-006, 명세 PHRASE-RECALL-SPEC-2026-11 §3.4): `diary_photos` 테이블 추가, [MIGRATION_2_3]으로 옮긴다.
+ * 파괴적 폴백은 쓰지 않는다 — 마이그레이션이 없거나 실패하면 앱이 열리지 않는다(조용한 전체 삭제보다 낫다, ADR-006 리스크 표).
+ * 버전을 올릴 때는 반드시 `Migration`을 붙이고 [ALL_MIGRATIONS]에 넣는다(MigrationTest·RoomSchemaExportTest가 지킨다).
  */
-@Database(entities = [Bookcase::class, Book::class, Diary::class], version = 2, exportSchema = true)
+@Database(entities = [Bookcase::class, Book::class, Diary::class, DiaryPhoto::class], version = 3, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun bookcaseDao(): BookcaseDao
     abstract fun bookDao(): BookDao
     abstract fun diaryDao(): DiaryDao
+    abstract fun diaryPhotoDao(): DiaryPhotoDao
 
     companion object {
         @Volatile
@@ -30,18 +29,19 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    AppDatabase::class.java,
-                    "reading_diary_db"
-                )
-                .fallbackToDestructiveMigration()
-                .addCallback(DatabaseCallback(context.applicationContext))
-                .build()
+                val instance = builder(context, DB_NAME).build()
                 INSTANCE = instance
                 instance
             }
         }
+
+        const val DB_NAME = "reading_diary_db"
+
+        /** 앱이 쓰는 빌더 설정 전부(마이그레이션·콜백). MigrationTest M4가 같은 설정으로 연다. */
+        internal fun builder(context: Context, name: String): RoomDatabase.Builder<AppDatabase> =
+            Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, name)
+                .addMigrations(*ALL_MIGRATIONS)
+                .addCallback(DatabaseCallback(context.applicationContext))
 
         internal fun clearSampleMarks(context: Context) {
             context.getSharedPreferences(SampleBooks.PREFS_NAME, Context.MODE_PRIVATE)
@@ -51,12 +51,6 @@ abstract class AppDatabase : RoomDatabase() {
         private class DatabaseCallback(
             private val context: Context
         ) : RoomDatabase.Callback() {
-            /** 파괴적 마이그레이션은 onCreate를 부르지 않고 테이블을 다시 만든다 — 같은 이유로 표식을 지운다. */
-            override fun onDestructiveMigration(db: SupportSQLiteDatabase) {
-                super.onDestructiveMigration(db)
-                clearSampleMarks(context)
-            }
-
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)
                 // DB가 새로 만들어졌으면(신규 설치·DB 없이 설정만 복원) 예전 예시 표식은 무효다.
