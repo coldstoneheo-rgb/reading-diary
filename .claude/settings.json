@@ -15,5 +15,10 @@
       "Read(./my-upload-key.jks)",
       "Read(./debug.keystore)"
     ]
+  },
+  "modelSettings": {
+    "claude-opus-5-5": {
+      "effortLevel": "medium"
+    }
   }
 }
