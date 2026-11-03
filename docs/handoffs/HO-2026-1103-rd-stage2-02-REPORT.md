@@ -20,7 +20,7 @@
 |---|---|---|---|---|---|
 | #30 | `feat/bipartite-layout` | 좌표 순수 함수 + JVM 12 | 6 → 8/10 PASS | PASS(`b1ac397`) | `e4a6456` — 사용자 |
 | #31 | `feat/knowledge-graph-canvas` | 캔버스·전환·탭 카드 + Robolectric 6 + 골든 2 | 5 → 8/10 PASS | PASS(`62e01ff`) | `8ed683a` — 사용자 |
-| (이 PR) | `docs/stage2-02-records` | REPORT·STATUS·WORKLOG | — | — | 대기 |
+| (이 PR) | `docs/stage2-02-records` | REPORT·STATUS·WORKLOG | — | — | 이 PR |
 
 `gh pr checks 30/31`: «no checks reported»(CI 워크플로 없음).
 
