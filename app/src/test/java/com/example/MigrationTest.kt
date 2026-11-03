@@ -233,6 +233,19 @@ class MigrationTest {
     assertEquals(0, db.diaryPhotoDao().photosFor(1).size)
     assertEquals(listOf("b", "x"), deleted.sorted())
     assertEquals("일기 수는 그대로", 5, db.diaryDao().getAllDiaries().first().size)
+
+    // (4) 같은 경로를 New로 다시 지정하면 행은 새로 생기고 파일은 지우지 않는다
+    db.diaryPhotoDao().insertAll(listOf(DiaryPhoto(diaryId = 1, path = "p", sortOrder = 0)))
+    deleted.clear()
+    repo.saveDiary(original, PhotoEdit.Set(listOf(PhotoSlot.New("p"))))
+    assertEquals(listOf("p"), db.diaryPhotoDao().photosFor(1).map { it.path })
+    assertEquals(emptyList<String>(), deleted)
+
+    // (5) 편집 중 행이 지워졌으면(update 0행) 예전 REPLACE처럼 같은 id로 다시 만든다
+    db.diaryDao().deleteById(2)
+    val gone = original.copy(id = 2, selectedText = "되살린 문장")
+    assertEquals(2, repo.saveDiary(gone, PhotoEdit.Unchanged))
+    assertEquals("되살린 문장", db.diaryDao().getAllDiaries().first().single { it.id == 2 }.selectedText)
   }
 
   @Test

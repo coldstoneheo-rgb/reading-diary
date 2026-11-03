@@ -71,9 +71,11 @@ class ReadingRepository(
         }.distinctBy { if (it.id != 0) "id:${it.id}" else "new:${it.path}" }
             .mapIndexed { index, row -> row.copy(sortOrder = index) }
         val keptIds = rows.map { it.id }.filter { it != 0 }.toSet()
+        val keptPaths = rows.map { it.path }.toSet()
         if (existing.isNotEmpty()) diaryPhotoDao.deleteByIds(existing.map { it.id })
         if (rows.isNotEmpty()) diaryPhotoDao.insertAll(rows)
-        return existing.filter { it.id !in keptIds }.map { it.path }
+        // 새 행이 같은 경로를 가리키면 그 파일은 지우지 않는다.
+        return existing.filter { it.id !in keptIds && it.path !in keptPaths }.map { it.path }
     }
 
     suspend fun photosFor(diaryId: Int): List<DiaryPhoto> = diaryPhotoDao.photosFor(diaryId)

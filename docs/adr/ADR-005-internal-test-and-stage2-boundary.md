@@ -36,7 +36,7 @@ ADR-004 1단계(PR #20·#22·#23)가 2026-09-07에 머지된 뒤 저장소 커�
 | 테스터 | **5명 이하**(이메일 목록) |
 | 완료 정의 | 내부 테스트 트랙 출시 상태가 **«제공됨»**(내부 테스터에게 제공됨)이 되고, 테스터 1명 이상이 옵트인 링크로 설치를 확인 |
 | 업로드 | 2단계 코드 머지 완료 시점에 서명 AAB **1회**. 서명(`bundleRelease`)은 오너가 직접 실행(CLAUDE.md 안전 규칙) |
-| **스키마 동결** | 내부 테스트 기간 동안 **Room 스키마 변경 금지**(`AppDatabase` `version = 2` 유지, `AppDatabase.kt:21`). 현재 `fallbackToDestructiveMigration()`(`AppDatabase.kt:38`)이라 버전을 올리면 테스터 기록이 조용히 전부 지워진다. 이 금지는 2단계 모든 PR의 DoD에 들어간다. **개정 2026-11-03: 동결은 «첫 AAB 업로드 시점부터» 적용한다. 예외 1건 = [ADR-006](ADR-006-phrase-recall-photo-storage.md)(`diary_photos` 테이블, `version = 3` + `Migration(2,3)` + 파괴 폴백 제거, 첫 업로드 전 머지). 동결 기간의 기준 버전은 `version = 3`** **집행 2026-11-03: 문구 회상 P3 PR(#40)에서 집행 — `version = 3`·`MIGRATION_2_3`(`data/Migrations.kt`)·파괴 폴백 제거.** |
+| **스키마 동결** | 내부 테스트 기간 동안 **Room 스키마 변경 금지**(결정 당시 `version = 2`, v2 당시 `AppDatabase.kt:21`). v2 당시에는 `fallbackToDestructiveMigration()`(v2 당시 `AppDatabase.kt:38`)이라 버전을 올리면 테스터 기록이 조용히 전부 지워졌다(P3에서 제거). 이 금지는 2단계 모든 PR의 DoD에 들어간다. **개정 2026-11-03: 동결은 «첫 AAB 업로드 시점부터» 적용한다. 예외 1건 = [ADR-006](ADR-006-phrase-recall-photo-storage.md)(`diary_photos` 테이블, `version = 3` + `Migration(2,3)` + 파괴 폴백 제거, 첫 업로드 전 머지). 동결 기간의 기준 버전은 `version = 3`** **집행 2026-11-03: 문구 회상 P3 PR(#40)에서 집행 — `version = 3`·`MIGRATION_2_3`(`data/Migrations.kt`)·파괴 폴백 제거. 현재 `version = 3`은 `AppDatabase.kt:19`.** |
 | 테스터 안내 | «테스트 기간에 남긴 기록은 앱 업데이트·재설치로 지워질 수 있습니다» 1줄을 안내문에 넣는다([INTERNAL-TEST-2026-11](../store-listing/INTERNAL-TEST-2026-11.md) §6) |
 
 ## §3 2단계 묶음 경계

@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
  *
  * v3(ADR-006, 명세 PHRASE-RECALL-SPEC-2026-11 §3.4): `diary_photos` 테이블 추가, [MIGRATION_2_3]으로 옮긴다.
  * 파괴적 폴백은 쓰지 않는다 — 마이그레이션이 없거나 실패하면 앱이 열리지 않는다(조용한 전체 삭제보다 낫다, ADR-006 리스크 표).
- * 버전을 올릴 때는 반드시 `Migration`을 붙이고 [ALL_MIGRATIONS]에 넣는다(MigrationTest·RoomSchemaExportTest가 지킨다).
+ * 버전을 올릴 때는 반드시 `Migration`을 붙이고 [ALL_MIGRATIONS]에 넣는다(v2→v3는 MigrationTest M1~M7이 검증한다. 다음 버전의 마이그레이션 누락을 자동으로 잡는 테스트는 아직 없다).
  */
 @Database(entities = [Bookcase::class, Book::class, Diary::class, DiaryPhoto::class], version = 3, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
