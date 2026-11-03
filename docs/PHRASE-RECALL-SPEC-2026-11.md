@@ -1,7 +1,7 @@
 # «문구 회상» 기능 명세 + 구현 계획 (2026-11)
 
-- 상태: **명세·계획(코드 0) — 오너 결정 4건 반영(2026-11-03).** 사진 보관 = [ADR-006](adr/ADR-006-phrase-recall-photo-storage.md) **결정됨**(A-선행 + `diary_photos` 테이블) · 순서 §4 (다) · 부제 §5 후보 3. 결정 정본: life-coordinator `DEC-2026-1103-rd-phrase-recall.md`.
-- 구현 순서: P1 → P2 → P3 → P4 → (② SAF 마크다운(② 위치는 결정 3 목록에 없어 (다)의 정의 «회상 전체 → SAF ②»로 둔 **해석 — 오너 확인 대상**)) → P5 → 첫 AAB 업로드. 코드는 로컬 창(그래들), 이 문서 개정은 클라우드.
+- 상태: **명세·계획 — 오너 결정 4건 반영(2026-11-03). P1 구현됨(사진 없는 회상, 2026-11-03 로컬 창 `feat/phrase-recall-p1`) · P2~P5 코드 0.** 사진 보관 = [ADR-006](adr/ADR-006-phrase-recall-photo-storage.md) **결정됨**(A-선행 + `diary_photos` 테이블) · 순서 §4 (다) · 부제 §5 후보 3. 결정 정본: life-coordinator `DEC-2026-1103-rd-phrase-recall.md`.
+- 구현 순서: P1 → P2 → P3 → P4 → (② SAF 마크다운 — P4 뒤·P5 앞 확정, LC 11-03) → P5 → 첫 AAB 업로드. 코드는 로컬 창(그래들), 이 문서 개정은 클라우드.
 - 근거 파일:줄은 2026-11-03 origin/main `c0bccd2` 기준(결정 반영 개정은 `4edd80f` 기준 — 앱 코드는 두 커밋 사이 변경 0).
 - 관련: [ADR-002](adr/ADR-002-on-device-ocr-rollout.md)(온디바이스 OCR, 사진 비전송) · [ADR-003](adr/ADR-003-memory-drawer-and-honest-features.md)(기억 서랍, 근거 없는 연결 금지) ·
   [ADR-004](adr/ADR-004-reading-knowledge-base-architecture.md)(3단계 ⑧ `Migration(2,3)`) · [ADR-005](adr/ADR-005-internal-test-and-stage2-boundary.md)(§2 스키마 동결) · [STAGE2-PLAN](STAGE2-PLAN-2026-11.md)(공통 DoD · ② SAF)
@@ -67,7 +67,7 @@
 | 구분 | 규칙 | 재사용 |
 |------|------|--------|
 | 구절·문구 검색 | 검색어(앞뒤 공백 제거, 소문자 비교)가 `selectedText` 또는 `notes`에 **부분 문자열**로 있으면 일치. 책 제목만 맞은 기록도 포함하되 라벨로 구분 | `matchKind`(`BookComparison.kt:18-31`) 그대로 — 라벨 «제목·구절 일치/구절 일치/메모 일치/제목 일치»(`BookComparison.kt:10-15`) |
-| 단어 검색(조사 차이 흡수) | 검색어가 공백 없는 한 단어면, 기록의 `KeywordExtractor.extract(…)` 토큰과 **같은 정규형**이면 일치(예: «그리움을» ↔ «그리움이»). 부분 문자열 일치가 이미 있으면 중복 표시 0 | `KeywordExtractor.extract`(`KeywordExtractor.kt:87`) · `#태그`는 `tags`(`:98`) |
+| 단어 검색(조사 차이 흡수) | 검색어가 공백 없는 한 단어면, 기록의 `KeywordExtractor.extract(…)` 토큰과 **같은 정규형**이면 일치(예: «그리움을» ↔ «그리움이»). 정규형은 검색어·토큰 **양쪽 모두** `stem`을 더 바뀌지 않을 때까지 다시 적용한 값(«제주도를»→«제주도»→«제주» ↔ «#제주도»→«제주», `PhraseRecall.settle`). 부분 문자열 일치가 이미 있으면 중복 표시 0 | `KeywordExtractor.extract`(`KeywordExtractor.kt:87`) · `#태그`는 `#`이 토큰 구분자라 `extract(notes)`로 같은 경로(별도 `tags` 분기 없음) |
 | 단어 칩 | 검색창 아래에 `KeywordLinks.build` 결과 상위 N개(기억 서랍과 같은 목록) | `ReadingViewModel.sharedWords`(`:281-282`) |
 | 책 필터 | 책 다중 선택. 비우면 전체 | `books` StateFlow |
 | 기간 필터 | 전체 · 최근 1개월 · 최근 1년 · 직접 지정(시작~끝 날짜). 기준 = `Diary.createdAt`(사용자가 저장 화면에서 날짜·시각을 고칠 수 있는 값, 날짜 `OcrDiaryScreen.kt:209-226`·시각 `:228-243`) | — |
@@ -262,7 +262,7 @@ STAGE2-PLAN ② 마크다운 내보내기(책당 1파일 + 인덱스 노트, 덮
 
 **결정(2026-11-03, 오너): (다) 회상 전체(사진 포함) 먼저 → SAF.** 정본: life-coordinator `DEC-2026-1103-rd-phrase-recall.md`.
 순서 = **P1 회상(스키마 0) → P2 사진 저장소 → P3 Room v3 + `diary_photos` + `Migration(2,3)` + M1~M7 → P4 일기↔사진 연결·카드·편집(유지/교체/삭제) → P5 SAF zip 내보내기 + 가져오기(사진 포함) → 첫 AAB 업로드.**
-STAGE2-PLAN ② 마크다운 내보내기는 유지되며 P4 뒤, P5 앞에 둔다(② 위치는 결정 3 목록에 없어 (다)의 정의 «회상 전체 → SAF ②»로 둔 **해석 — 오너 확인 대상**)(STAGE2-PLAN «문구 회상과의 순서»). 1 PR = 1 의도.
+STAGE2-PLAN ② 마크다운 내보내기는 유지되며 P4 뒤, P5 앞에 둔다(확정 — LC 11-03 판정)(STAGE2-PLAN «문구 회상과의 순서»). 1 PR = 1 의도.
 
 검토했던 선택지(기록):
 

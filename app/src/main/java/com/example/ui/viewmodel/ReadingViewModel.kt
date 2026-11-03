@@ -44,6 +44,11 @@ sealed class Screen {
     object Settings : Screen()
     object Statistics : Screen()
     object KnowledgeDrawer : Screen()
+    /** 문구 회상(PHRASE-RECALL-SPEC P1). [initialQuery]는 기억 서랍 검색에서 넘어올 때의 검색어. */
+    data class PhraseRecall(
+        val initialQuery: String = "",
+        val initialFilter: com.example.data.knowledge.RecallFilter = com.example.data.knowledge.RecallFilter()
+    ) : Screen()
 }
 
 sealed class OcrState {
@@ -305,6 +310,22 @@ class ReadingViewModel @JvmOverloads constructor(
         if (screen is Screen.BookDetail) {
             loadBookDetail(screen.bookId)
         }
+    }
+
+    /** 문구 회상으로 간다. 기억 서랍 검색어를 이어받을 수 있다. */
+    fun openPhraseRecall(query: String = "") {
+        navigateTo(Screen.PhraseRecall(query.trim()))
+    }
+
+    /**
+     * 문구 회상 → 책 상세. 떠나기 전에 현재 화면을 지금 검색어·필터로 바꿔 두어, 뒤로 오면 같은 결과가 보이게 한다
+     * (화면 상태는 AnimatedContent를 떠나면 사라진다). 미리 정한 기간은 그 시점의 날짜 범위로 고정돼 돌아온다.
+     */
+    fun openBookFromPhraseRecall(bookId: Int, query: String, filter: com.example.data.knowledge.RecallFilter) {
+        if (currentScreenState.value is Screen.PhraseRecall) {
+            currentScreenState.value = Screen.PhraseRecall(query, filter)
+        }
+        navigateTo(Screen.BookDetail(bookId))
     }
 
     fun navigateBack() {
