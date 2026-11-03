@@ -1,14 +1,19 @@
 {
-  "as_of": "2026-11-03T09:35:07+09:00",
-  "phase": "stage2 code round 2 (STAGE2-PLAN ① 캔버스 보조 뷰)",
-  "current_task": "HO-2026-1103-rd-stage2-02 — #30 BipartiteLayout·#31 그림 보기 모두 squash 머지 완료(사용자 손, 각각 critic 8 PASS·LC PASS)",
+  "as_of": "2026-11-03T13:08:11+09:00",
+  "phase": "stage2 + 새 기능 «문구 회상» 명세(docs 전용)",
+  "current_task": "CLOUD-2026-1103 rd-phrase-recall — 명세 docs/PHRASE-RECALL-SPEC-2026-11.md · ADR-006 초안 · 코드 0 (브랜치 cloud/rd-phrase-recall-spec)",
   "waiting_on": [
-    "사용자: 기록 PR #32 머지 → worktree 3개 정리(junction 확인·해제 뒤)",
+    "사용자: [cloud] 문구 회상 명세 PR 검토·«머지»",
+    "사용자: (#32는 c0bccd2로 머지됨) worktree 3개 정리 — 이 클라우드 세션에서는 확인 불가",
     "사용자: debug.keystore 있는 메인 체크아웃에서 gradle :app:assembleDebug 1회 + 패키지명 com.woodpeckerai.readingdiary · 기억 서랍 «그림» 실기기 확인",
     "사용자: 스토어 부제 확정 [ASK] — 후보 «밑줄이 책과 책을 잇는 독서 다이어리»",
     "사용자 손 U1~U8 (docs/store-listing/INTERNAL-TEST-2026-11.md)"
   ],
   "next_actions": [
+    "[ASK] ADR-006 사진 보관 선택: A-선행(첫 업로드 전 v3) / A-후행(내부 테스트 뒤 v3) / B(스키마 0 파일 이름 규약) / C(사진 미룸)",
+    "[ASK] 문구 회상 vs ② SAF 순서: (가) SAF 먼저 / (나) 회상 P1 → SAF → 사진 / (다) 회상 전체 → SAF",
+    "[ASK] 스토어 부제: 기존 «밑줄이 책과 책을 잇는 독서 다이어리» 또는 명세 §5 후보 1~3",
+    "문구 회상 P1(사진 없음, 스키마 0) — ADR-006 선택과 무관하게 착수 가능(PHRASE-RECALL-SPEC §3.2)",
     "② SAF 마크다운 내보내기(새 파일 생성만) + HonestCopyTest 조건화 (STAGE2-PLAN ②)",
     "① 후속 소형: 전환 시 graphHit 초기화 · GraphHeight 큰 글꼴 라벨 겹침 · 캔버스 노드 스크린리더 · 제목 정렬 로케일 비교",
     "U1~U8 사용자 손 · 부제 [ASK]",
@@ -24,6 +29,6 @@
     "critic_first_pass_rate": "0/2",
     "gradle_runs": "3 (1 compile fail, record ok, verify ok)"
   },
-  "head": "origin/main 8ed683a (#31) · e4a6456 (#30)",
-  "last_commit": "8ed683a (origin/main, #31 머지)"
+  "head": "origin/main c0bccd2 (#32)",
+  "last_commit": "c0bccd2 (origin/main, #32 머지)"
 }
