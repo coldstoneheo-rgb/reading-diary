@@ -1,32 +1,29 @@
 {
-  "as_of": "2026-11-02T18:45:37+09:00",
-  "phase": "stage2 code round 1 (ADR-005 · STAGE2-PLAN ⑤④부록B③)",
-  "current_task": "HO-2026-1102-rd-stage2-01 — #25·#26·#27 머지 완료, ③ #28 코드 완료·verify 미완(사용자 포그라운드 실행 대기)·머지 보류",
+  "as_of": "2026-11-03T09:35:07+09:00",
+  "phase": "stage2 code round 2 (STAGE2-PLAN ① 캔버스 보조 뷰)",
+  "current_task": "HO-2026-1103-rd-stage2-02 — #30 BipartiteLayout·#31 그림 보기 모두 squash 머지 완료(사용자 손, 각각 critic 8 PASS·LC PASS)",
   "waiting_on": [
-    "PR 머지 = critic+LC 게이트 PASS 시 작업 창(사용자 지시 2026-11-02). #28은 verify 뒤",
-    "사용자: #28 verify 포그라운드 1회 (REPORT «LC·사용자에게 필요한 것» 명령) → critic 재채점 → LC 게이트 → 머지",
-    "사용자: debug.keystore 있는 체크아웃에서 gradle :app:assembleDebug 1회 + 패키지명 com.woodpeckerai.readingdiary 확인 (워크트리 키스토어 복사는 권한 deny)",
+    "사용자: 기록 PR #32 머지 → worktree 3개 정리(junction 확인·해제 뒤)",
+    "사용자: debug.keystore 있는 메인 체크아웃에서 gradle :app:assembleDebug 1회 + 패키지명 com.woodpeckerai.readingdiary · 기억 서랍 «그림» 실기기 확인",
     "사용자: 스토어 부제 확정 [ASK] — 후보 «밑줄이 책과 책을 잇는 독서 다이어리»",
-    "사용자 손 U1~U8 (docs/store-listing/INTERNAL-TEST-2026-11.md): 업로드 키스토어 · Play Console 앱 생성 · 아이콘 512 · 처리방침 배포 URL(U4 뒤 SettingsScreen PRIVACY_POLICY_URL 1줄) · 테스터 ≤5"
+    "사용자 손 U1~U8 (docs/store-listing/INTERNAL-TEST-2026-11.md)"
   ],
   "next_actions": [
-    "① 이분 그래프 캔버스 보조 뷰 + 탭→원문 카드 (STAGE2-PLAN ①)",
     "② SAF 마크다운 내보내기(새 파일 생성만) + HonestCopyTest 조건화 (STAGE2-PLAN ②)",
+    "① 후속 소형: 전환 시 graphHit 초기화 · GraphHeight 큰 글꼴 라벨 겹침 · 캔버스 노드 스크린리더 · 제목 정렬 로케일 비교",
     "U1~U8 사용자 손 · 부제 [ASK]",
-    "후속 소형: GeminiApiClient bookTitle 매개변수 삭제 + 로그 가드 테스트 · 처리방침 html 3항 표지 문구 · STAGE2-PLAN 부록 A 문구 · 테스트 Room in-memory 주입 · Dashboard/BookDetail 플레이스홀더·배지 스크린샷"
+    "이전 후속: GeminiApiClient bookTitle 매개변수 삭제 · 처리방침 html 3항 · 테스트 Room in-memory 주입 · Dashboard/BookDetail 스크린샷"
   ],
   "metrics": {
-    "unit_tests_baseline_ae6751c": 87,
-    "unit_tests_after_round": "96 at #26 verify (pre-#27); #28 pending",
-    "screenshot_baselines": 7,
-    "unsplash_photo_literals_in_app_src_main": 0,
+    "unit_tests_after_round": 131,
+    "unit_test_classes": 25,
+    "screenshot_baselines": 8,
     "room_schema_version": 2,
-    "prs_merged_this_round": 3,
-    "prs_on_hold_this_round": 1,
-    "critic_first_pass_rate": "1/4",
-    "unsplash_lines_in_app_src": 1,
-    "unit_test_files": 21
+    "prs_merged_this_round": 2,
+    "prs_ready_unmerged": 0,
+    "critic_first_pass_rate": "0/2",
+    "gradle_runs": "3 (1 compile fail, record ok, verify ok)"
   },
-  "head": "origin/main 36f66ab · #28 0547826",
-  "last_commit": "36f66ab (origin/main, #27 머지)"
+  "head": "origin/main 8ed683a (#31) · e4a6456 (#30)",
+  "last_commit": "8ed683a (origin/main, #31 머지)"
 }
