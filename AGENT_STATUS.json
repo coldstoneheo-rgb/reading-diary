@@ -1,9 +1,9 @@
 {
-  "as_of": "2026-11-03T03:52:29+09:00",
+  "as_of": "2026-11-03T09:35:07+09:00",
   "phase": "stage2 code round 2 (STAGE2-PLAN ① 캔버스 보조 뷰)",
-  "current_task": "HO-2026-1103-rd-stage2-02 — #30 BipartiteLayout(critic 8 PASS·LC PASS)·#31 그림 보기(critic 8 PASS·LC 게이트 중) 코드·verify 완료, squash 머지가 auto mode 분류기 거부 → 사용자 손",
+  "current_task": "HO-2026-1103-rd-stage2-02 — #30 BipartiteLayout·#31 그림 보기 모두 squash 머지 완료(사용자 손, 각각 critic 8 PASS·LC PASS)",
   "waiting_on": [
-    "사용자: ! gh pr merge 30 --squash → #31에 origin/main 병합·push → ! gh pr merge 31 --squash(LC 게이트 PASS 뒤) → 기록 PR 머지 (REPORT 인계 블록)",
+    "사용자: 기록 PR #32 머지 → worktree 3개 정리(junction 확인·해제 뒤)",
     "사용자: debug.keystore 있는 메인 체크아웃에서 gradle :app:assembleDebug 1회 + 패키지명 com.woodpeckerai.readingdiary · 기억 서랍 «그림» 실기기 확인",
     "사용자: 스토어 부제 확정 [ASK] — 후보 «밑줄이 책과 책을 잇는 독서 다이어리»",
     "사용자 손 U1~U8 (docs/store-listing/INTERNAL-TEST-2026-11.md)"
@@ -19,11 +19,11 @@
     "unit_test_classes": 25,
     "screenshot_baselines": 8,
     "room_schema_version": 2,
-    "prs_merged_this_round": 0,
-    "prs_ready_unmerged": 2,
+    "prs_merged_this_round": 2,
+    "prs_ready_unmerged": 0,
     "critic_first_pass_rate": "0/2",
     "gradle_runs": "3 (1 compile fail, record ok, verify ok)"
   },
-  "head": "origin/main 80d5f2e · #30 b1ac397 · #31 62e01ff",
-  "last_commit": "80d5f2e (origin/main, #28 머지)"
+  "head": "origin/main 8ed683a (#31) · e4a6456 (#30)",
+  "last_commit": "8ed683a (origin/main, #31 머지)"
 }
