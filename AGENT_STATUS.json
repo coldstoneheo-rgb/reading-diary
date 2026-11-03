@@ -1,11 +1,11 @@
 {
-  "as_of": "2026-11-03T17:46:26+09:00",
-  "phase": "문구 회상 P1 PR 대기(로컬 창) → 다음 = P2 사진 저장소",
-  "current_task": "HO-2026-1103-rd-phrase-recall-p1-01 — PR #36(LC 게이트 PASS-관찰, 보정 2건 반영) 머지 위임 대기",
+  "as_of": "2026-11-03T18:43:59+09:00",
+  "phase": "문구 회상 P1·P1-b 머지 완료 → 다음 = P2 사진 저장소(새 창)",
+  "current_task": "인계 docs PR(HANDOVER-2026-1103-rd-phrase-recall-p1) — 이 창 마감 뒤 P2는 새 창",
   "waiting_on": [
-    "사용자: 문구 회상 P1 PR 검토 · 머지 위임 1줄(이 창은 위임 없음)",
-    "사용자: 머지 뒤 디버그 APK 설치 → 대시보드 상단 «문구 회상» 아이콘·내비 서랍 버튼 진입 확인",
-    "사용자: 새 세션에서 /effort 상태 1회 확인(#35 modelSettings medium 적용 확인)",
+    "사용자: 잔재 worktree 폴더 2개·로컬 브랜치 삭제(에이전트 삭제가 보호 규칙·권한에 막힘)",
+    "사용자: 디버그 APK로 대시보드 «문구 회상» 아이콘·내비 서랍 버튼 진입 확인",
+    "사용자: 새 세션에서 /effort 상태 1회 확인(#35)",
     "사용자 손 U1~U7 (docs/store-listing/INTERNAL-TEST-2026-11.md) — U8 첫 AAB 업로드는 P5 머지 뒤(ADR-006 A-선행)"
   ],
   "next_actions": [
@@ -17,18 +17,18 @@
     "사용자 U8: P5 머지 뒤 bundleRelease → 첫 AAB 업로드 (부제 = 명세 §5 후보 3, 결정됨)",
     "① 후속 소형: 전환 시 graphHit 초기화 · GraphHeight 큰 글꼴 라벨 겹침 · 캔버스 노드 스크린리더 · 제목 정렬 로케일 비교",
     "이전 후속: GeminiApiClient bookTitle 매개변수 삭제 · 처리방침 html 3항 · 테스트 Room in-memory 주입 · Dashboard/BookDetail 스크린샷",
-    "문구 회상 후속 소형: 펼친 카드 검색어 강조 · 검색 계산 백그라운드화(기록 수천 건 대비) · 기억 서랍도 «책 보기 → 뒤로» 상태 보존 · 회전 복원 테스트(StateRestorationTester: 직접 지정 + 쪽 범위)"
+    "문구 회상 후속 소형(HANDOVER-2026-1103 §후속): settle «버릴 단어» 분기 테스트 · stemExcerpt 끝 대체 도달 불가 정리 · 2글자 정규형 선점(«제주항공») · 과매칭 부정 테스트 · 펼친 카드 강조 · 검색 계산 백그라운드화 · 회전 복원 테스트 · 기억 서랍 책 보기 복귀 상태"
   ],
   "metrics": {
-    "unit_tests_after_round": 170,
+    "unit_tests_after_round": 173,
     "unit_test_classes": 28,
     "screenshot_baselines": 10,
     "room_schema_version": 2,
-    "prs_merged_this_round": 1,
-    "prs_ready_unmerged": 1,
-    "critic_first_pass_rate": "0/4 (누적. 이번 P1: 1차 6/10 NEEDS_REVISION → 2차 8/10 PASS)",
-    "gradle_runs": "7 (PhraseRecallTest 단독 · testDebugUnitTest 165 · recordRoborazziDebug 새 2장 · verifyRoborazziDebug 168 중 1 실패(테스트 누수) → 168/168 · 2123d26에서 verify 168/168 · LC 보정 뒤 HEAD c9718d5에서 testDebugUnitTest 170/170 + verifyRoborazziDebug 170/170)"
+    "prs_merged_this_round": 3,
+    "prs_ready_unmerged": 0,
+    "critic_first_pass_rate": "1/5 (누적. #36 1차 6/10 NEEDS_REVISION → PASS · #37 1차 8/10 PASS)",
+    "gradle_runs": "10 (#36: 7 — HEAD c9718d5 testDebugUnitTest 170/170·verifyRoborazziDebug 170/170 · #37: 2 — HEAD 6241e61 testDebugUnitTest 173/173·verifyRoborazziDebug 173/173 · #35: 0 · 이 docs PR: 0)"
   },
-  "head": "origin/main a809d1c (#35)",
-  "last_commit": "a809d1c (origin/main, #35 effort 설정 머지)"
+  "head": "origin/main bdbcbf3 (#37)",
+  "last_commit": "bdbcbf3 (origin/main, #37 머지)"
 }
