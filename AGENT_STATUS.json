@@ -1,7 +1,7 @@
 {
-  "as_of": "2026-11-03T18:43:59+09:00",
-  "phase": "문구 회상 P1·P1-b 머지 완료 → 다음 = P2 사진 저장소(새 창)",
-  "current_task": "인계 docs PR(HANDOVER-2026-1103-rd-phrase-recall-p1) — 이 창 마감 뒤 P2는 새 창",
+  "as_of": "2026-11-03T19:53:00+09:00",
+  "phase": "문구 회상 P2 사진 저장소 PR 대기(LC 게이트) → 다음 = P3 Room v3",
+  "current_task": "P2 DiaryPhotoStore PR — critic PASS, LC 게이트 대기(머지 0)",
   "waiting_on": [
     "사용자: 잔재 worktree 폴더 2개·로컬 브랜치 삭제(에이전트 삭제가 보호 규칙·권한에 막힘)",
     "사용자: 디버그 APK로 대시보드 «문구 회상» 아이콘·내비 서랍 버튼 진입 확인",
@@ -9,7 +9,6 @@
     "사용자 손 U1~U7 (docs/store-listing/INTERNAL-TEST-2026-11.md) — U8 첫 AAB 업로드는 P5 머지 뒤(ADR-006 A-선행)"
   ],
   "next_actions": [
-    "로컬 창 P2: 사진 저장소 DiaryPhotoStore(noBackupFilesDir/diary_photos/, UUID.jpg) + sweep — §3.3",
     "로컬 창 P3 🔴: saveDiary REPLACE→@Update 선행 + Room v3 diary_photos + Migration(2,3) + 파괴 폴백 제거 + 3.json + M1~M7 — §3.4 (첫 AAB 업로드 전 머지, ADR-006)",
     "로컬 창 P4: 사진 항상 보관(체크박스 없음) + 편집 N장 유지/교체/삭제/추가 + 회상 카드·복기 + 삭제 연동 + 처리방침:41·데이터 안전 N8 — §3.5",
     "로컬 창 ② SAF 마크다운 내보내기(새 파일 생성만) + HonestCopyTest 조건화 (STAGE2-PLAN ②, P4 뒤·P5 앞 확정 — LC 11-03)",
@@ -17,17 +16,18 @@
     "사용자 U8: P5 머지 뒤 bundleRelease → 첫 AAB 업로드 (부제 = 명세 §5 후보 3, 결정됨)",
     "① 후속 소형: 전환 시 graphHit 초기화 · GraphHeight 큰 글꼴 라벨 겹침 · 캔버스 노드 스크린리더 · 제목 정렬 로케일 비교",
     "이전 후속: GeminiApiClient bookTitle 매개변수 삭제 · 처리방침 html 3항 · 테스트 Room in-memory 주입 · Dashboard/BookDetail 스크린샷",
-    "문구 회상 후속 소형(HANDOVER-2026-1103 §후속): settle «버릴 단어» 분기 테스트 · stemExcerpt 끝 대체 도달 불가 정리 · 2글자 정규형 선점(«제주항공») · 과매칭 부정 테스트 · 펼친 카드 강조 · 검색 계산 백그라운드화 · 회전 복원 테스트 · 기억 서랍 책 보기 복귀 상태"
+    "문구 회상 후속 소형(HANDOVER-2026-1103 §후속): settle «버릴 단어» 분기 테스트 · stemExcerpt 끝 대체 도달 불가 정리 · 2글자 정규형 선점(«제주항공») · 과매칭 부정 테스트 · 펼친 카드 강조 · 검색 계산 백그라운드화 · 회전 복원 테스트 · 기억 서랍 책 보기 복귀 상태",
+    "P2 후속 소형(critic #P2): 뒤집기·회전 행렬 3중 복사(BitmapDecoding.decodeForOcr·DiaryPhotoStore.save) 공통 함수화 · save 실패 정리 경로(compress 실패·IO 예외) 테스트 · onDispose 임시 파일 삭제 Compose 테스트 · P4 선행: 사진 save 완료 뒤 임시 파일 삭제 순서와 앱 시작 sweep을 save와 동시 실행하지 않기"
   ],
   "metrics": {
-    "unit_tests_after_round": 173,
-    "unit_test_classes": 28,
+    "unit_tests_after_round": 185,
+    "unit_test_classes": 29,
     "screenshot_baselines": 10,
     "room_schema_version": 2,
     "prs_merged_this_round": 3,
-    "prs_ready_unmerged": 0,
-    "critic_first_pass_rate": "1/5 (누적. #36 1차 6/10 NEEDS_REVISION → PASS · #37 1차 8/10 PASS)",
-    "gradle_runs": "10 (#36: 7 — HEAD c9718d5 testDebugUnitTest 170/170·verifyRoborazziDebug 170/170 · #37: 2 — HEAD 6241e61 testDebugUnitTest 173/173·verifyRoborazziDebug 173/173 · #35: 0 · 이 docs PR: 0)"
+    "prs_ready_unmerged": 1,
+    "critic_first_pass_rate": "2/6 (누적. #36 1차 6/10 NEEDS_REVISION → PASS · #37 1차 8/10 PASS · P2 1차 8/10 PASS)",
+    "gradle_runs": "14 (P2: 4 — 1차 전체 testDebugUnitTest 184 중 1 실패(Windows 파일 핸들, 테스트 디코드 수정) · DiaryPhotoStoreTest 단독 통과 · HEAD 534b142 testDebugUnitTest 185(통과 184·건너뜀 1 프로브) · verifyRoborazziDebug 185(통과 184·건너뜀 1) · #36: 8 — HEAD c9718d5 testDebugUnitTest 170/170·verifyRoborazziDebug 170/170 · #37: 2 — HEAD 6241e61 testDebugUnitTest 173/173·verifyRoborazziDebug 173/173 · #35: 0 · #38: 0)"
   },
   "head": "origin/main bdbcbf3 (#37)",
   "last_commit": "bdbcbf3 (origin/main, #37 머지)"

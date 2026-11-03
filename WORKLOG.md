@@ -105,3 +105,17 @@ signals:
 **의미.** 문구 회상 P1이 게이트 관찰까지 닫혔다(#36·#37). «제주도를»처럼 조사가 붙은 검색어로 «제주에서»만 있는 기록을 찾으면, 이제 카드 발췌에도 그 단어가 보인다.
 다음은 사진을 앱 안(백업 제외 폴더)에 보관하는 저장소(P2)이고, 새 창에서 시작한다.
 
+
+---
+date: 2026-11-03
+agent: local (HO-2026-1103-rd-phrase-recall-p2-01)
+scope: 문구 회상 P2 — data/photo/DiaryPhotoStore.kt(저장소 계층) · DiaryPhotoStoreTest · OcrDiaryScreen 촬영 임시 파일 삭제 · ADR-002:30 해소 표기 · CLAUDE.md 구조도 · 전 창 인계서 보정 2줄
+signals:
+  synergy: "OCR 디코드(BitmapDecoding.decodeDownsampled)를 그대로 재사용해 보관 사진과 OCR 입력이 같은 EXIF·축소 규칙을 쓴다"
+  monetization: "0 — 유료·광고 코드 없음, 새 네트워크 호스트 0, 새 권한·의존성 0"
+  learning: "Windows 호스트의 Robolectric에서 BitmapFactory.decodeFile 뒤 같은 파일 delete가 실패했다 — 테스트 디코드는 스트림을 직접 닫는다"
+  idea: "onDispose 정리는 isChangingConfigurations로 회전 재생성을 거른다 — 재생성을 견디게 만든 ViewModel 작업과 화면 정리가 서로 밟지 않게"
+---
+
+**의미.** OCR에 쓴 페이지 사진을 앱 안 백업 제외 폴더(`noBackupFilesDir/diary_photos/`)에 남길 수 있는 저장소가 생겼다(아직 화면·DB와 연결하지 않음, P3·P4).
+경로 탈출·고아 파일 정리(sweep)·디코드 실패를 테스트로 고정했고, 촬영할 때마다 캐시에 쌓이던 원본 사진은 이제 화면을 떠나면 지워진다(ADR-002 후속 발견 해소). 스키마는 v2 그대로다.
