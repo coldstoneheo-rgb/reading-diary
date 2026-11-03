@@ -71,7 +71,8 @@ object PhraseRecall {
                     queryStem != null -> {
                         val stemKind = stemMatch(diary, queryStem) ?: return@mapNotNull null
                         // 발췌 위치는 정규형 근처로 잡되 강조는 하지 않는다(사용자가 친 글자 그대로가 아니므로).
-                        val ex = excerpt(diary.selectedText, if (stemKind == MatchKind.TEXT) queryStem else "")
+                        val ex = if (stemKind == MatchKind.TEXT) stemExcerpt(diary.selectedText, queryStem)
+                        else excerpt(diary.selectedText, "")
                         hit(diary, book, ex.first to null, stemKind)
                     }
                     else -> null
@@ -93,6 +94,18 @@ object PhraseRecall {
             KeywordExtractor.extract(diary.notes).any { settle(it) == key } -> MatchKind.NOTES
             else -> null
         }
+    }
+
+    /**
+     * 정규형 일치의 발췌 위치: 1회 정규형(«제주도») → 끝까지 정규화한 값(«제주») 순으로 본문에서 찾는다.
+     * 본문에 «제주에서»만 있으면 1회 정규형은 못 찾으므로 정규화 값으로 다시 찾는다. 둘 다 없으면 앞부분.
+     */
+    private fun stemExcerpt(text: String, stem: String): Pair<String, IntRange?> {
+        for (candidate in listOf(stem, settle(stem)).distinct()) {
+            val found = excerpt(text, candidate)
+            if (found.second != null) return found
+        }
+        return excerpt(text, "")
     }
 
     /** 정규형이 더 바뀌지 않을 때까지 `stem`을 다시 적용한다(최대 3회 — 조사·어미 겹침은 그 안에서 끝난다). 버릴 단어가 되면 직전 값. */
