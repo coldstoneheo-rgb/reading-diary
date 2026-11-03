@@ -21,9 +21,11 @@
 
 ## 2. 설명 문안
 
-**스토어 부제 / 짧은 설명(80자 이내)** — [ASK] 확정은 오너(ADR-003 보류 6b)
+**스토어 부제 / 짧은 설명(80자 이내)** — 결정됨(2026-11-03, 오너 · [문구 회상 명세 §5](../PHRASE-RECALL-SPEC-2026-11.md) 후보 3 · 정본 life-coordinator `DEC-2026-1103-rd-phrase-recall.md`). 정직 조건: 첫 업로드가 P4(사진 연결) 뒤
 
-> 밑줄이 책과 책을 잇는 독서 다이어리
+> 밑줄이 책과 책을 잇고, 떠오른 문장을 사진과 함께 되찾는 독서 다이어리
+
+(이전 후보: «밑줄이 책과 책을 잇는 독서 다이어리» 20자)
 
 (대안 — ADR-003 Q9 가치 제안을 짧은 설명으로: «읽은 책의 밑줄이 서로 이어질 때, 새로운 생각이 태어납니다.» 34자)
 
@@ -98,6 +100,7 @@
 | N5 | 밑줄 글자 인식(기본) | **사진은 나가지 않음.** ML Kit 한국어 인식은 기기 안에서 실행(모델은 Play 서비스가 첫 사용 시 내려받음) | — | 크롭 후 인식 | `MlKitTextExtractor.kt:25` (`KoreanTextRecognizerOptions`) |
 | N6 | **정밀 분석(선택)** | **선택한 페이지 사진**(JPEG, base64) + 사용자 본인 Gemini 키(`x-goog-api-key` 헤더) | `generativelanguage.googleapis.com` (Google) | ① 설정에서 본인 키 등록 ② 사진 전송 동의 체크 ③ 사진마다 확인 다이얼로그(«사진을 Google Gemini로 보낼까요?»)에서 «전송하고 분석» — 셋 다 있을 때만 | 동의 체크 `SettingsScreen.kt:418-424`, 버튼 노출 조건 `OcrDiaryScreen.kt:1033-1034`, 확인 다이얼로그 `:1053-1077`, ViewModel 차단 `ReadingViewModel.kt:509-512`, 엔드포인트 `GeminiApiClient.kt:40-41`, JPEG/base64 인코딩 `:69-71`, 헤더·전송 `:107-116` |
 | N7 | Android 자동 백업 | Room DB(책·일기)·일반 설정 | 사용자 본인 Google 계정 백업 | OS가 수행 | `AndroidManifest.xml:17-19`, `res/xml/backup_rules.xml`·`data_extraction_rules.xml`(키 저장소만 제외) |
+| N8 | **기록 사진 보관**(문구 회상 P4·P5 — 2026-11-03 결정, [ADR-006](../adr/ADR-006-phrase-recall-photo-storage.md)) | **사진 보관(기기 안)** — 앱 내부 `noBackupFilesDir/diary_photos/`, 자동 백업·기기 간 자동 이전 제외. **사용자 내보내기 zip에만 포함**(사용자가 «백업 파일 만들기»를 누르고 SAF로 저장 위치를 고를 때만). **자동 전송 0** · 앱 서버 0 | 사용자가 고른 저장 위치(본인 Google 드라이브 등 SAF 프로바이더) | 사용자가 zip 백업을 실행할 때만 | 코드 미구현 — P4(보관)·P5(zip) PR에서 근거 칸 채움([명세 §3.5·§3.6](../PHRASE-RECALL-SPEC-2026-11.md)) |
 
 Play 기준상 **N7(OS 자동 백업)은 앱의 «수집»이 아니다**(사용자 계정으로 OS가 처리). N4·N5는 Google SDK 자체의 진단·사용 통계 전송이 있을 수 있어(ADR-002 «후속 발견»)
 Google이 공개한 ML Kit/코드 스캐너 데이터 공개 문서를 오너가 확인해 SDK 몫을 반영한다 — [사용자 확인].
@@ -159,5 +162,5 @@ Google이 공개한 ML Kit/코드 스캐너 데이터 공개 문서를 오너가
 | U4 | **처리방침 배포** — `docs/privacy/privacy-policy.html`을 공개 URL로(예: GitHub Pages) 올리고 §1 URL 자리 채우기 | 데이터 안전·등록정보 | 연락처 이메일·시행일 자리 채우기 |
 | U5 | **테스터 ≤5명 이메일 목록 등록** + 옵트인 링크 배포(§6 안내문) | 설치 | |
 | U6 | 데이터 안전 폼 제출(§5, [사용자 확인] 3건 결정) · 콘텐츠 등급 설문 · 타겟 연령 | 출시 검토 | |
-| U7 | 스토어 부제 확정([ASK]) | 등록정보 | 후보 «밑줄이 책과 책을 잇는 독서 다이어리» |
+| U7 | 스토어 부제 입력(2026-11-03 결정됨) | 등록정보 | «밑줄이 책과 책을 잇고, 떠오른 문장을 사진과 함께 되찾는 독서 다이어리»(§2) |
 | U8 | 2단계 머지 후 `bundleRelease` 실행(`!`) → AAB 업로드 → 출시 상태 «제공됨» 확인 | 완료 정의 | 셸에 `NAVER_CLIENT_SECRET`을 export한 채 빌드하면 그 값이 박힌다(CLAUDE.md) — 의도한 키인지 확인 |

@@ -7,8 +7,8 @@
 
 ## 공통 DoD(모든 항목)
 
-- **Room 스키마 변경 0** — `AppDatabase` `version = 2`·엔티티 필드 그대로(`AppDatabase.kt:21`, `Entities.kt`). `RoomSchemaExportTest` 통과로 확인.
-- **사진 외부 전송 경로 추가 0** — `GeminiKeyPolicyTest` 통과(참조 범위 고정 유지).
+- **Room 스키마 변경: [ADR-006](adr/ADR-006-phrase-recall-photo-storage.md) 예외(`diary_photos`, v3) 외 0** — 그 밖의 엔티티 필드 그대로(`AppDatabase.kt:21`, `Entities.kt`). `RoomSchemaExportTest` 통과로 확인. (개정 2026-11-03 — 예외는 문구 회상 P3 한 PR뿐, 첫 업로드 전 머지)
+- **사진 자동 외부 전송 경로 추가 0** — `GeminiKeyPolicyTest` 통과(참조 범위 고정 유지). 예외 = 사용자가 실행하고 저장 위치(SAF)를 고르는 P5 zip 백업뿐(개정 2026-11-03, ADR-006 Q-b).
 - **유료·광고 코드 0.** 새 네트워크 호스트 0(④는 오히려 하나를 지운다).
 - `gradle :app:testDebugUnitTest` 통과. Compose UI를 바꾸는 항목(①②③④)은 `gradle :app:verifyRoborazziDebug`까지, 기준 이미지 갱신 시 PR에 이유.
 - Critic 서브에이전트 PASS(HARNESS.md).
@@ -21,10 +21,14 @@
 | 2 | ④ Unsplash 폴백 제거 | ③의 예시 책이 쓸 로컬 플레이스홀더를 먼저 만든다 | 2~3h |
 | 3 | ③ «예시 2권» | 시드 제거가 ④와 같은 `AppDatabase.kt`를 건드림 → ④ 뒤 | 2~3h |
 | 4 | ① 캔버스 보조 뷰 | ③의 예시 2권이 그래프 첫 화면 데이터가 된다 | 4~6h |
-| 5 | ② SAF 내보내기 | 가장 위험(파일 쓰기). 마지막에, AAB 직전 | 5~7h |
+| 5 | ② SAF 내보내기 | 가장 위험(파일 쓰기). 마지막에, AAB 직전(개정 2026-11-03: P5 직전 — 아래 «문구 회상과의 순서») | 5~7h |
+| 6 | **P5 DB+사진 zip 백업 + 가져오기(복원)** — [문구 회상 명세 §3.6](PHRASE-RECALL-SPEC-2026-11.md) | 2026-11-03 추가(ADR-006 Q-b, LC 결정 11-03). ②를 **대체하지 않는다** — ②는 사람이 읽는 마크다운 사본, P5는 앱으로 되돌리는 복원본. 사진 포함. 문구 회상 P1~P4 뒤, 첫 AAB 직전 | 5~7h |
 | — | 부록 A·B | 문구 정정. ⑤ 또는 별도 소형 PR | 0.5~1h |
 
 합계 추정 14~21h(검증·Critic 루프 포함, 빌드 시간 제외).
+
+**문구 회상과의 순서(개정 2026-11-03, 명세 §4 (다) 결정):** 남은 항목은 문구 회상 P1 → P2 → P3(🔴 v3, ADR-006 예외) → P4 → **② SAF 마크다운 내보내기** → **P5 zip 백업+가져오기** → 첫 AAB 업로드(U8).
+결정 3 목록(P1→P2→P3→P4→P5→첫 업로드)에는 ②가 없다. ②를 P4 뒤·P5 앞에 둔 것은 (다)의 정의 «회상 전체(사진 포함) 먼저 → SAF ②»에 따른 **해석 — 오너 확인 대상**이다. 위 표의 ①③④⑤는 머지됨(#25~#31, `AGENT_STATUS.json`).
 
 ---
 
