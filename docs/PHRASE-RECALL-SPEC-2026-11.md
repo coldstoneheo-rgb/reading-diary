@@ -102,7 +102,7 @@
 | **P3** 🔴 | Room `version = 3` + `Migration(2,3)` + `fallbackToDestructiveMigration` 제거 + `3.json` + 마이그레이션 테스트 | **변경** | 선택지 A(선행·후행)만 | 3~4h |
 | **P4** | OCR 저장 화면 연결 + 편집 모드 사진 + 회상 카드 썸네일·복기 화면 사진 + 삭제 연동 + **처리방침·데이터 안전·스토어 문구** | 0 | 있음 | 4~5h |
 
-순서: P1 → (ADR-006 선택) → A-선행이면 바로 P3 → P2 → P4 · A-후행이면 2단계는 P1까지, P3 → P2 → P4는 내부 테스트 뒤 · B면 P2 → P4(B 전용 저장 순서, §3.3). 합계 12~16h(검증·critic 포함, 빌드 시간 제외).
+순서: P1 → (ADR-006 선택) → A-선행이면 바로 P2 → P3 → P4 · A-후행이면 2단계는 P1까지, P2 → P3 → P4는 내부 테스트 뒤(P3의 `PhotoEdit` 파일 삭제가 P2의 `DiaryPhotoStore`를 쓰므로 P2가 먼저) · B면 P2 → P4(B 전용 저장 순서, §3.3). 합계 12~16h(검증·critic 포함, 빌드 시간 제외).
 P3는 UI와 섞지 않는다(CLAUDE.md «UI + Room 스키마는 PR을 나눈다»).
 
 ### 3.2 P1 — 사진 없는 문구 회상
@@ -182,7 +182,7 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 별도 테이블(`diary_photos`, 일기 1건에 사진 여러 장)은 F6 때문에 `saveDiary`를 `@Update`로 바꾸는 선행 작업이 필요하고, 원문 요구(«당시 촬영 사진»)는 1장이면 충분하다 → 열 1개를 기본안으로 하고 ADR-006에 대안으로만 적는다.
 
 **첫 단계(실패하는 테스트 먼저):** `MigrationTest`가 `2.json`을 읽어 v2 DB를 만드는 것만 하는 테스트를 먼저 올려, Robolectric 단위 테스트에서 `MigrationTestHelper`가 스키마 JSON을 찾는지 확인한다.
-`sourceSets["test"].assets.srcDir(...)`이 단위 테스트 병합 assets에 들어가는지는 **미검증**(`isIncludeAndroidResources = true`는 이미 있음, `app/build.gradle.kts:63`). 안 되면 대안 = 테스트가 `app/schemas/…/2.json`을 파일로 직접 읽어 `createSql`로 v2 DB를 손수 만든 뒤 `Room.databaseBuilder(...).addMigrations(MIGRATION_2_3)`로 연다.
+`sourceSets["test"].assets.srcDir(...)`이 단위 테스트 병합 assets에 들어가는지는 **미검증**(`isIncludeAndroidResources = true`는 이미 있음, `app/build.gradle.kts:63`). 안 되면 대안 = 테스트가 `app/schemas/…/2.json`을 파일로 직접 읽어 v2 DB를 손수 만든 뒤 `Room.databaseBuilder(...).addMigrations(MIGRATION_2_3)`로 연다 — 필수 3단계: ① `createSql`의 `${TABLE_NAME}` 자리표시자를 실제 테이블 이름으로 치환 ② `setupQueries`대로 `room_master_table`을 만들고 v2 `identityHash` 삽입 ③ `PRAGMA user_version = 2`. 하나라도 빠지면 Room이 v2로 인식하지 못해 엉뚱한 경로를 탄다.
 `debug`/`main` 소스셋 assets에 스키마를 넣는 방법은 **금지**(APK에 들어간다).
 
 **건드릴 파일:** `data/Entities.kt`(`Diary.photoPath: String? = null`) · `data/AppDatabase.kt`(`version = 3`, `.addMigrations(MIGRATION_2_3)`, **`fallbackToDestructiveMigration()` 제거**(`:38`), `:12-20` 주석 갱신) · 새 `data/Migrations.kt` ·
@@ -209,7 +209,7 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 ### 3.5 P4 — 화면 연결
 
 **건드릴 파일:** `ui/screens/OcrDiaryScreen.kt`(체크박스 testTag `ocrdiary_keep_photo`, 편집 모드 사진 표시·바꾸기·지우기 — 화면은 의도만 넘긴다) ·
-`ui/viewmodel/ReadingViewModel.kt`(**사진 쓰기는 ViewModel 스코프에서**: `saveDiaryWithPhoto(…, source: Uri?, rotation, flipped, keep: Boolean)` → `DiaryPhotoStore.save` → `saveDiary(photo = …)` — 디코드를 ViewModel에 두는 기존 관례(`ReadingViewModel.kt:506-509`)와 같아 회전·뒤로가기에도 끊기지 않는다 · `deleteDiary`·`deleteBook`·`deleteBookcase`·`deleteSampleBooks`에서 사진 삭제 — 책·책장은 CASCADE 전에 해당 일기들의 경로를 먼저 조회, 앱 시작 시 `sweep` 1회) ·
+`ui/viewmodel/ReadingViewModel.kt`(**사진 쓰기는 ViewModel 스코프에서**: `saveDiaryWithPhoto(…, photo: PhotoInput)` — `sealed interface PhotoInput { object Keep; object Remove; data class New(val source: Uri, val rotation: Float, val flipped: Boolean) }`(null·불리언 조합으로 상태를 겸하지 않는다) → `New`면 `DiaryPhotoStore.save` 후 `PhotoEdit.Replace(경로)`, 나머지는 그대로 `saveDiary(photo = …)` — 디코드를 ViewModel에 두는 기존 관례(`ReadingViewModel.kt:506-509`)와 같아 회전·뒤로가기에도 끊기지 않는다 · `deleteDiary`·`deleteBook`·`deleteBookcase`·`deleteSampleBooks`에서 사진 삭제 — 책·책장은 CASCADE 전에 해당 일기들의 경로를 먼저 조회, 앱 시작 시 `sweep` 1회) ·
 `ui/screens/PhraseRecallScreen.kt`(썸네일 — Coil `AsyncImage(model = File)`, 로컬 파일만 · 복기 화면 확대) ·
 `docs/privacy/privacy-policy.html:41`(«사진 자체는 일기에 저장되지 않습니다» → «보관을 선택한 사진은 앱 내부 저장소에만 남고 자동 백업에서 제외되며, 기록·책을 지우면 함께 지워집니다») ·
 `docs/store-listing/INTERNAL-TEST-2026-11.md`(§5 데이터 안전 표에 «N8 사진 보관(기기 안) — 전송 0» 행, §2 문안) · 앱 안 처리방침 요약(`PolicyCopyTest` 대상 문구가 사진을 언급하면 함께).
@@ -222,7 +222,7 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 |--------|-----------|-----------|
 | (가) **SAF ② 먼저** → 문구 회상 P1~P4 | 2단계 계획(STAGE2-PLAN 권장 순서 5번, AAB 직전)과 스키마 동결을 그대로 지켜 첫 업로드가 가장 빠르다 | 오너가 방금 요청한 기능이 가장 늦고, 내보내기에 사진 포함 여부를 나중에 다시 설계해야 할 수 있다 |
 | (나) **회상 P1(사진 없음) 먼저** → SAF ② → 사진(P2~P4) | 스키마 0인 절반을 바로 쓰게 하면서 SAF 일정도 지킨다 | 사진 없는 회상은 원문 요구의 절반이고, 그동안 찍은 사진은 보관되지 않아 나중에 붙일 수 없다 |
-| (다) **회상 전체(사진·v3 포함) 먼저** → SAF ② | 첫 업로드에 핵심 기능이 들어가고 SAF가 처음부터 사진 포함/제외를 정해 설계된다 | 가장 위험한 변경 두 개(마이그레이션·파일 쓰기)가 연달아 오고, ADR-006 A-선행(또는 B) 선택과 ADR-005 §2 개정이 전제다 |
+| (다) **회상 전체(사진 포함) 먼저** → SAF ② | 첫 업로드에 핵심 기능이 들어가고 SAF가 처음부터 사진 포함/제외를 정해 설계된다 | 가장 위험한 변경 두 개(마이그레이션·파일 쓰기)가 연달아 오고, ADR-006 A-선행(또는 B) 선택과 ADR-005 §2 개정이 전제다 |
 
 ## 5. 스토어 부제 후보(새 기능 포함) — [ASK]
 
