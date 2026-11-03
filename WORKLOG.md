@@ -46,3 +46,18 @@ signals:
 ---
 
 **의미.** 기억 서랍의 «연결 발견»에 «목록 ｜ 그림» 전환을 달았다. 그림은 책 ↔ 함께 나온 단어 이분 그래프이고, 좌표는 난수 없는 순수 함수라 스크린샷이 흔들리지 않는다. 상한(단어 12·책 10·선 40)에 걸리면 «일부만 표시»를 숨기지 않고 말한다. 목록이 기본값으로 남는다. 두 PR 모두 critic 8/10 PASS·verify 131/0이지만, 이 세션에서 squash 머지가 분류기에 막혀 사용자가 직접 머지했다 — #30 `e4a6456` → #31 `8ed683a`(main).
+
+---
+date: 2026-11-03
+agent: cloud (CLOUD-2026-1103 rd-phrase-recall)
+scope: docs only — docs/PHRASE-RECALL-SPEC-2026-11.md(신규), docs/adr/ADR-006-phrase-recall-photo-storage.md(신규), docs/handoffs/CLOUD-2026-1103-rd-phrase-recall-REPORT.md, AGENT_STATUS.json, WORKLOG.md
+signals:
+  synergy: "검색 엔진을 새로 만들지 않는다 — 기억 서랍의 BookComparison.matchKind(부분 일치)와 KeywordExtractor(조사 흡수)·KeywordLinks(단어 칩)를 그대로 엮는다"
+  monetization: "0 — 유료·광고 코드 없음, 새 네트워크 호스트 0"
+  learning: "사진을 '기기 안에 보관'하는 순간 Auto Backup이 그 사진을 기기 밖(드라이브)으로 보낸다. 보관 기능은 백업 규칙과 한 묶음으로 설계해야 ADR-002가 지켜진다"
+  idea: "미루는 동안 찍은 사진은 영영 붙일 수 없다 — '되돌릴 수 없는 손실'을 선택지 리스크 표에 따로 세는 습관"
+---
+
+**의미.** 오너가 새로 꺼낸 «떠오른 문구로 그때의 책·날짜·사진을 다시 만나기»를 코드 0으로 명세했다. 검색·필터·카드(P1)는 스키마를 건드리지 않아 2단계 안에서 바로 할 수 있고,
+사진 보관은 Room v3 마이그레이션이 정석이라 내부 테스트 스키마 동결과 부딪힌다 — 그 충돌을 ADR-006에 네 갈래(첫 업로드 전 v3 / 테스트 뒤 v3 / 파일 이름 규약 / 미룸)로 펼쳐 오너 선택으로 남겼다.
+사실 확인 중 두 가지가 드러났다: 사진을 내부 저장소에 두면 자동 백업이 기기 밖으로 내보낸다는 것, 일기 편집이 `REPLACE` insert라 사진 경로가 조용히 지워질 수 있다는 것. 둘 다 계획의 테스트 항목이 됐다.
