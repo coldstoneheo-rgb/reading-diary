@@ -151,6 +151,28 @@ class PhraseRecallTest {
   }
 
   @Test
+  fun settle_stopsAtTwoCharacterFloor() {
+    assertEquals("학교", PhraseRecall.settle("학교를"))
+  }
+
+  @Test
+  fun settle_convergesThroughStackedParticles() {
+    assertEquals("학생", PhraseRecall.settle("학생들에게"))
+  }
+
+  @Test
+  fun stemMatch_excerptLocatesSettledFormWhenFirstStemIsAbsent() {
+    // «제주도를»의 1회 정규형 «제주도»는 본문에 없고 «제주에서»만 있다 → 정규화 값 «제주»로 위치를 잡아야 한다.
+    val text = "가".repeat(100) + " 제주에서 보낸 여름"
+    val hit = PhraseRecall.search("제주도를", RecallFilter(), books,
+      listOf(Diary(id = 52, bookId = 1, page = 1, selectedText = text, notes = "", createdAt = 0))).single()
+    assertEquals(MatchKind.TEXT, hit.matchKind)
+    assertNull(hit.highlight)
+    assertTrue("발췌에 일치 단어가 보여야 한다: ${hit.excerpt}", hit.excerpt.contains("제주에서"))
+    assertTrue(hit.excerpt.startsWith("…"))
+  }
+
+  @Test
   fun multiWordQuery_doesNotUseStemMatching() {
     assertTrue(PhraseRecall.search("그리움을 닮은", RecallFilter(), books, diaries).isEmpty())
   }
