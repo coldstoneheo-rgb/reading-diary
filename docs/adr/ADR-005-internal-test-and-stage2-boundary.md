@@ -106,7 +106,7 @@ ADR-003 보류 6건 + ADR-004 보류 5건 = 11건. ADR-003 보류 6은 질문 �
 
 - 2단계 작업 계획은 [docs/STAGE2-PLAN-2026-11.md](../STAGE2-PLAN-2026-11.md), 등록정보·데이터 안전 초안은
   [docs/store-listing/INTERNAL-TEST-2026-11.md](../store-listing/INTERNAL-TEST-2026-11.md), 처리방침 초안은 [docs/privacy/privacy-policy.html](../privacy/privacy-policy.html).
-- 2단계 모든 PR의 DoD에 «Room 스키마 변경 0(`version = 2`)»과 «사진 외부 전송 경로 추가 0»을 넣는다. (개정 2026-11-03: «ADR-006 예외(`diary_photos`, v3) 외 0»)
+- 2단계 모든 PR의 DoD에 «Room 스키마 변경 0(`version = 2`)»과 «사진 외부 전송 경로 추가 0»을 넣는다. (개정 2026-11-03: «ADR-006 예외(`diary_photos`, v3) 외 0» · «자동» 사진 전송 경로 추가 0, P5 zip 예외)
 - applicationId 변경은 첫 업로드 전에만 가능하므로 2단계 PR 중 **가장 먼저 또는 AAB 직전**에 머지한다.
 
 ## 재검토 조건
