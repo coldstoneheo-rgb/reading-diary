@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,6 +52,7 @@ import java.util.TimeZone
 fun PhraseRecallScreen(
     viewModel: ReadingViewModel,
     initialQuery: String,
+    initialFilter: RecallFilter,
     modifier: Modifier = Modifier
 ) {
     val books by viewModel.books.collectAsState()
@@ -61,7 +63,8 @@ fun PhraseRecallScreen(
         diaries = diaries,
         sharedWords = sharedWords,
         initialQuery = initialQuery,
-        onOpenBook = { bookId -> viewModel.navigateTo(com.example.ui.viewmodel.Screen.BookDetail(bookId)) },
+        initialFilter = initialFilter,
+        onOpenBook = { bookId, query, filter -> viewModel.openBookFromPhraseRecall(bookId, query, filter) },
         onBack = { viewModel.navigateBack() },
         modifier = modifier
     )
@@ -74,7 +77,8 @@ fun PhraseRecallContent(
     books: List<Book>,
     diaries: List<Diary>,
     sharedWords: List<SharedWord>,
-    onOpenBook: (Int) -> Unit,
+    /** 책 상세로 간다. 지금 검색어·필터를 함께 넘겨 돌아왔을 때 그대로 보이게 한다. */
+    onOpenBook: (bookId: Int, query: String, filter: RecallFilter) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     initialQuery: String = "",
@@ -85,13 +89,14 @@ fun PhraseRecallContent(
     val dateFormat = remember { SimpleDateFormat("yyyy.MM.dd", Locale.getDefault()) }
 
     var query by rememberSaveable { mutableStateOf(initialQuery) }
-    var bookIds by remember { mutableStateOf(initialFilter.bookIds) }
+    // 회전(Activity 재생성)에도 필터가 함께 살아남도록 전부 저장 가능한 상태로 둔다.
+    var bookIds by rememberSaveable(stateSaver = BookIdsSaver) { mutableStateOf(initialFilter.bookIds) }
     var period by rememberSaveable {
         mutableStateOf(if (initialFilter.fromMillis != null || initialFilter.toMillis != null) RecallPeriod.CUSTOM else RecallPeriod.ALL)
     }
-    var customFrom by remember { mutableStateOf(initialFilter.fromMillis) }
-    var customTo by remember { mutableStateOf(initialFilter.toMillis) }
-    var pageRange by remember { mutableStateOf(initialFilter.pageRange) }
+    var customFrom by rememberSaveable { mutableStateOf(initialFilter.fromMillis) }
+    var customTo by rememberSaveable { mutableStateOf(initialFilter.toMillis) }
+    var pageRange by rememberSaveable(stateSaver = PageRangeSaver) { mutableStateOf(initialFilter.pageRange) }
     var expandedId by remember { mutableStateOf<Int?>(null) }
 
     var bookMenuOpen by remember { mutableStateOf(false) }
@@ -318,7 +323,7 @@ fun PhraseRecallContent(
                             expanded = expandedId == hit.diaryId,
                             dateFormat = dateFormat,
                             onToggle = { expandedId = if (expandedId == hit.diaryId) null else hit.diaryId },
-                            onOpenBook = { onOpenBook(hit.bookId) }
+                            onOpenBook = { onOpenBook(hit.bookId, query, filter) }
                         )
                     }
                 }
@@ -334,6 +339,14 @@ fun PhraseRecallContent(
         )
     }
 }
+
+private val BookIdsSaver = Saver<Set<Int>, IntArray>(save = { it.toIntArray() }, restore = { it.toSet() })
+
+/** 빈 배열 = 쪽 필터 없음. */
+private val PageRangeSaver = Saver<IntRange?, IntArray>(
+    save = { r -> r?.let { intArrayOf(it.first, it.last) } ?: IntArray(0) },
+    restore = { a -> if (a.size == 2) a[0]..a[1] else null }
+)
 
 private fun bookFilterLabel(ids: Set<Int>, books: List<Book>): String = when (ids.size) {
     0 -> "책: 전체"

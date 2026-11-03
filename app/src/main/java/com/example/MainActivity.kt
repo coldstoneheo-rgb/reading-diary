@@ -378,7 +378,8 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                         is Screen.PhraseRecall -> {
                             PhraseRecallScreen(
                                 viewModel = viewModel,
-                                initialQuery = screen.initialQuery
+                                initialQuery = screen.initialQuery,
+                                initialFilter = screen.initialFilter
                             )
                         }
                     }

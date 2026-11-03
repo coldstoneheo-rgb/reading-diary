@@ -68,7 +68,7 @@ class PhraseRecallScreenshotTest {
       MyApplicationTheme {
         PhraseRecallContent(
           books = books, diaries = diaries, sharedWords = KeywordLinks.build(books, diaries),
-          onOpenBook = {}, onBack = {}, initialQuery = "세계"
+          onOpenBook = { _, _, _ -> }, onBack = {}, initialQuery = "세계"
         )
       }
     }
@@ -86,7 +86,7 @@ class PhraseRecallScreenshotTest {
       MyApplicationTheme {
         PhraseRecallContent(
           books = books, diaries = diaries, sharedWords = KeywordLinks.build(books, diaries),
-          onOpenBook = {}, onBack = {}, initialQuery = "고양이"
+          onOpenBook = { _, _, _ -> }, onBack = {}, initialQuery = "고양이"
         )
       }
     }
@@ -101,7 +101,7 @@ class PhraseRecallScreenshotTest {
       MyApplicationTheme {
         PhraseRecallContent(
           books = books, diaries = diaries, sharedWords = emptyList(),
-          onOpenBook = {}, onBack = {}, initialFilter = RecallFilter(bookIds = setOf(1), pageRange = 10..50)
+          onOpenBook = { _, _, _ -> }, onBack = {}, initialFilter = RecallFilter(bookIds = setOf(1), pageRange = 10..50)
         )
       }
     }

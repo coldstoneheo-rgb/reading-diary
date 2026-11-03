@@ -1,6 +1,6 @@
 # «문구 회상» 기능 명세 + 구현 계획 (2026-11)
 
-- 상태: **명세·계획(코드 0) — 오너 결정 4건 반영(2026-11-03).** 사진 보관 = [ADR-006](adr/ADR-006-phrase-recall-photo-storage.md) **결정됨**(A-선행 + `diary_photos` 테이블) · 순서 §4 (다) · 부제 §5 후보 3. 결정 정본: life-coordinator `DEC-2026-1103-rd-phrase-recall.md`.
+- 상태: **명세·계획 — 오너 결정 4건 반영(2026-11-03). P1 구현됨(사진 없는 회상, 2026-11-03 로컬 창 `feat/phrase-recall-p1`) · P2~P5 코드 0.** 사진 보관 = [ADR-006](adr/ADR-006-phrase-recall-photo-storage.md) **결정됨**(A-선행 + `diary_photos` 테이블) · 순서 §4 (다) · 부제 §5 후보 3. 결정 정본: life-coordinator `DEC-2026-1103-rd-phrase-recall.md`.
 - 구현 순서: P1 → P2 → P3 → P4 → (② SAF 마크다운 — P4 뒤·P5 앞 확정, LC 11-03) → P5 → 첫 AAB 업로드. 코드는 로컬 창(그래들), 이 문서 개정은 클라우드.
 - 근거 파일:줄은 2026-11-03 origin/main `c0bccd2` 기준(결정 반영 개정은 `4edd80f` 기준 — 앱 코드는 두 커밋 사이 변경 0).
 - 관련: [ADR-002](adr/ADR-002-on-device-ocr-rollout.md)(온디바이스 OCR, 사진 비전송) · [ADR-003](adr/ADR-003-memory-drawer-and-honest-features.md)(기억 서랍, 근거 없는 연결 금지) ·

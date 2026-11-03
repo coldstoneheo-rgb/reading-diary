@@ -127,6 +127,12 @@ class PhraseRecallTest {
   }
 
   @Test
+  fun hashTagInNotes_matchesWordQueryWithParticle() {
+    val tagged = listOf(Diary(id = 8, bookId = 1, page = 3, selectedText = "본문", notes = "#그리움", createdAt = 0))
+    assertEquals(MatchKind.NOTES, PhraseRecall.search("그리움을", RecallFilter(), books, tagged).single().matchKind)
+  }
+
+  @Test
   fun multiWordQuery_doesNotUseStemMatching() {
     assertTrue(PhraseRecall.search("그리움을 닮은", RecallFilter(), books, diaries).isEmpty())
   }
