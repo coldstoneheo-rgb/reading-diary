@@ -83,8 +83,8 @@ object PhraseRecall {
 
     private fun stemMatch(diary: Diary, stem: String): MatchKind? = when {
         stem in KeywordExtractor.extract(diary.selectedText) -> MatchKind.TEXT
+        // `#태그`도 여기서 잡힌다: `#`은 토큰 구분자라 extract(notes)가 태그 본문을 같은 정규형으로 뽑는다.
         stem in KeywordExtractor.extract(diary.notes) -> MatchKind.NOTES
-        KeywordExtractor.tags(diary.notes).any { it.lowercase() == stem } -> MatchKind.NOTES
         else -> null
     }
 

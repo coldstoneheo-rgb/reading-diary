@@ -128,6 +128,7 @@ class PhraseRecallTest {
 
   @Test
   fun hashTagInNotes_matchesWordQueryWithParticle() {
+    // 태그 본문은 extract(notes)의 토큰으로 정규화돼 맞는다(별도 tags 분기 없음).
     val tagged = listOf(Diary(id = 8, bookId = 1, page = 3, selectedText = "본문", notes = "#그리움", createdAt = 0))
     assertEquals(MatchKind.NOTES, PhraseRecall.search("그리움을", RecallFilter(), books, tagged).single().matchKind)
   }

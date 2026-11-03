@@ -17,7 +17,7 @@
     "사용자 U8: P5 머지 뒤 bundleRelease → 첫 AAB 업로드 (부제 = 명세 §5 후보 3, 결정됨)",
     "① 후속 소형: 전환 시 graphHit 초기화 · GraphHeight 큰 글꼴 라벨 겹침 · 캔버스 노드 스크린리더 · 제목 정렬 로케일 비교",
     "이전 후속: GeminiApiClient bookTitle 매개변수 삭제 · 처리방침 html 3항 · 테스트 Room in-memory 주입 · Dashboard/BookDetail 스크린샷",
-    "문구 회상 후속 소형: 펼친 카드 검색어 강조 · 검색 계산 백그라운드화(기록 수천 건 대비) · 기억 서랍도 «책 보기 → 뒤로» 상태 보존"
+    "문구 회상 후속 소형: 펼친 카드 검색어 강조 · 검색 계산 백그라운드화(기록 수천 건 대비) · 기억 서랍도 «책 보기 → 뒤로» 상태 보존 · 회전 복원 테스트(StateRestorationTester: 직접 지정 + 쪽 범위)"
   ],
   "metrics": {
     "unit_tests_after_round": 168,
@@ -26,7 +26,7 @@
     "room_schema_version": 2,
     "prs_merged_this_round": 1,
     "prs_ready_unmerged": 1,
-    "critic_first_pass_rate": "0/4 (누적. 이번 P1: 1차 6/10 NEEDS_REVISION → 2차 판정은 REPORT)",
+    "critic_first_pass_rate": "0/4 (누적. 이번 P1: 1차 6/10 NEEDS_REVISION → 2차 8/10 PASS)",
     "gradle_runs": "5 (PhraseRecallTest 단독 · testDebugUnitTest 165 · recordRoborazziDebug 새 2장 · verifyRoborazziDebug 1차 168 중 1 실패(테스트 누수) → 2차 168/168)"
   },
   "head": "origin/main a809d1c (#35)",
