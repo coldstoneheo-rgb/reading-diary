@@ -17,7 +17,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -28,7 +31,9 @@ import androidx.compose.ui.unit.sp
 import com.example.data.Book
 import com.example.data.Diary
 import com.example.data.knowledge.BookComparison
+import com.example.data.knowledge.BipartiteLayout
 import com.example.data.knowledge.BookMatch
+import com.example.data.knowledge.GraphHit
 import com.example.data.knowledge.MatchedRecord
 import com.example.data.knowledge.QuoteSource
 import com.example.data.knowledge.SharedWord
@@ -64,6 +69,9 @@ private const val CONNECTIONS_COLLAPSED = 3
 /** 책 카드 하나가 한 번에 그리는 기록 수. 한 책에 수백 건이 걸려도 프레임이 무너지지 않게 한다. */
 private const val RECORDS_PER_BOOK_COLLAPSED = 3
 
+/** «연결 발견»을 무엇으로 보나. 목록이 기본이고 그림은 보조 뷰다(ADR-003 Q3 2단계 — 대체가 아니다). */
+enum class ConnectionView { LIST, GRAPH }
+
 /** ViewModel 없이 그릴 수 있는 본문. 스크린샷 테스트가 고정 데이터로 이 함수를 그린다. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,7 +82,9 @@ fun KnowledgeDrawerContent(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     /** 테스트가 검색 상태를 포커스 없이 그리기 위한 초기값. 앱에서는 항상 빈 문자열이다. */
-    initialQuery: String = ""
+    initialQuery: String = "",
+    /** 테스트가 그림 보기를 바로 그리기 위한 초기값. 앱에서는 항상 목록이다. */
+    initialConnectionView: ConnectionView = ConnectionView.LIST
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
@@ -83,6 +93,9 @@ fun KnowledgeDrawerContent(
 
     var searchKeyword by rememberSaveable { mutableStateOf(initialQuery) }
     var showAllConnections by rememberSaveable { mutableStateOf(false) }
+    var connectionView by rememberSaveable { mutableStateOf(initialConnectionView) }
+    /** 그림에서 누른 단어·선. 그 단어의 원문 카드를 그림 아래에 연다. */
+    var graphHit by remember { mutableStateOf<GraphHit?>(null) }
     val query = searchKeyword.trim()
 
     /** 검색 중이면 책별로 묶은 비교 결과(ADR-004). 검색어가 없으면 빈 목록. */
@@ -256,10 +269,24 @@ fun KnowledgeDrawerContent(
                     // 연결 발견: 검색 중이 아닐 때만. 서로 다른 책에 함께 나온 단어(ADR-003 Q1·Q3 1단계)
                     if (query.isEmpty()) {
                         item(key = "connections_header") {
-                            SectionHeader(
-                                title = if (sharedWords.isEmpty()) "연결 발견" else "연결 발견 ${sharedWords.size}개",
-                                subtitle = "서로 다른 책의 기록에 함께 나온 단어"
-                            )
+                            if (sharedWords.isEmpty()) {
+                                SectionHeader(title = "연결 발견", subtitle = "서로 다른 책의 기록에 함께 나온 단어")
+                            } else {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        SectionHeader(
+                                            title = "연결 발견 ${sharedWords.size}개",
+                                            subtitle = "서로 다른 책의 기록에 함께 나온 단어"
+                                        )
+                                    }
+                                    ConnectionViewToggle(
+                                        view = connectionView,
+                                        onToggle = {
+                                            connectionView = if (connectionView == ConnectionView.LIST) ConnectionView.GRAPH else ConnectionView.LIST
+                                        }
+                                    )
+                                }
+                            }
                         }
                         if (sharedWords.isEmpty()) {
                             item(key = "connections_empty") {
@@ -269,6 +296,15 @@ fun KnowledgeDrawerContent(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                                     modifier = Modifier.testTag("knowledgedrawer_connections_empty")
+                                )
+                            }
+                        } else if (connectionView == ConnectionView.GRAPH) {
+                            item(key = "connections_graph") {
+                                ConnectionGraphSection(
+                                    sharedWords = sharedWords,
+                                    titleById = titleById,
+                                    hit = graphHit,
+                                    onHit = { graphHit = it }
                                 )
                             }
                         } else {
@@ -484,12 +520,104 @@ private fun SectionHeader(title: String, subtitle: String?) {
     }
 }
 
+/** «목록 ｜ 그림» 전환. 지금 보이는 쪽을 굵게 표시한다. */
+@Composable
+private fun ConnectionViewToggle(view: ConnectionView, onToggle: () -> Unit) {
+    val active = MaterialTheme.colorScheme.primary
+    val inactive = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+    TextButton(
+        onClick = onToggle,
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+        modifier = Modifier
+            .semantics {
+                // 굵기·색만으로 알리지 않는다: 스크린리더가 지금 상태를 읽게 한다.
+                stateDescription = if (view == ConnectionView.LIST) "목록 보기 중" else "그림 보기 중"
+            }
+            .testTag("knowledgedrawer_view_toggle")
+    ) {
+        Text(
+            text = "목록",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (view == ConnectionView.LIST) FontWeight.Bold else FontWeight.Normal,
+            color = if (view == ConnectionView.LIST) active else inactive
+        )
+        Text(text = " ｜ ", style = MaterialTheme.typography.labelMedium, color = inactive)
+        Text(
+            text = "그림",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (view == ConnectionView.GRAPH) FontWeight.Bold else FontWeight.Normal,
+            color = if (view == ConnectionView.GRAPH) active else inactive
+        )
+    }
+}
+
+/**
+ * 그림 보기: 책 ｜ 단어 이분 그래프 + 상한에 걸렸다는 고지 + 누른 단어의 원문 카드.
+ * 그래프는 크기를 안 뒤 `remember(sharedWords, size)`로 계산한다(ViewModel 변경 없음 — 순수·저비용).
+ */
+@Composable
+private fun ConnectionGraphSection(
+    sharedWords: List<SharedWord>,
+    titleById: Map<Int, String>,
+    hit: GraphHit?,
+    onHit: (GraphHit) -> Unit
+) {
+    val density = LocalDensity.current
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val widthPx = with(density) { maxWidth.toPx() }
+        val heightPx = with(density) { GraphHeight.toPx() }
+        val graph = remember(sharedWords, titleById, widthPx, heightPx, density) {
+            knowledgeGraphFor(sharedWords, titleById, widthPx, heightPx, density)
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            KnowledgeGraphCanvas(
+                graph = graph,
+                onHit = onHit,
+                selected = hit,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(GraphHeight)
+            )
+            if (graph.truncated) {
+                // 숨김을 숨기지 않는다: 상한 때문에 덜 그렸다는 사실을 그림 바로 아래 한 줄로.
+                Text(
+                    text = "일부만 표시 — 단어 ${BipartiteLayout.MAX_WORDS}개·책 ${BipartiteLayout.MAX_BOOKS}권·선 ${BipartiteLayout.MAX_EDGES}개까지 그립니다. 전체는 목록에서 보세요.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    modifier = Modifier.testTag("knowledgedrawer_graph_truncated")
+                )
+            }
+            ConnectionGraphSelection(sharedWords = sharedWords, hit = hit)
+        }
+    }
+}
+
+/** 그림에서 누른 단어의 원문 카드. 아무것도 누르지 않았으면 안내 한 줄. */
+@Composable
+private fun ConnectionGraphSelection(sharedWords: List<SharedWord>, hit: GraphHit?) {
+    val selectedWord = when (hit) {
+        is GraphHit.Word -> hit.word
+        is GraphHit.Edge -> hit.word
+        null -> null
+    }
+    val selected = sharedWords.firstOrNull { it.word == selectedWord }
+    if (selected == null) {
+        Text(
+            text = "단어나 선을 누르면 두 책의 원문이 열립니다.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+        )
+    } else {
+        ConnectionCard(sharedWord = selected, highlightBookId = (hit as? GraphHit.Edge)?.bookId)
+    }
+}
+
 /**
  * 연결 카드: 단어 하나와 그 단어가 나온 서로 다른 책의 구절들.
  * 접힌 상태에서는 책마다 첫 구절만, 펼치면 전부. 원문이 항상 보이므로 휴리스틱 오탐은 사용자 눈에 곧 걸러진다(ADR-003 Q2).
  */
 @Composable
-private fun ConnectionCard(sharedWord: SharedWord) {
+private fun ConnectionCard(sharedWord: SharedWord, highlightBookId: Int? = null) {
     var expanded by rememberSaveable(sharedWord.word) { mutableStateOf(false) }
     val quotes = remember(sharedWord, expanded) {
         if (expanded) sharedWord.quotes else sharedWord.quotes.distinctBy { it.bookId }
@@ -530,7 +658,15 @@ private fun ConnectionCard(sharedWord: SharedWord) {
                 )
             }
             quotes.forEach { q ->
-                Row(verticalAlignment = Alignment.Top) {
+                // 그림에서 선(책↔단어)을 눌러 열었으면 그 책의 구절을 강조한다.
+                val rowModifier = if (q.bookId == highlightBookId) {
+                    Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(4.dp))
+                        .padding(4.dp)
+                        .testTag("knowledgedrawer_connection_highlight_${q.bookId}")
+                } else Modifier
+                Row(modifier = rowModifier, verticalAlignment = Alignment.Top) {
                     Text(
                         text = "${q.bookTitle} p.${q.page}",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
