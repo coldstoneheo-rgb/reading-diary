@@ -12,7 +12,7 @@
 - [x] 3. HEAD `534b142`: `gradle :app:testDebugUnitTest` exit 0, 29 클래스 185(통과 184 · 건너뜀 1 = 프로브) · `gradle :app:verifyRoborazziDebug` exit 0, 185(통과 184 · 건너뜀 1), 기준 이미지 git 변경 0
 - [x] 4. AGENT_STATUS(as_of 19:53 실측 · next_actions 선두 P3 · metrics 173→185 · 29 클래스 · gradle_runs 14) · WORKLOG 블록 1
 - [x] 5. critic 1차 8/10 **PASS**(경미 8) → 1·2·3·4·5·6(일부) 반영 → PR · «[DONE] PR #n» 뒤 대기
-- [x] 6. PR 본문에 :167 · :171 명시(:167은 아래 [ASK] — 기기 실측 대기)
+- [x] 6. PR 본문에 :167 · :171 명시(:167은 P4 완료 조건으로 이관 — LC 11-03 판정)
 - [x] 7. AGENT_STATUS gradle_runs «#36: 8»(합계 10 → P2 4회 더해 14) · 인계서 :18 «기록당 장수 상한은 P4 PR에서 근거 1줄과 함께 정한다 — 명세 :83» · 인계서 :20 :167·:171 보완
 
 ## 한 일
@@ -34,3 +34,8 @@
 
 - [ASK] 명세 :167 «기기 1장 실측»: P2에는 화면 연결이 없어 기기에서 `save`를 부르는 경로가 없고, adb에 기기가 잡히지 않음. 오너 폰으로 찍은 책 페이지 원본 JPEG 1장을 PC에 두고 경로를 알려 주면 `DIARY_PHOTO_PROBE=<경로>`로 `probe_realPhotoSize`를 돌려 «원본 B → 저장 B, W×H»를 PR에 추가함. 대안: 실측을 P4(첫 기기 저장 경로)로 넘김 — LC 판정.
 - 사용자: PR 검토 · LC 게이트 PASS 뒤 머지(이 창은 게이트 전 머지 0).
+
+## LC 게이트(11-03)
+
+- PR #39(head `e199c19`) LC 게이트 PASS(차단 0 · 관찰 9). :167은 P4 완료 조건으로 이관하고 프로브는 지금 돌리지 않음. save/sweep 경쟁과 «save 뒤 임시 파일 삭제»는 P4 선행 조건.
+- 소형 docs 반영: PR 본문 :167 줄 · AGENT_STATUS `head`/`last_commit` = `ee543d7`, waiting_on에서 잔재 정리 제거. CLAUDE.md 줄 위치 이동은 다른 세션 요청만으로 CLAUDE.md를 고치지 않는 규칙 때문에 사용자 확인 대기.
