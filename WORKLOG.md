@@ -119,3 +119,17 @@ signals:
 
 **의미.** OCR에 쓴 페이지 사진을 앱 안 백업 제외 폴더(`noBackupFilesDir/diary_photos/`)에 남길 수 있는 저장소가 생겼다(아직 화면·DB와 연결하지 않음, P3·P4).
 경로 탈출·고아 파일 정리(sweep)·디코드 실패를 테스트로 고정했고, 촬영할 때마다 캐시에 쌓이던 원본 사진은 이제 화면을 떠나면 지워진다(ADR-002 후속 발견 해소). 스키마는 v2 그대로다.
+
+---
+date: 2026-11-03
+agent: local (HO-2026-1103-rd-phrase-recall-p3-01)
+scope: 문구 회상 P3 🔴 — saveDiary REPLACE→@Update 선행 · Room v3 diary_photos + MIGRATION_2_3 + 파괴 폴백 제거 + 3.json · DiaryPhotoDao · PhotoEdit(Unchanged/Set) 저장 경로 · MigrationTest M1~M7 · DiaryPhotoDaoTest · RoomSchemaExportTest v3 · ADR-005/006·STAGE2 집행 표기
+signals:
+  synergy: "P2 DiaryPhotoStore.delete를 PhotoEdit.Set의 파일 삭제에 그대로 써서, 행(DB)과 파일(저장소)의 책임이 한 줄로 갈렸다"
+  monetization: "0 — 유료·광고 코드 없음, 새 네트워크 호스트 0, 새 의존성 0(room-testing도 결국 불필요)"
+  learning: "Robolectric 단위 테스트에서 test 소스셋 assets는 MigrationTestHelper가 보는 assets에 들어가지 않았다 — 명세가 미리 적어 둔 수동 대안(2.json 직접 읽기 3단계)이 실제로 필요했다"
+  idea: "앱 빌더 설정을 AppDatabase.builder 하나로 모으면 마이그레이션 테스트가 «실제로 앱이 여는 방식»을 그대로 검증한다"
+---
+
+**의미.** 첫 업로드 전 단 한 번 허용된 스키마 변경을 집행했다. 일기마다 사진 N장을 담을 `diary_photos` 테이블이 생기고(v3), 기존 v2 기록은 바이트 그대로 옮겨진다(M1~M7).
+이제 마이그레이션이 없거나 실패하면 기록이 조용히 지워지는 대신 앱이 열리지 않는다(파괴 폴백 제거). 편집 저장이 REPLACE에서 @Update로 바뀌어, 문장만 고쳐도 사진 행이 CASCADE로 사라지는 회귀(F6)가 막혔다. 화면 연결은 P4.

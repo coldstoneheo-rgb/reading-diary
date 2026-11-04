@@ -7,7 +7,7 @@
 
 ## 공통 DoD(모든 항목)
 
-- **Room 스키마 변경: [ADR-006](adr/ADR-006-phrase-recall-photo-storage.md) 예외(`diary_photos`, v3) 외 0** — 그 밖의 엔티티 필드 그대로(`AppDatabase.kt:21`, `Entities.kt`). `RoomSchemaExportTest` 통과로 확인. (개정 2026-11-03 — 예외는 문구 회상 P3 한 PR뿐, 첫 업로드 전 머지)
+- **Room 스키마 변경: [ADR-006](adr/ADR-006-phrase-recall-photo-storage.md) 예외(`diary_photos`, v3) 외 0** — 그 밖의 엔티티 필드 그대로(`AppDatabase.kt:19` `version = 3`, `Entities.kt`). `RoomSchemaExportTest` 통과로 확인. (개정 2026-11-03 — 예외는 문구 회상 P3 한 PR뿐, 첫 업로드 전 머지) **집행: P3 PR #40(v3 = `diary_photos`). 이후 스키마 변경 0.**
 - **사진 자동 외부 전송 경로 추가 0** — `GeminiKeyPolicyTest` 통과(참조 범위 고정 유지). 예외 = 사용자가 실행하고 저장 위치(SAF)를 고르는 P5 zip 백업뿐(개정 2026-11-03, ADR-006 Q-b).
 - **유료·광고 코드 0.** 새 네트워크 호스트 0(④는 오히려 하나를 지운다).
 - `gradle :app:testDebugUnitTest` 통과. Compose UI를 바꾸는 항목(①②③④)은 `gradle :app:verifyRoborazziDebug`까지, 기준 이미지 갱신 시 PR에 이유.

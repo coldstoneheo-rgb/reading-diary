@@ -230,6 +230,8 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 **완료 조건:** M1~M7 통과 · `testDebugUnitTest` 전체 통과 · `verifyRoborazziDebug` 기준 불변(UI 0) · **오너 기기 수동 확인 1회**(v2 디버그 설치 위에 v3 디버그 덮어 설치 → 기록 수 동일, 같은 `debug.keystore`) · critic PASS · **첫 AAB 업로드 전 머지**(ADR-006 재검토 조건 1).
 문서(ADR-005 §2·§3·§6 ADR-004-4 · ADR-004 실행 단계 ⑧ · STAGE2-PLAN 공통 DoD)는 2026-11-03 결정 반영 PR에서 이미 개정됨 — P3 PR은 사실이 바뀐 줄(예: `version = 3` 행 번호)만 고친다.
 
+**실제(P3, PR #40):** ① Robolectric 단위 테스트에서 `MigrationTestHelper`가 test 소스셋 assets의 `2.json`을 찾지 못해(실측 `FileNotFoundException … Missing file: com.example.data.AppDatabase/2.json`) 위 :206 대안으로 갔다 — `room-testing`·`sourceSets["test"].assets` 추가 0(새 의존성 0). M1 검증 = 앱 빌더(`AppDatabase.builder`)로 열 때 Room의 스키마 검증 + `room_master_table` 해시 + `sqlite_master` SQL 대조. ② `PhotoEdit`/`PhotoSlot`은 `data/PhotoEdit.kt`(Repository가 ui 타입을 참조하지 않게). ③ 편집 대상 행이 없으면(update 0행) 같은 id로 insert(예전 REPLACE 결과와 같음).
+
 ### 3.5 P4 — 화면 연결
 
 **건드릴 파일:** `ui/screens/OcrDiaryScreen.kt`(체크박스 **없음** — 저장하면 OCR에 쓴 사진을 항상 보관(ADR-006 Q-a). 편집 모드 사진 N장 표시·사진별 바꾸기·지우기·«사진 추가» — 화면은 의도만 넘긴다) ·

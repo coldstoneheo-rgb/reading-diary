@@ -63,6 +63,30 @@ interface DiaryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(diary: Diary): Long
 
+    /**
+     * 편집 저장. REPLACE(삭제 후 삽입)로 편집하면 삭제 단계가 자식 행의 ON DELETE CASCADE를 일으킨다(F6) — 편집은 반드시 이것으로.
+     * 반환 = 바뀐 행 수(행이 없으면 0).
+     */
+    @Update
+    suspend fun update(diary: Diary): Int
+
     @Query("DELETE FROM diaries WHERE id = :id")
     suspend fun deleteById(id: Int)
+}
+
+@Dao
+interface DiaryPhotoDao {
+    /** 화면 표시 순서(sortOrder) 그대로. */
+    @Query("SELECT * FROM diary_photos WHERE diaryId = :diaryId ORDER BY sortOrder ASC, id ASC")
+    suspend fun photosFor(diaryId: Int): List<DiaryPhoto>
+
+    @Insert
+    suspend fun insertAll(photos: List<DiaryPhoto>)
+
+    @Query("DELETE FROM diary_photos WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Int>)
+
+    /** 고아 파일 정리(DiaryPhotoStore.sweep)의 참조 집합. */
+    @Query("SELECT path FROM diary_photos")
+    suspend fun allPaths(): List<String>
 }

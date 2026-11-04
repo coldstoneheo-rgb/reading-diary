@@ -2,6 +2,7 @@ package com.example.data
 
 import androidx.room.Entity
 import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(tableName = "bookcases")
@@ -60,6 +61,30 @@ data class Diary(
     val page: Int,
     val selectedText: String, // OCR extracted underline
     val notes: String,        // User diary notes
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+/**
+ * 일기 1 : 사진 N(ADR-006 결정, Room v3). 파일 자체는 [com.example.data.photo.DiaryPhotoStore]가 가진다 — 이 행은 상대 경로만.
+ * 일기가 지워지면 행도 CASCADE로 지워진다(파일 삭제는 저장 경로·sweep 몫).
+ */
+@Entity(
+    tableName = "diary_photos",
+    foreignKeys = [
+        ForeignKey(
+            entity = Diary::class,
+            parentColumns = ["id"],
+            childColumns = ["diaryId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("diaryId")]
+)
+data class DiaryPhoto(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val diaryId: Int,
+    val path: String,        // noBackupFilesDir/diary_photos/ 기준 상대 경로(UUID.jpg)
+    val sortOrder: Int,      // 0부터, 화면 표시 순서
     val createdAt: Long = System.currentTimeMillis()
 )
 

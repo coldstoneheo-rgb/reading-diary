@@ -158,7 +158,7 @@ class ReadingViewModelSampleBooksTest {
   @Test
   fun destructiveMigrationCallback_clearsStaleSampleMarks() {
     prefs().edit().putStringSet(SampleBooks.KEY, setOf("1|진달래꽃")).commit()
-    AppDatabase.clearSampleMarks(app) // onCreate·onDestructiveMigration이 공유하는 정리 함수
+    AppDatabase.clearSampleMarks(app) // onCreate가 쓰는 정리 함수
     assertFalse(prefs().contains(SampleBooks.KEY))
   }
 

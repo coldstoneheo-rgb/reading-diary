@@ -10,7 +10,7 @@
 
 오너 요청(2026-11-03 10:45): «떠오른 문구·단어 → 언제 어느 책에서 읽었는지 + **당시 촬영 사진**과 함께 핵심 문구 복기».
 
-- 지금 앱은 사진을 기록과 연결해 보관하지 않는다. `Diary`에 사진 필드가 없고(`Entities.kt:57-64`, `2.json` diaries 6열), OCR 파이프라인은 비트맵을 추출 후 회수한다(`ReadingViewModel.kt:540-557`).
+- 지금 앱은 사진을 기록과 연결해 보관하지 않는다. `Diary`에 사진 필드가 없고(v2 기준 `Entities.kt:57-64`, `2.json` diaries 6열), OCR 파이프라인은 비트맵을 추출 후 회수한다(`ReadingViewModel.kt:540-557`).
   카메라 원본은 `cacheDir` 임시 파일로만 남고(`OcrDiaryScreen.kt:110-118`, 미삭제 — ADR-002:30) 갤러리 사진은 일시 URI뿐이다(`OcrDiaryScreen.kt:153-165`).
 - 사진을 «당시 사진»으로 다시 보여 주려면 **① 사진 파일을 앱 내부 저장소에 보관**하고 **② 어느 일기의 사진인지 연결**해야 한다.
   ②의 정석은 Room 스키마 변경 = **Room `version = 3` + `Migration(2,3)`**(초안은 `diaries` 경로 열, 결정은 `diary_photos` 테이블 — 아래 «결정»).
@@ -22,7 +22,7 @@
 | 2단계 공통 DoD | `docs/STAGE2-PLAN-2026-11.md:10` | «**Room 스키마 변경 0** — `version = 2`·엔티티 필드 그대로» |
 | 내부 테스트 스키마 동결 | ADR-005 §2(`ADR-005…md:39`) | «내부 테스트 기간 동안 Room 스키마 변경 금지 … 이 금지는 2단계 모든 PR의 DoD에 들어간다» |
 | 마이그레이션 시점 | ADR-005 §3(`:54`)·§6 ADR-004-4(`:100`) | `Migration(2,3)`은 **3단계 ⑧**, `fallbackToDestructiveMigration` 제거와 **같은 PR** |
-| 현재 빌더 | `AppDatabase.kt:38` | `fallbackToDestructiveMigration()` — 마이그레이션 없이 버전만 올리면 **기록 전체가 조용히 삭제** |
+| 현재 빌더(v2 기준, P3에서 제거) | `AppDatabase.kt:38` | `fallbackToDestructiveMigration()` — 마이그레이션 없이 버전만 올리면 **기록 전체가 조용히 삭제** |
 
 동결의 목적은 **테스터 기록 보호**다(ADR-005 §2 «테스터 기록이 조용히 전부 지워진다»). 따라서 위험의 크기는 «언제 바꾸나»에 달렸다:
 첫 AAB 업로드 전이면 새 applicationId(`com.woodpeckerai.readingdiary`)로 깔린 기기는 오너의 디버그 설치뿐이고, 업로드 뒤면 테스터 ≤5명의 실제 기록이 걸린다.
@@ -45,7 +45,7 @@
 | 요구 충족 | 원문 «당시 촬영 사진» 첫 업로드에 포함, 부제 후보 2·3 사용 가능 | 테스트 기간엔 사진 없음, 부제 후보 2·3 사용 불가 |
 | 일정 | 첫 업로드가 P2~P4(초안 추정 9~12h)+검증만큼 늦어짐 — 결정 반영 후 P2~P5(명세 §3.1: P2 2~3h · P3 4~5h · P4 4~5h · P5 5~7h) | 업로드 영향 = P1(3~4h)뿐 |
 | 문서 정합 | 개정 대상: ADR-005 §2(`:39`)·STAGE2-PLAN DoD(`:10`) + `Migration(2,3)`을 3단계 ⑧로 둔 ADR-004 실행 단계 ⑧(`:53`, «필요 시 `Migration(2,3)`»)·ADR-005 §3(`:54`, «태그 정식 컬럼·`Migration(2,3)` — 3단계 ⑧»)·§6 ADR-004-4(`:100`) — **2026-11-03 결정 반영 PR에서 개정 완료** | 사진 열이 3단계 ⑧ 묶음에 합류 — ⑧ 서술만 «태그 + 사진 경로»로 개정 |
-| 새 의존성 | `androidx.room:room-testing`(테스트 전용, Room 2.7.0 재사용) 1개 — 양쪽 같음 | 〃 |
+| 새 의존성 | `androidx.room:room-testing`(테스트 전용, Room 2.7.0 재사용) 1개 — 양쪽 같음. **실제(P3): 0** — Robolectric에서 MigrationTestHelper가 테스트 assets의 스키마 JSON을 찾지 못해(실측) 명세 §3.4 :206 수동 대안으로 갔다 | 〃 |
 | 편집 회귀(F6) | `saveDiary`가 `REPLACE` insert(`Daos.kt:63-64`) → 편집 시 경로를 안 넘기면 null로 덮임(열 안). **결정된 테이블 안**에서는 `REPLACE`의 삭제 단계가 CASCADE로 사진 행을 지움 → 선행 `@Update` + `PhotoEdit` Unchanged/Set(명세 §3.4) + M5 테스트로 고정 | 〃 |
 
 ### B. 스키마 변경 없이 파일 이름 규약으로 연결
