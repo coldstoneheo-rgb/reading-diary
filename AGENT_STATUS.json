@@ -22,15 +22,15 @@
     "P2 후속 소형(critic #P2): 뒤집기·회전 행렬 3중 복사(BitmapDecoding.decodeForOcr·DiaryPhotoStore.save) 공통 함수화 · save 실패 정리 경로(compress 실패·IO 예외) 테스트 · onDispose 임시 파일 삭제 Compose 테스트 · P4 선행(LC 11-03 판정): 사진 save 완료 뒤 임시 파일 삭제 순서와 앱 시작 sweep을 save와 동시 실행하지 않기 · P4 완료 조건: 명세 :167 오너 기기 JPEG 1장 실측(LC 11-03 이관)"
   ],
   "metrics": {
-    "unit_tests_after_round": 195,
-    "unit_test_classes": 31,
-    "screenshot_baselines": 10,
+    "unit_tests_after_round": 237,
+    "unit_test_classes": 36,
+    "screenshot_baselines": 13,
     "room_schema_version": 3,
     "prs_merged_this_round": 4,
     "prs_ready_unmerged": 1,
     "critic_first_pass_rate": "3/7 (누적. #36 1차 6/10 NEEDS_REVISION → PASS · #37 8/10 PASS · #39 8/10 PASS · P3 1차 8/10 조건부 PASS)",
     "gradle_runs": "22 (P3: 8 — kspDebugKotlin 1 · 필터 실행 1차 실패(MigrationTestHelper assets 미발견) · 필터 2차 15/15 · HEAD cbc3f9f testDebugUnitTest·verifyRoborazziDebug exit 0 · M5 red 변형 실행 1(의도된 실패) · HEAD 2e53c9c testDebugUnitTest 195(통과 194·건너뜀 1)·verifyRoborazziDebug 195(통과 194·건너뜀 1) · P2: 4 · #36: 8 · #37: 2 · #35·#38: 0)"
   },
-  "head": "origin/main 1e368a3 (#39)",
-  "last_commit": "1e368a3 (origin/main, #39 머지)"
+  "head": "origin/main e5145db (#40)",
+  "last_commit": "e5145db (origin/main, #40 머지)"
 }
