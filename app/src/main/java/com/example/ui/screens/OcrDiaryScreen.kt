@@ -185,7 +185,8 @@ fun OcrDiaryScreen(
     // 저장을 누른 새 기록의 작성 시각. 저장 중 앱이 내려가 복원되면 이 값으로 초안이 이미 저장됐는지 확인한다.
     // 누른 뒤 시각을 고쳐도 판정이 빗나가지 않게 따로 둔다. 편집은 다시 저장해도 중복이 없어 쓰지 않는다.
     var submittedCreatedAt by rememberSaveable(key = "$formKey/submittedAt") { mutableStateOf<Long?>(null) }
-    LaunchedEffect(submittedCreatedAt, diarySaving) {
+    val currentScreen by viewModel.currentScreenState.collectAsState()
+    LaunchedEffect(submittedCreatedAt, diarySaving, currentScreen) {
         val createdAt = submittedCreatedAt ?: return@LaunchedEffect
         if (diarySaving) return@LaunchedEffect
         val here = Screen.AddDiary(bookId, diaryId)
@@ -1595,7 +1596,13 @@ fun OcrDiaryScreen(
                         createdAt = selectedTimestamp,
                         photos = PhotoDrafts.toInput(slots, loadedPhotos.map { it.photoId }),
                         onFailure = {
-                            Toast.makeText(context, "기록을 저장하지 못했습니다. 입력한 내용은 그대로 있으니 다시 시도해 주세요.", Toast.LENGTH_LONG).show()
+                            // 이미 화면을 떠났으면 입력이 남아 있지 않다.
+                            val message = if (viewModel.currentScreenState.value === startedOn) {
+                                "기록을 저장하지 못했습니다. 입력한 내용은 그대로 있으니 다시 시도해 주세요."
+                            } else {
+                                "기록을 저장하지 못했습니다. 다시 작성해 주세요."
+                            }
+                            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                         }
                     ) { failedPhotos ->
                         if (pageNum > currentBook.currentPage) {
@@ -1611,7 +1618,8 @@ fun OcrDiaryScreen(
                         if (viewModel.navigateBackIfCurrent(startedOn)) viewModel.resetOcrState()
                     }
                 },
-                enabled = !diarySaving,
+                // 복원 판정이 끝나기 전에 또 누르면 같은 작성 시각의 기록이 2건이 된다.
+                enabled = !diarySaving && submittedCreatedAt == null,
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("save_diary_submit_button"),

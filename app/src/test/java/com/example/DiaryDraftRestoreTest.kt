@@ -5,6 +5,7 @@ import android.content.res.Configuration
 import android.os.Bundle
 import android.os.Looper
 import android.os.Parcel
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -235,6 +236,28 @@ class DiaryDraftRestoreTest {
     assertEquals(1, records().size)
     // 복원 판정은 책 + 작성 시각의 정확 일치다. 작성 시각은 저장·복원 때가 아니라 폼을 처음 연 때의 값이어야 한다.
     assertTrue("작성 시각이 초안의 값이어야 한다", records().single().createdAt in openedFrom..openedUntil)
+  }
+
+  /** 복원 판정이 끝나기 전에 저장을 또 누를 수 있으면 같은 시각의 기록이 2건이 된다. */
+  @Test
+  fun restoredDraft_cannotBeSavedAgain_whileCheckingForCommit() {
+    val first = start()
+    openFilledForm(first, "판정 중인 문장")
+    holdSaves()
+    clickSave()
+    val bundle = capture(first)
+    releaseSaves()
+    pump { records().size == 1 && vm(first).currentScreenState.value == Screen.BookDetail(bookId) }
+    destroy(first)
+
+    holdSaves() // 판정이 뮤텍스 앞에서 기다린다
+    val second = restore(bundle)
+    settle { tagShown("save_diary_submit_button") }
+    composeTestRule.onNodeWithTag("save_diary_submit_button").assertIsNotEnabled()
+    releaseSaves()
+
+    pump { vm(second).currentScreenState.value == Screen.BookDetail(bookId) }
+    assertEquals(1, records().size)
   }
 
   /** 편집은 행이 이미 있어 커밋 여부를 가릴 수 없다. 사진만 바꾼 초안이 «이미 저장됨»으로 버려지면 안 된다. */
