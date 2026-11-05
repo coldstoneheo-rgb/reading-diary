@@ -19,7 +19,7 @@ class PolicyCopyTest {
   fun privacySummary_namesEveryOutboundPath() {
     assertEquals(5, PRIVACY_SUMMARY_LINES.size)
     val text = privacySummaryText(url = "")
-    listOf("검색어", "네이버", "표지 이미지", "자동 백업", "Google Gemini", "기기 안에서").forEach {
+    listOf("검색어", "카카오", "Google Books", "표지 이미지", "자동 백업", "Google Gemini", "기기 안에서").forEach {
       assertTrue("privacy summary must mention \"$it\"", text.contains(it))
     }
     assertFalse("no absolute 'never leaves the device' claim", text.contains("일체"))

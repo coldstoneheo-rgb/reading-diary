@@ -8,8 +8,7 @@ import androidx.security.crypto.MasterKeys
 object SecureKeyManager {
     /** 백업 제외 규칙(res/xml)과 테스트가 이 이름을 참조한다. 바꾸면 backup_rules/data_extraction_rules도 같이 바꿔야 한다. */
     internal const val PREFS_FILE = "secure_user_prefs"
-    private const val KEY_NAVER_CLIENT_ID = "naver_client_id"
-    private const val KEY_NAVER_CLIENT_SECRET = "naver_client_secret"
+    private const val KEY_KAKAO_REST_API_KEY = "kakao_rest_api_key"
     private const val KEY_GEMINI_API_KEY = "gemini_api_key"
 
     /** API 키에 허용하는 문자: 출력 가능한 ASCII. HTTP 헤더에 그대로 실리므로 그 외 문자는 거부한다. */
@@ -28,24 +27,23 @@ object SecureKeyManager {
         null
     }
 
-    /** 암호화 저장소가 열리지 않으면 같은 파일명의 평문 prefs로 폴백한다(네이버 키 기존 동작 유지). */
+    /** 암호화 저장소가 열리지 않으면 같은 파일명의 평문 prefs로 폴백한다(무료 한도 키인 도서 검색 키 전용, Gemini는 쓰지 않는다). */
     private fun getEncryptedPrefs(context: Context): SharedPreferences =
         encryptedPrefsOrNull(context) ?: context.getSharedPreferences(PREFS_FILE, Context.MODE_PRIVATE)
 
-    private fun put(context: Context, key: String, value: String) {
-        getEncryptedPrefs(context).edit().putString(key, value).apply()
+    /**
+     * 도서 검색용 카카오 REST 키. 값은 헤더에 실리므로 출력 가능한 ASCII만 받는다.
+     * @return 저장 성공 여부
+     */
+    fun saveKakaoRestKey(context: Context, key: String): Boolean {
+        val normalized = key.trim()
+        if (!PRINTABLE_ASCII.matches(normalized)) return false
+        getEncryptedPrefs(context).edit().putString(KEY_KAKAO_REST_API_KEY, normalized).apply()
+        return true
     }
 
-    private fun get(context: Context, key: String): String =
-        getEncryptedPrefs(context).getString(key, "") ?: ""
-
-    fun saveNaverClientId(context: Context, clientId: String) = put(context, KEY_NAVER_CLIENT_ID, clientId)
-
-    fun getNaverClientId(context: Context): String = get(context, KEY_NAVER_CLIENT_ID)
-
-    fun saveNaverClientSecret(context: Context, clientSecret: String) = put(context, KEY_NAVER_CLIENT_SECRET, clientSecret)
-
-    fun getNaverClientSecret(context: Context): String = get(context, KEY_NAVER_CLIENT_SECRET)
+    fun getKakaoRestKey(context: Context): String =
+        getEncryptedPrefs(context).getString(KEY_KAKAO_REST_API_KEY, "") ?: ""
 
     /**
      * 사용자가 직접 등록한 Gemini API 키. 앱 바이너리에는 절대 포함하지 않으며(ADR-001), 이 저장소가 유일한 출처다.

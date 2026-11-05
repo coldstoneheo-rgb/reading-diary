@@ -19,10 +19,8 @@ android {
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-    val naverClientIdEnv = System.getenv("NAVER_CLIENT_ID") ?: ""
-    val naverClientSecretEnv = System.getenv("NAVER_CLIENT_SECRET") ?: ""
-    buildConfigField("String", "ENV_NAVER_CLIENT_ID", "\"$naverClientIdEnv\"")
-    buildConfigField("String", "ENV_NAVER_CLIENT_SECRET", "\"$naverClientSecretEnv\"")
+    val kakaoRestApiKeyEnv = System.getenv("KAKAO_REST_API_KEY") ?: ""
+    buildConfigField("String", "ENV_KAKAO_REST_API_KEY", "\"$kakaoRestApiKeyEnv\"")
   }
 
   signingConfigs {
@@ -78,6 +76,9 @@ secrets {
   defaultPropertiesFileName = ".env.example"
   // 유료 API 키는 앱 바이너리에 굽지 않는다(docs/adr/ADR-001). .env에 있어도 BuildConfig에 들어가지 않는다.
   ignoreList.add("GEMINI_API_KEY")
+  // 네이버 책 검색 API는 종료됐다. .env에 옛 값이 남아 있어도 쓰지 않는 키를 APK에 굽지 않는다.
+  ignoreList.add("NAVER_CLIENT_ID")
+  ignoreList.add("NAVER_CLIENT_SECRET")
 }
 
 // 재도입 가능성이 있는 미사용 의존성만 주석으로 남기고, 그 외(특히 키 유출 위험이 있는 것)는 카탈로그까지 제거한다.

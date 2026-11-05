@@ -23,37 +23,43 @@ object BookSearchParsers {
     /** 역할어만 남은 조각(예: author가 "지음")은 저자가 아니다. */
     private val AUTHOR_ROLE_ONLY = Regex("^(저|지음|글|그림|역|옮김|편|편저|감수)$")
 
+    /** 카카오 응답에 쪽수가 없어 쓰는 기본값. 네이버 때와 같고 사용자가 등록 화면에서 고칠 수 있다. */
+    private const val DEFAULT_PAGE_COUNT = 250
+
     /**
-     * 네이버 책 검색 API(`/v1/search/book.json`) 응답 파싱. `items`가 없으면 빈 목록.
+     * 카카오 책 검색 API(`/v3/search/book`) 응답 파싱. `documents`가 없으면 빈 목록.
      * 본문이 유효한 JSON이 아니거나 항목이 객체가 아니면 `JSONException`을 전파한다(호출자가 처리).
      */
-    fun parseNaverBooks(body: String): List<SearchResultBook> {
-        val items = JSONObject(body).optJSONArray("items") ?: return emptyList()
+    fun parseKakaoBooks(body: String): List<SearchResultBook> {
+        val documents = JSONObject(body).optJSONArray("documents") ?: return emptyList()
         val list = mutableListOf<SearchResultBook>()
-        for (i in 0 until items.length()) {
-            val item = items.getJSONObject(i)
-            val rawTitle = item.optString("title", "알 수 없는 제목")
-            val rawAuthor = item.optString("author", "지은이 미상")
+        for (i in 0 until documents.length()) {
+            val item = documents.getJSONObject(i)
 
-            val cleanTitle = rawTitle
+            val cleanTitle = item.text("title")
                 .replace(HTML_TAG, "")
                 .replace(TITLE_EDITION_SUFFIX, "")
                 .trim()
+                .ifBlank { "알 수 없는 제목" }
 
-            // 네이버는 공저자를 ^ 또는 |로 잇는다. 역할어(저/지음/옮김…)는 저자마다 붙으므로 나눈 뒤 각자 떼고 다시 잇는다.
-            val cleanAuthor = rawAuthor
-                .replace(HTML_TAG, "")
-                .split('^', '|')
-                .map { it.trim().replace(AUTHOR_ROLE_PREFIX, "").replace(AUTHOR_ROLE_SUFFIX, "").trim() }
+            val authors = item.optJSONArray("authors")
+            val cleanAuthor = (0 until (authors?.length() ?: 0))
+                .map { index -> if (authors!!.isNull(index)) "" else authors.optString(index, "") }
+                .map { it.replace(HTML_TAG, "").trim().replace(AUTHOR_ROLE_PREFIX, "").replace(AUTHOR_ROLE_SUFFIX, "").trim() }
                 .filterNot { it.isEmpty() || AUTHOR_ROLE_ONLY.matches(it) }
                 .joinToString(", ")
                 .ifBlank { "지은이 미상" }
 
-            val cover = item.optString("image", "")
-            list.add(SearchResultBook(cleanTitle, cleanAuthor, 250, cover))
+            // 표지 주소 앞머리만 https로 올린다. 쿼리에 든 원본 주소(fname=http://...)는 건드리지 않는다.
+            val thumbnail = item.text("thumbnail").trim()
+            val cover = if (thumbnail.startsWith("http://")) "https://" + thumbnail.removePrefix("http://") else thumbnail
+            list.add(SearchResultBook(cleanTitle, cleanAuthor, DEFAULT_PAGE_COUNT, cover))
         }
         return list
     }
+
+    /** Android의 optString은 JSON null을 문자열 "null"로 돌려주므로 먼저 거른다. */
+    private fun JSONObject.text(key: String): String = if (isNull(key)) "" else optString(key, "")
 
     /**
      * Google Books API(`/books/v1/volumes`) 응답 파싱. `volumeInfo`가 없는 항목은 건너뛴다.
@@ -70,7 +76,7 @@ object BookSearchParsers {
             val authorStr = if (authorsArray != null && authorsArray.length() > 0) {
                 authorsArray.getString(0)
             } else "지은이 미상"
-            val pageCount = volumeInfo.optInt("pageCount", 250)
+            val pageCount = volumeInfo.optInt("pageCount", DEFAULT_PAGE_COUNT)
             val imageLinks = volumeInfo.optJSONObject("imageLinks")
             // optString은 결측 시 null이 아닌 ""를 돌려주므로 isNotBlank로 걸러야 smallThumbnail 폴백이 동작한다.
             val thumb = listOf("thumbnail", "smallThumbnail")

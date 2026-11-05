@@ -56,6 +56,10 @@ LLM 키워드 제안 — 3단계 ⑥. 유료·광고 코드 0. 사진 외부 전
 
 ## §4 네이버 키 APK 포함과 재검토 조건
 
+> **개정 2026-11-05(HO-2026-1105-rd-book-search-provider-01):** 네이버 책 검색 API 호출이 404 `SE05`로 끊겨(LC 실측 11-05, 종료일 2026-07-31은 2차 자료) 공급자를 카카오 책 검색 + Google Books로 교체했다.
+> 아래 §4의 네이버 서술은 그때의 기록이다. 결정·재검토 조건은 **카카오 REST 키에 그대로 옮겨 적용**한다(스토어 공개 앱의 사용자에게는 키가 없으므로 키 입력 UI 없음, `.env` `KAKAO_REST_API_KEY` → `BuildConfig`가 정본). 코드 근거는 `data/api/BookSearchClient.kt`.
+> **폴백 규칙 개정:** 아래 «무효 키는 폴백하지 않는다»를 폐기한다. 이제 키 없음 · 카카오 0건 · 카카오 실패(401/403/429/기타/연결, 헤더에 쓸 수 없는 키 포함) 모두 Google Books로 재시도하고, 실패 원인은 결과 위 1줄(둘 다 실패면 안내 카드)로 보인다. 키 설정 실수로 도서 등록이 막히지 않게 하기 위해서다.
+
 - **결정(기본값):** 내부 테스트 빌드에는 네이버 검색 키를 APK에 포함한다. 경로는 CLAUDE.md의 ③ `.env` → `BuildConfig.NAVER_*`
   (`AddEditBookScreen.kt:834-842` `resolveNaverCredentials`: SecureKeyManager → `ENV_NAVER_*` → `NAVER_*`). 키 입력 UI는 만들지 않는다(ADR-003 실행 7 오너 결정).
 - **왜 허용하는가:** 네이버 검색(도서) API는 무료 일일 한도(앱 안 안내 문구 기준 25,000건, `AddEditBookScreen.kt:207`) 방식이라 키가 뽑혀도

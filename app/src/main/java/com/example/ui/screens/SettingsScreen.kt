@@ -46,7 +46,7 @@ internal const val TERMS_SUMMARY =
 internal val PRIVACY_SUMMARY_LINES = listOf(
     "1. 책·책장·독서 일기·기록에 남긴 사진·설정은 이 기기에 저장됩니다. 개발자는 기록을 받아 보관하는 서버를 운영하지 않습니다.",
     "2. 밑줄 구절 인식은 기기 안에서 실행되며, 사진은 기기 밖으로 전송되지 않습니다(5번 예외).",
-    "3. 책을 검색하면 입력한 검색어가 네이버 책 검색(네이버 키가 없는 빌드는 Google Books)으로 전송됩니다. 책 표지를 화면에 표시할 때는 표지 이미지 서버에 요청이 갑니다.",
+    "3. 책을 검색하면 입력한 검색어가 카카오 책 검색으로 전송됩니다(키가 없거나 카카오에서 찾지 못하면 Google Books로 전송). 책 표지를 화면에 표시할 때는 표지 이미지 서버에 요청이 갑니다.",
     "4. 안드로이드 자동 백업이 켜져 있으면 책·일기·일반 설정이 본인 Google 계정 백업에 포함될 수 있습니다(API 키와 기록에 남긴 사진은 제외).",
     "5. 정밀 분석은 본인 Gemini 키 등록, 사진 전송 동의, 사진마다 확인을 모두 거친 경우에만 선택한 페이지 사진을 Google Gemini로 전송합니다."
 )
@@ -615,7 +615,8 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                                     Text("• 본인 Gemini 키로 쓰는 선택형 '정밀 분석' 추가(사진 전송 동의 필요)", style = MaterialTheme.typography.bodySmall)
                                     Text("• API 키를 클라우드 백업·기기 이전에서 제외", style = MaterialTheme.typography.bodySmall)
                                     Text("• 책 페이지 사진에서 밑줄 구절을 기기 안에서 인식(한국어)", style = MaterialTheme.typography.bodySmall)
-                                    Text("• 책장 만들기와 네이버 도서 검색", style = MaterialTheme.typography.bodySmall)
+                                    Text("• 도서 검색을 카카오·Google로 교체(네이버 책 검색 API 종료)", style = MaterialTheme.typography.bodySmall)
+                                    Text("• 책장 만들기와 도서 검색", style = MaterialTheme.typography.bodySmall)
                                 }
                             }
                         }
