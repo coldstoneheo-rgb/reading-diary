@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,7 +52,10 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.data.Book
 import com.example.data.photo.CameraTempFiles
+import com.example.data.photo.RecallPhoto
 import com.example.ui.viewmodel.OcrState
+import com.example.ui.viewmodel.PhotoDrafts
+import com.example.ui.viewmodel.PhotoInputSlot
 import com.example.ui.viewmodel.ReadingViewModel
 import com.example.ui.viewmodel.Screen
 import java.text.SimpleDateFormat
@@ -165,6 +170,52 @@ fun OcrDiaryScreen(
         }
     }
 
+    // 편집 모드의 보관 사진. 불러오기 전에 저장되면 빈 목록이 «전부 지우기»로 읽히므로 photosLoaded로 구분한다.
+    val diarySaving by viewModel.diarySaving.collectAsState()
+    var photosLoaded by remember(diaryId) { mutableStateOf(diaryId == null) }
+    var loadedPhotos by remember(diaryId) { mutableStateOf<List<RecallPhoto>>(emptyList()) }
+    // 카메라 앱을 다녀오면 Activity가 다시 만들어질 수 있어 편집 중 목록과 대상은 저장 가능한 상태로 둔다.
+    var photoDrafts by rememberSaveable(diaryId, stateSaver = PhotoDraftsSaver) { mutableStateOf<List<PhotoInputSlot>>(emptyList()) }
+    var draftsInitialized by rememberSaveable(diaryId) { mutableStateOf(false) }
+    var photoReplaceIndex by rememberSaveable { mutableStateOf<Int?>(null) }
+    var photoCameraUri by rememberSaveable { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(diaryId) {
+        if (diaryId == null) return@LaunchedEffect
+        loadedPhotos = viewModel.loadPhotos(diaryId)
+        if (!draftsInitialized) {
+            photoDrafts = loadedPhotos.map { PhotoInputSlot.Existing(it.photoId) }
+            draftsInitialized = true
+        }
+        photosLoaded = true
+    }
+
+    fun applyPickedPhoto(uri: Uri) {
+        photoDrafts = photoReplaceIndex?.let { PhotoDrafts.replaceAt(photoDrafts, it, uri) } ?: PhotoDrafts.add(photoDrafts, uri)
+        photoReplaceIndex = null
+    }
+
+    val photoCameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        val uri = photoCameraUri
+        if (success && uri != null) applyPickedPhoto(Uri.parse(uri))
+    }
+    fun launchPhotoCamera() {
+        try {
+            val uri = createCameraTempUri()
+            photoCameraUri = uri.toString()
+            photoCameraLauncher.launch(uri)
+        } catch (e: Exception) {
+            Toast.makeText(context, "카메라 실행 중 오류가 발생했습니다: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    val photoPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) launchPhotoCamera()
+        else Toast.makeText(context, "사진 촬영을 위해 카메라 권한이 필요합니다.", Toast.LENGTH_SHORT).show()
+    }
+    val photoGalleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let { applyPickedPhoto(it) }
+    }
+
     // Load initial edit details
     LaunchedEffect(editingDiary) {
         editingDiary?.let {
@@ -172,7 +223,6 @@ fun OcrDiaryScreen(
             extractedText = it.selectedText
             notes = it.notes
             selectedTimestamp = it.createdAt
-            // 편집 모드는 사진 없이 연다. 저장은 사진 상태와 무관하다(예전엔 스톡 사진 URL을 띄웠다, ADR-003-2).
         }
     }
 
@@ -184,9 +234,9 @@ fun OcrDiaryScreen(
         onDispose {
             viewModel.resetOcrState()
             // 촬영 임시 파일은 화면을 떠날 때 지운다(ADR-002 후속 발견). 회전 등 재생성에서는 지우지 않는다 —
-            // 재생성을 견디는 정밀 분석 작업이 아직 그 파일을 읽고 있을 수 있다. 보관 사진 복사는 P4에서 이보다 먼저 끝나야 한다.
+            // 재생성을 견디는 정밀 분석 작업이 아직 그 파일을 읽고 있을 수 있다. 보관 사진 저장이 진행 중이면 ViewModel이 끝난 뒤로 미룬다.
             if ((context as? android.app.Activity)?.isChangingConfigurations != true) {
-                CameraTempFiles.deleteAll(context.cacheDir)
+                viewModel.releaseCameraTempFiles(context.cacheDir)
             }
         }
     }
@@ -1394,7 +1444,34 @@ fun OcrDiaryScreen(
                  }
              }
 
-             // Stage 4: Personal Reflection Notes
+             if (diaryId != null && photosLoaded) {
+                DiaryPhotoEditSection(
+                    models = photoDrafts.map { slot ->
+                        when (slot) {
+                            is PhotoInputSlot.Existing -> loadedPhotos.firstOrNull { it.photoId == slot.photoId }?.file
+                            is PhotoInputSlot.New -> slot.source
+                            is PhotoInputSlot.Replace -> slot.source
+                        }
+                    },
+                    onPick = { replaceIndex, useCamera ->
+                        photoReplaceIndex = replaceIndex
+                        if (!useCamera) {
+                            try {
+                                photoGalleryLauncher.launch("image/*")
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "갤러리 실행 중 오류가 발생했습니다: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                            }
+                        } else if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                            launchPhotoCamera()
+                        } else {
+                            photoPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                        }
+                    },
+                    onRemove = { index -> photoDrafts = PhotoDrafts.removeAt(photoDrafts, index) }
+                )
+            }
+
+            // Stage 4: Personal Reflection Notes
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     "내 영감 기록 & 다이어리 쓰기",
@@ -1449,23 +1526,45 @@ fun OcrDiaryScreen(
                         return@Button
                     }
 
+                    if (!photosLoaded) {
+                        Toast.makeText(context, "사진 정보를 불러오는 중입니다. 잠시 뒤 다시 눌러 주세요.", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+
+                    // 화면에 남겨 둔 사진은 체크 없이 함께 보관한다(ADR-006 Q-a). 빼려면 «사진 전체 삭제».
+                    val shownPhoto = activeImageUrl?.takeIf { !it.startsWith("http") }
+                    val photoFits = PhotoDrafts.canAdd(photoDrafts)
+                    val slots = if (shownPhoto != null && photoFits) {
+                        photoDrafts + PhotoInputSlot.New(Uri.parse(shownPhoto), imageRotation, isFlipped)
+                    } else {
+                        photoDrafts
+                    }
+
                     // Save diary with selected timestamp (which defaults to System.currentTimeMillis() or selected/historical date-time value)
-                    viewModel.saveDiary(
+                    viewModel.saveDiaryWithPhotos(
                         bookId = bookId,
                         page = pageNum,
                         selectedText = extractedText,
                         notes = notes,
                         id = diaryId,
-                        createdAt = selectedTimestamp
-                    ) {
+                        createdAt = selectedTimestamp,
+                        photos = PhotoDrafts.toInput(slots, loadedPhotos.map { it.photoId })
+                    ) { failedPhotos ->
                         if (pageNum > currentBook.currentPage) {
                             viewModel.updateBookProgress(currentBook.id, pageNum)
                         }
-                        Toast.makeText(context, if (diaryId != null) "다이어리 기록이 안전하게 수정되었습니다." else "새 다이어리 기록이 안전하게 저장되었습니다.", Toast.LENGTH_SHORT).show()
+                        val saved = if (diaryId != null) "다이어리 기록이 안전하게 수정되었습니다." else "새 다이어리 기록이 안전하게 저장되었습니다."
+                        val notice = when {
+                            failedPhotos > 0 -> "글은 저장했지만 사진 ${failedPhotos}장을 저장하지 못했습니다."
+                            shownPhoto != null && !photoFits -> "글은 저장했습니다. 사진은 기록당 ${PhotoDrafts.MAX_PER_DIARY}장까지라 방금 사진은 보관하지 않았습니다."
+                            else -> saved
+                        }
+                        Toast.makeText(context, notice, Toast.LENGTH_LONG).show()
                         viewModel.resetOcrState()
                         viewModel.navigateBack()
                     }
                 },
+                enabled = !diarySaving,
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("save_diary_submit_button"),
@@ -1480,6 +1579,11 @@ fun OcrDiaryScreen(
         }
     }
 }
+
+private val PhotoDraftsSaver = Saver<List<PhotoInputSlot>, ArrayList<String>>(
+    save = { PhotoDrafts.encode(it) },
+    restore = { PhotoDrafts.decode(it) }
+)
 
 data class PastelPalette(
     val name: String,

@@ -19,6 +19,23 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import coil.compose.AsyncImage
+import com.example.data.photo.RecallPhoto
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
@@ -46,7 +63,7 @@ import java.util.TimeZone
 
 /**
  * 문구 회상(PHRASE-RECALL-SPEC §2·§3.2 P1) — 떠오른 문구·단어로 내 기록을 찾아 어느 책 몇 쪽, 언제 남겼는지 보여 준다.
- * 사진은 P4에서 붙는다. 계산은 [PhraseRecall.search] 순수 함수를 화면 `remember`로 부른다(ViewModel 상태 추가 0).
+ * 검색 계산은 [PhraseRecall.search] 순수 함수를 화면 `remember`로 부른다. 사진은 썸네일(맨 앞 1장)과 펼친 카드의 N장 넘겨 보기로 그린다(§3.5).
  */
 @Composable
 fun PhraseRecallScreen(
@@ -58,10 +75,12 @@ fun PhraseRecallScreen(
     val books by viewModel.books.collectAsState()
     val diaries by viewModel.diaries.collectAsState()
     val sharedWords by viewModel.sharedWords.collectAsState()
+    val photos by viewModel.recallPhotos.collectAsState()
     PhraseRecallContent(
         books = books,
         diaries = diaries,
         sharedWords = sharedWords,
+        photosByDiary = photos,
         initialQuery = initialQuery,
         initialFilter = initialFilter,
         onOpenBook = { bookId, query, filter -> viewModel.openBookFromPhraseRecall(bookId, query, filter) },
@@ -83,7 +102,9 @@ fun PhraseRecallContent(
     modifier: Modifier = Modifier,
     initialQuery: String = "",
     /** 테스트가 필터 상태를 바로 그리기 위한 초기값. 기간이 들어 있으면 «직접 지정»으로 본다. */
-    initialFilter: RecallFilter = RecallFilter()
+    initialFilter: RecallFilter = RecallFilter(),
+    /** 일기별 보관 사진(표시 순서). 없는 일기는 «사진 없음». */
+    photosByDiary: Map<Int, List<RecallPhoto>> = emptyMap()
 ) {
     val context = LocalContext.current
     val dateFormat = remember { SimpleDateFormat("yyyy.MM.dd", Locale.getDefault()) }
@@ -320,6 +341,7 @@ fun PhraseRecallContent(
                     items(hits, key = { it.diaryId }) { hit ->
                         RecallHitCard(
                             hit = hit,
+                            photos = photosByDiary[hit.diaryId].orEmpty(),
                             expanded = expandedId == hit.diaryId,
                             dateFormat = dateFormat,
                             onToggle = { expandedId = if (expandedId == hit.diaryId) null else hit.diaryId },
@@ -370,6 +392,7 @@ private fun periodLabel(period: RecallPeriod, from: Long?, to: Long?, fmt: Simpl
 @Composable
 private fun RecallHitCard(
     hit: RecallHit,
+    photos: List<RecallPhoto>,
     expanded: Boolean,
     dateFormat: SimpleDateFormat,
     onToggle: () -> Unit,
@@ -397,6 +420,11 @@ private fun RecallHitCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (expanded) {
+                RecallPhotoPager(photos)
+            } else {
+                RecallThumbnail(photos.firstOrNull(), hasRows = photos.isNotEmpty())
+            }
             if (expanded) {
                 Text(text = "«${hit.selectedText}»", style = MaterialTheme.typography.bodyMedium)
             } else {
@@ -445,6 +473,153 @@ private fun RecallHitCard(
             }
         }
     }
+}
+
+/** 접힌 카드: 맨 앞 사진 1장, 없으면 «사진 없음» 한 줄(기존 기록·dangling, 명세 §2.4). */
+@Composable
+private fun RecallThumbnail(photo: RecallPhoto?, hasRows: Boolean) {
+    val file = photo?.file
+    if (file != null) {
+        AsyncImage(
+            model = file,
+            contentDescription = "기록 사진",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(64.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .testTag("phraserecall_thumbnail")
+        )
+    } else {
+        NoPhotoLabel(if (hasRows) PHOTO_NOT_ON_DEVICE else "사진 없음")
+    }
+}
+
+@Composable
+private fun NoPhotoLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+        modifier = Modifier.testTag("phraserecall_no_photo")
+    )
+}
+
+/** 펼친 카드(복기): N장을 넘겨 보고, 누르면 전체 화면에서 확대한다. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun RecallPhotoPager(photos: List<RecallPhoto>) {
+    if (photos.isEmpty()) {
+        NoPhotoLabel("사진 없음")
+        return
+    }
+    var viewerStart by remember { mutableStateOf<Int?>(null) }
+    val pager = rememberPagerState { photos.size }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(240.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        HorizontalPager(state = pager, modifier = Modifier
+            .fillMaxSize()
+            .testTag("phraserecall_photo_pager")) { page ->
+            val file = photos[page].file
+            if (file != null) {
+                AsyncImage(
+                    model = file,
+                    contentDescription = "기록 사진 ${page + 1}",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable { viewerStart = page }
+                )
+            } else {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { NoPhotoLabel(PHOTO_NOT_ON_DEVICE) }
+            }
+        }
+        if (photos.size > 1) {
+            Text(
+                text = "${pager.currentPage + 1} / ${photos.size}",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(6.dp)
+                    .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            )
+        }
+    }
+    viewerStart?.let { start -> RecallPhotoViewer(photos, start) { viewerStart = null } }
+}
+
+/** 전체 화면 보기. 두 손가락으로 확대하고, 확대 중에는 끌어서 옮긴다(확대가 아닐 때 한 손가락은 페이지 넘김). */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun RecallPhotoViewer(photos: List<RecallPhoto>, start: Int, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        var zoomed by remember { mutableStateOf(false) }
+        val pager = rememberPagerState(initialPage = start) { photos.size }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .testTag("phraserecall_photo_viewer")
+        ) {
+            HorizontalPager(state = pager, userScrollEnabled = !zoomed, modifier = Modifier.fillMaxSize()) { page ->
+                ZoomablePhoto(photos[page], isCurrent = page == pager.currentPage, onZoomChanged = { zoomed = it })
+            }
+            IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopEnd)) {
+                Icon(Icons.Default.Close, contentDescription = "닫기", tint = Color.White)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ZoomablePhoto(photo: RecallPhoto, isCurrent: Boolean, onZoomChanged: (Boolean) -> Unit) {
+    var scale by remember { mutableStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    // 넘어간 페이지의 확대는 풀어 둔다(돌아왔을 때 페이지 넘김이 막히지 않게).
+    LaunchedEffect(isCurrent) {
+        if (!isCurrent) {
+            scale = 1f
+            offset = Offset.Zero
+        }
+    }
+    val file = photo.file
+    if (file == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(PHOTO_NOT_ON_DEVICE, color = Color.White) }
+        return
+    }
+    AsyncImage(
+        model = file,
+        contentDescription = "기록 사진 확대",
+        contentScale = ContentScale.Fit,
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val event = awaitPointerEvent()
+                        if (event.changes.size > 1 || scale > 1f) {
+                            scale = (scale * event.calculateZoom()).coerceIn(1f, 5f)
+                            offset = if (scale > 1f) offset + event.calculatePan() else Offset.Zero
+                            onZoomChanged(scale > 1f)
+                            event.changes.forEach { it.consume() }
+                        }
+                    } while (event.changes.any { it.pressed })
+                }
+            }
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                translationX = offset.x
+                translationY = offset.y
+            }
+    )
 }
 
 @Composable
