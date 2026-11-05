@@ -377,8 +377,8 @@ class ReadingViewModel @JvmOverloads constructor(
      * 기록 화면 입력의 저장 키에 넣는다. 진입할 때마다 새로 만들고 Activity 저장 상태로 복원될 때만 이어진다.
      * 번들에 남은 옛 입력이 나중에 연 새 폼에 되살아나지 않게 한다.
      */
-    var diaryFormToken: String = ""
-        private set
+    private val _diaryFormToken = MutableStateFlow("")
+    val diaryFormToken: StateFlow<String> = _diaryFormToken
 
     /** 저장할 화면 위치. 뒤로 가기 순서대로, 마지막이 현재 화면이다. */
     fun navigationSnapshot(): List<String> = (backStack + currentScreenState.value).map(ScreenCodec::encode)
@@ -390,7 +390,7 @@ class ReadingViewModel @JvmOverloads constructor(
     fun restoreNavigation(saved: List<String>?, formToken: String? = null) {
         if (navigationRestored) return
         navigationRestored = true
-        if (formToken != null) diaryFormToken = formToken
+        if (formToken != null) _diaryFormToken.value = formToken
         val screens = saved.orEmpty().map { ScreenCodec.decode(it) ?: return }
         val current = screens.lastOrNull() ?: return
         backStack.clear()
@@ -400,8 +400,8 @@ class ReadingViewModel @JvmOverloads constructor(
 
     // Navigation triggers
     fun navigateTo(screen: Screen, addToBackStack: Boolean = true) {
-        if (addToBackStack && screen is Screen.AddDiary) {
-            diaryFormToken = java.util.UUID.randomUUID().toString()
+        if (addToBackStack && screen is Screen.AddDiary && currentScreenState.value != screen) {
+            _diaryFormToken.value = java.util.UUID.randomUUID().toString()
         }
         if (addToBackStack) {
             val current = currentScreenState.value
@@ -629,6 +629,7 @@ class ReadingViewModel @JvmOverloads constructor(
         id: Int? = null,
         createdAt: Long? = null,
         photos: PhotoInput,
+        onFailure: () -> Unit = {},
         onComplete: (failedPhotos: Int) -> Unit
     ) {
         if (_diarySaving.value) return
@@ -640,33 +641,41 @@ class ReadingViewModel @JvmOverloads constructor(
                 suspend fun store(source: Uri, rotation: Float, flipped: Boolean): String? =
                     photoStore.save(source, rotation, flipped).also { if (it == null) failed++ }
 
-                photoIoMutex.withLock {
-                    val edit = when (photos) {
-                        PhotoInput.Unchanged -> PhotoEdit.Unchanged
-                        is PhotoInput.Slots -> PhotoEdit.Set(
-                            photos.slots.mapNotNull { slot ->
-                                when (slot) {
-                                    is PhotoInputSlot.Existing -> PhotoSlot.Existing(slot.photoId)
-                                    is PhotoInputSlot.New -> store(slot.source, slot.rotation, slot.flipped)?.let { PhotoSlot.New(it) }
-                                    is PhotoInputSlot.Replace -> store(slot.source, slot.rotation, slot.flipped)?.let { PhotoSlot.New(it) }
-                                        ?: PhotoSlot.Existing(slot.photoId)
+                val committed = try {
+                    photoIoMutex.withLock {
+                        val edit = when (photos) {
+                            PhotoInput.Unchanged -> PhotoEdit.Unchanged
+                            is PhotoInput.Slots -> PhotoEdit.Set(
+                                photos.slots.mapNotNull { slot ->
+                                    when (slot) {
+                                        is PhotoInputSlot.Existing -> PhotoSlot.Existing(slot.photoId)
+                                        is PhotoInputSlot.New -> store(slot.source, slot.rotation, slot.flipped)?.let { PhotoSlot.New(it) }
+                                        is PhotoInputSlot.Replace -> store(slot.source, slot.rotation, slot.flipped)?.let { PhotoSlot.New(it) }
+                                            ?: PhotoSlot.Existing(slot.photoId)
+                                    }
                                 }
-                            }
+                            )
+                        }
+                        repository.saveDiary(
+                            Diary(
+                                id = id ?: 0,
+                                bookId = bookId,
+                                page = page,
+                                selectedText = selectedText,
+                                notes = notes,
+                                createdAt = createdAt ?: System.currentTimeMillis()
+                            ),
+                            edit
                         )
                     }
-                    repository.saveDiary(
-                        Diary(
-                            id = id ?: 0,
-                            bookId = bookId,
-                            page = page,
-                            selectedText = selectedText,
-                            notes = notes,
-                            createdAt = createdAt ?: System.currentTimeMillis()
-                        ),
-                        edit
-                    )
+                    true
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // 디스크 부족·책 동시 삭제 등. 앱을 죽이지 않고 화면의 입력을 남긴다. 행은 트랜잭션이라 남지 않는다.
+                    false
                 }
-                onComplete(failed)
+                if (committed) onComplete(failed) else onFailure()
             } finally {
                 _diarySaving.value = false
                 photoSavesInFlight--
@@ -693,24 +702,13 @@ class ReadingViewModel @JvmOverloads constructor(
     }
 
     /**
-     * 복원된 초안이 이미 저장됐는가. 저장 중 앱이 내려가면 번들에는 저장 전 화면과 초안이 남는다.
-     * 새 기록은 작성 시각이 폼을 연 순간에 정해져 저장에 그대로 쓰이므로 책 + 작성 시각으로 정확히 찾는다.
-     * 저장이 끝나지 않았으면 행이 없어(트랜잭션) false이고, 초안을 잃지 않는다.
+     * 복원된 새 기록 초안이 이미 저장됐는가. 저장 중 앱이 내려가면 번들에는 저장 전 화면과 초안이 남는다.
+     * 작성 시각은 폼을 연 순간에 정해져 저장에 그대로 쓰이므로 책 + 작성 시각으로 정확히 찾는다.
+     * 저장이 끝나지 않았으면 행이 없어(트랜잭션) false이고 초안을 잃지 않는다.
+     * 편집에는 쓰지 않는다. 행이 이미 있어 커밋 여부를 가릴 수 없고, 다시 저장해도 중복이 생기지 않는다.
      */
-    suspend fun isDiaryAlreadySaved(
-        bookId: Int,
-        diaryId: Int?,
-        page: Int?,
-        selectedText: String,
-        notes: String,
-        createdAt: Long
-    ): Boolean {
-        val rows = repository.allDiaries.first()
-        return if (diaryId == null) {
-            rows.any { it.bookId == bookId && it.createdAt == createdAt }
-        } else {
-            rows.any { it.id == diaryId && it.page == page && it.selectedText == selectedText && it.notes == notes && it.createdAt == createdAt }
-        }
+    suspend fun isNewDiaryAlreadySaved(bookId: Int, createdAt: Long): Boolean = photoIoMutex.withLock {
+        repository.allDiaries.first().any { it.bookId == bookId && it.createdAt == createdAt }
     }
 
     /** 고아 파일 정리. 반환 = 지운 개수. */

@@ -65,7 +65,7 @@ class MainActivity : ComponentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putStringArrayList(KEY_NAVIGATION, ArrayList(viewModel.navigationSnapshot()))
-        outState.putString(KEY_DIARY_FORM_TOKEN, viewModel.diaryFormToken)
+        outState.putString(KEY_DIARY_FORM_TOKEN, viewModel.diaryFormToken.value)
     }
 
     private companion object {
@@ -81,6 +81,7 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
     val context = LocalContext.current
 
     val currentScreen by viewModel.currentScreenState.collectAsState()
+    val diaryFormToken by viewModel.diaryFormToken.collectAsState()
     val bookcases by viewModel.bookcases.collectAsState()
     val selectedBookcaseId by viewModel.selectedBookcaseId.collectAsState()
 
@@ -372,11 +373,14 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                             )
                         }
                         is Screen.AddDiary -> {
-                            OcrDiaryScreen(
-                                viewModel = viewModel,
-                                bookId = screen.bookId,
-                                diaryId = screen.diaryId
-                            )
+                            // 전환 중 다시 들어오면 나가던 구성이 재사용된다. 토큰으로 갈라 저장된 초안이 이어지지 않게 한다.
+                            key(diaryFormToken) {
+                                OcrDiaryScreen(
+                                    viewModel = viewModel,
+                                    bookId = screen.bookId,
+                                    diaryId = screen.diaryId
+                                )
+                            }
                         }
                         is Screen.Settings -> {
                             SettingsScreen(

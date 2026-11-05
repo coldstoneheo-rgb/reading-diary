@@ -1,6 +1,7 @@
 package com.example
 
 import android.app.Application
+import android.content.res.Configuration
 import android.os.Bundle
 import android.os.Looper
 import android.os.Parcel
@@ -16,6 +17,9 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.data.AppDatabase
 import com.example.data.Book
 import com.example.data.Bookcase
+import com.example.data.Diary
+import com.example.data.DiaryPhoto
+import com.example.ui.viewmodel.PhotoInput
 import com.example.ui.viewmodel.ReadingViewModel
 import com.example.ui.viewmodel.Screen
 import kotlinx.coroutines.flow.first
@@ -24,6 +28,7 @@ import kotlinx.coroutines.sync.Mutex
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -34,6 +39,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.android.controller.ActivityController
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowToast
 
 /**
  * 화면 복원이 저장된 초안을 되살려 기록이 2건이 되는 경로(R4 재게이트).
@@ -158,14 +164,14 @@ class DiaryDraftRestoreTest {
     destroy(first)
 
     val second = restore(bundle)
-    // 수리 전에는 초안이 되살아난다. 그 상태라면 사용자가 다시 저장한다.
-    composeTestRule.waitForIdle()
-    pump { vm(second).currentScreenState.value != Screen.AddDiary(bookId) || tagShown("save_diary_submit_button") }
-    pump {
+    // 판정이 끝나 책 상세로 돌아갈 때까지 기다린다. 끝내 기록 화면에 남으면 사용자처럼 다시 저장해 본다.
+    val deadline = System.currentTimeMillis() + 10_000
+    while (vm(second).currentScreenState.value != Screen.BookDetail(bookId) && System.currentTimeMillis() < deadline) {
       shadowOf(Looper.getMainLooper()).idle()
-      vm(second).currentScreenState.value == Screen.BookDetail(bookId) || textShown("한 번만 저장될 문장")
+      Thread.sleep(20)
     }
-    if (tagShown("save_diary_submit_button") && vm(second).currentScreenState.value == Screen.AddDiary(bookId)) {
+    if (vm(second).currentScreenState.value == Screen.AddDiary(bookId)) {
+      settle { tagShown("save_diary_submit_button") }
       clickSave()
       composeTestRule.waitForIdle()
       pump { !vm(second).diarySaving.value }
@@ -229,5 +235,124 @@ class DiaryDraftRestoreTest {
     assertEquals(1, records().size)
     // 복원 판정은 책 + 작성 시각의 정확 일치다. 작성 시각은 저장·복원 때가 아니라 폼을 처음 연 때의 값이어야 한다.
     assertTrue("작성 시각이 초안의 값이어야 한다", records().single().createdAt in openedFrom..openedUntil)
+  }
+
+  /** 편집은 행이 이미 있어 커밋 여부를 가릴 수 없다. 사진만 바꾼 초안이 «이미 저장됨»으로 버려지면 안 된다. */
+  @Test
+  fun editProcessDiesBeforeCommit_keepsPhotoChange() {
+    val d = runBlocking {
+      val id = db.diaryDao().insert(Diary(bookId = bookId, page = 7, selectedText = "처음 문장", notes = "")).toInt()
+      db.diaryPhotoDao().insertAll(listOf(DiaryPhoto(diaryId = id, path = "kept.jpg", sortOrder = 0)))
+      id
+    }
+    val first = start()
+    vm(first).navigateTo(Screen.BookDetail(bookId))
+    vm(first).navigateTo(Screen.AddDiary(bookId, d))
+    settle { tagShown("diary_photo_remove_0") && textShown("처음 문장") }
+    composeTestRule.onNodeWithTag("diary_photo_add").performScrollTo()
+    composeTestRule.onNodeWithTag("diary_photo_remove_0").performClick()
+    composeTestRule.waitForIdle()
+    assertFalse("전제: 사진을 뺐다", tagShown("diary_photo_0"))
+    holdSaves()
+    clickSave()
+
+    val bundle = capture(first)
+    destroy(first)
+    releaseSaves()
+    ShadowToast.reset()
+
+    val second = restore(bundle)
+    settle { tagShown("diary_photo_add") }
+    repeat(25) {
+      shadowOf(Looper.getMainLooper()).idle()
+      Thread.sleep(20)
+    }
+    composeTestRule.waitForIdle()
+
+    assertEquals("초안을 버리고 나가면 안 된다", Screen.AddDiary(bookId, d), vm(second).currentScreenState.value)
+    assertNotEquals("이미 저장된 기록입니다.", ShadowToast.getTextOfLatestToast())
+    assertFalse("사진 변경이 초안에 남아 있어야 한다", tagShown("diary_photo_0"))
+    assertEquals("커밋되지 않았으니 행은 그대로다", 1, runBlocking { db.diaryPhotoDao().photosFor(d) }.size)
+  }
+
+  /** 연타로 같은 화면에 또 들어가도 토큰이 바뀌면 회전·카메라 복귀 때 입력이 사라진다. */
+  @Test
+  fun repeatedEntry_keepsForm_acrossRotation() {
+    val first = start()
+    openFilledForm(first, "지켜야 할 문장")
+    vm(first).navigateTo(Screen.AddDiary(bookId))
+    composeTestRule.waitForIdle()
+    assertTrue(textShown("지켜야 할 문장"))
+
+    rotate(first)
+
+    settle { tagShown("diary_extracted_text_input") }
+    assertTrue("회전 뒤에도 입력이 남아야 한다", textShown("지켜야 할 문장"))
+  }
+
+  /** 전환 중 다시 들어오면 나가던 구성이 재사용될 수 있다. 저장된 초안이 이어지면 다시 저장해 2건이 된다. */
+  @Test
+  fun reenteringDuringExitTransition_startsEmpty() {
+    val first = start()
+    openFilledForm(first, "방금 저장한 문장")
+    holdSaves()
+    clickSave()
+    composeTestRule.mainClock.autoAdvance = false
+    releaseSaves()
+    pump { records().size == 1 && vm(first).currentScreenState.value == Screen.BookDetail(bookId) }
+    composeTestRule.mainClock.advanceTimeByFrame()
+    composeTestRule.mainClock.advanceTimeByFrame()
+    shadowOf(Looper.getMainLooper()).idle()
+    assertTrue("전제: 나가는 기록 화면이 아직 구성에 있다", tagShown("save_diary_submit_button"))
+
+    vm(first).navigateTo(Screen.AddDiary(bookId))
+    composeTestRule.mainClock.autoAdvance = true
+    settle { tagShown("diary_extracted_text_input") }
+
+    assertFalse(textShown("방금 저장한 문장"))
+    assertEquals(1, records().size)
+  }
+
+  /** 회전은 ViewModel이 살아 있어 저장이 그대로 끝나야 하고, 복원 판정이 한 번 더 뒤로 가면 안 된다. */
+  @Test
+  fun rotationWhileSaving_savesOnce_andBackOnce() {
+    val first = start()
+    openFilledForm(first, "회전 중 저장한 문장")
+    holdSaves()
+    clickSave()
+    rotate(first)
+    releaseSaves()
+
+    pump { records().size == 1 && vm(first).currentScreenState.value == Screen.BookDetail(bookId) }
+    repeat(25) {
+      shadowOf(Looper.getMainLooper()).idle()
+      Thread.sleep(20)
+    }
+
+    assertEquals(1, records().size)
+    assertEquals(Screen.BookDetail(bookId), vm(first).currentScreenState.value)
+  }
+
+  /** 행 저장이 실패하면 앱이 죽지 않고 알린다. 없는 책으로 외래 키 위반을 낸다. */
+  @Test
+  fun commitFailure_reportsFailure_withoutCompleting() {
+    val model = vm(start())
+    var failed = false
+    var completed = false
+
+    model.saveDiaryWithPhotos(987_654, 1, "문장", "", photos = PhotoInput.Unchanged, onFailure = { failed = true }) { completed = true }
+    pump { failed }
+
+    assertFalse(completed)
+    pump { !model.diarySaving.value }
+  }
+
+  private fun rotate(controller: ActivityController<MainActivity>) {
+    val rotated = Configuration(controller.get().resources.configuration).apply {
+      orientation = Configuration.ORIENTATION_LANDSCAPE
+    }
+    controller.configurationChange(rotated)
+    controller.visible() // 다시 만든 Activity의 창을 붙여야 Compose 구성이 보인다
+    shadowOf(Looper.getMainLooper()).idle()
   }
 }

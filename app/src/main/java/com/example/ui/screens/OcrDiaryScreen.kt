@@ -90,7 +90,7 @@ fun OcrDiaryScreen(
     // 카메라 앱을 다녀오거나 회전하면 Activity가 다시 만들어진다. 입력 중인 글과 사진 상태를 잃지 않게 저장 가능한 상태로 둔다.
     // 화면 위치도 함께 복원되므로(MainActivity) 같은 책·같은 기록의 폼에만 이어진다. inputs는 복원 때 검증되지 않아 저장 키에 넣는다.
     // 토큰은 진입마다 새로 만들고 복원 때만 이어지므로, 번들에 남은 옛 입력이 나중에 연 폼으로 들어오지 않는다.
-    val formKey = remember(bookId, diaryId) { "ocr_form/${viewModel.diaryFormToken}/$bookId/$diaryId" }
+    val formKey = remember(bookId, diaryId) { "ocr_form/${viewModel.diaryFormToken.value}/$bookId/$diaryId" }
     var pageStr by rememberSaveable(key = "$formKey/page") { mutableStateOf("") }
     var extractedText by rememberSaveable(key = "$formKey/text") { mutableStateOf("") }
     var notes by rememberSaveable(key = "$formKey/notes") { mutableStateOf("") }
@@ -182,18 +182,21 @@ fun OcrDiaryScreen(
 
     // 편집 모드의 보관 사진. 불러오기 전에 저장되면 빈 목록이 «전부 지우기»로 읽히므로 photosLoaded로 구분한다.
     val diarySaving by viewModel.diarySaving.collectAsState()
-    // 저장을 눌렀는지. 저장 중 앱이 내려가 복원되면 이 값으로 초안이 이미 저장됐는지 확인한다.
-    var draftSubmitted by rememberSaveable(key = "$formKey/submitted") { mutableStateOf(false) }
-    LaunchedEffect(draftSubmitted, diarySaving) {
-        if (!draftSubmitted || diarySaving) return@LaunchedEffect
-        if (viewModel.currentScreenState.value != Screen.AddDiary(bookId, diaryId)) return@LaunchedEffect
-        val alreadySaved = viewModel.isDiaryAlreadySaved(bookId, diaryId, pageStr.toIntOrNull(), extractedText, notes, selectedTimestamp)
+    // 저장을 누른 새 기록의 작성 시각. 저장 중 앱이 내려가 복원되면 이 값으로 초안이 이미 저장됐는지 확인한다.
+    // 누른 뒤 시각을 고쳐도 판정이 빗나가지 않게 따로 둔다. 편집은 다시 저장해도 중복이 없어 쓰지 않는다.
+    var submittedCreatedAt by rememberSaveable(key = "$formKey/submittedAt") { mutableStateOf<Long?>(null) }
+    LaunchedEffect(submittedCreatedAt, diarySaving) {
+        val createdAt = submittedCreatedAt ?: return@LaunchedEffect
+        if (diarySaving) return@LaunchedEffect
+        val here = Screen.AddDiary(bookId, diaryId)
+        if (viewModel.currentScreenState.value != here) return@LaunchedEffect
+        val alreadySaved = viewModel.isNewDiaryAlreadySaved(bookId, createdAt)
         withContext(Dispatchers.Main.immediate) {
-            if (alreadySaved) {
+            if (!alreadySaved) {
+                submittedCreatedAt = null
+            } else if (viewModel.currentScreenState.value == here) {
                 Toast.makeText(context, "이미 저장된 기록입니다.", Toast.LENGTH_SHORT).show()
                 viewModel.navigateBack()
-            } else {
-                draftSubmitted = false
             }
         }
     }
@@ -1580,7 +1583,7 @@ fun OcrDiaryScreen(
 
                     // 저장 완료는 사용자가 이미 다른 화면으로 갔을 수 있으므로, 저장을 시작한 이 화면일 때만 닫는다.
                     val startedOn = viewModel.currentScreenState.value
-                    draftSubmitted = true
+                    if (diaryId == null) submittedCreatedAt = selectedTimestamp
 
                     // Save diary with selected timestamp (which defaults to System.currentTimeMillis() or selected/historical date-time value)
                     viewModel.saveDiaryWithPhotos(
@@ -1590,7 +1593,10 @@ fun OcrDiaryScreen(
                         notes = notes,
                         id = diaryId,
                         createdAt = selectedTimestamp,
-                        photos = PhotoDrafts.toInput(slots, loadedPhotos.map { it.photoId })
+                        photos = PhotoDrafts.toInput(slots, loadedPhotos.map { it.photoId }),
+                        onFailure = {
+                            Toast.makeText(context, "기록을 저장하지 못했습니다. 입력한 내용은 그대로 있으니 다시 시도해 주세요.", Toast.LENGTH_LONG).show()
+                        }
                     ) { failedPhotos ->
                         if (pageNum > currentBook.currentPage) {
                             viewModel.updateBookProgress(currentBook.id, pageNum)
