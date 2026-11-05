@@ -526,11 +526,8 @@ fun getHighlightedText(text: String, query: String, highlightColor: Color): Anno
     }
 }
 
-
-
-
 /** 안내 카드 1줄: 옛 안내를 기억하는 사용자에게 검색 경로가 바뀐 이유를 알린다. */
-internal const val NAVER_SHUTDOWN_NOTICE = "네이버 책 검색 API는 2026-07-31 종료되어 카카오·Google로 찾습니다."
+internal const val NAVER_SHUTDOWN_NOTICE = "네이버 책 검색 API는 2026-07-31 종료되었습니다."
 
 /**
  * 검색 실패·결과 없음 안내. 원인을 사실대로 말한다(ADR-003 실행 7).
@@ -541,14 +538,13 @@ internal fun searchGuidanceText(query: String, error: String?, searchedWithKakao
         return "검색어 '${query.trim()}'에 맞는 책을 찾지 못했습니다.\n다른 단어로 다시 검색하거나 직접 입력해 등록해 주세요.\n\n$NAVER_SHUTDOWN_NOTICE"
     }
     val route = when (searchedWithKakao) {
-        true -> "카카오 도서 검색"
+        // 어느 서비스가 실패했는지는 error 문구가 직접 말한다(카카오 실패, 또는 카카오 0건 뒤 Google 실패).
+        true -> "도서 검색"
         false -> "공용 Google 도서 검색(이 앱에는 카카오 REST 키가 등록되어 있지 않습니다)"
         null -> "온라인 검색"
     }
     return "$route 중 오류가 났습니다.\n$error\n\n잠시 후 다시 시도하거나 직접 입력해 등록해 주세요.\n\n$NAVER_SHUTDOWN_NOTICE"
 }
-
-
 
 /**
  * 검색 입력·결과·안내 카드. ViewModel과 네트워크 없이 그릴 수 있어 스크린샷 테스트가 가능하다.

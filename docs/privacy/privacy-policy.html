@@ -45,7 +45,7 @@
 <h2>3. 도서 검색(카카오·Google)</h2>
 <ul>
   <li>책을 추가할 때 검색창에 입력한 <strong>검색어(제목·저자·ISBN)</strong>가 카카오 책 검색 API(<code>dapi.kakao.com</code>)로 전송되어 검색 결과를 받습니다.
-    키가 없거나 카카오에서 찾지 못하면 같은 검색어가 Google Books API(<code>www.googleapis.com</code>)로 전송됩니다.</li>
+    키가 없거나, 카카오에서 찾지 못하거나 오류가 나면 같은 검색어가 Google Books API(<code>www.googleapis.com</code>)로 전송됩니다.</li>
   <li>앱은 검색어를 기기에도 기록하지 않습니다. 전송된 검색어의 처리는 각 서비스의 개인정보처리방침을 따릅니다.</li>
   <li>검색 결과의 표지 이미지를 화면에 표시할 때 해당 이미지 서버에 요청이 갑니다(기기의 IP 주소 등 일반적인 접속 정보가 그 서버에 전달됩니다).</li>
   <li>ISBN 바코드 스캔은 Google Play 서비스의 코드 스캐너가 기기에서 처리하며, 앱은 인식된 숫자만 받아 검색창에 넣습니다.</li>
@@ -82,7 +82,7 @@
 <div class="table-wrap">
 <table>
   <tr><th>무엇이</th><th>어디로</th><th>언제</th></tr>
-  <tr><td>검색어</td><td>카카오 책 검색 (키가 없거나 카카오에서 찾지 못하면 Google Books)</td><td>책 검색 시</td></tr>
+  <tr><td>검색어</td><td>카카오 책 검색 (키가 없거나, 카카오에서 찾지 못하거나 오류가 나면 Google Books)</td><td>책 검색 시</td></tr>
   <tr><td>표지 이미지 요청</td><td>표지 이미지 서버</td><td>표지 표시 시</td></tr>
   <tr><td>선택한 페이지 사진</td><td>Google Gemini (이용자 본인 키)</td><td>정밀 분석을 직접 실행할 때만</td></tr>
   <tr><td>책·일기·일반 설정</td><td>이용자 본인 Google 계정 백업</td><td>안드로이드 자동 백업이 켜져 있을 때</td></tr>

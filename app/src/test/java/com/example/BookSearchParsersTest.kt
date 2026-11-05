@@ -51,6 +51,14 @@ class BookSearchParsersTest {
   }
 
   @Test
+  fun kakao_keepsAngleBracketsInTitle_butDropsHighlightTags() {
+    val body = """{"documents":[{"title":"<어린 왕자> 깊이 읽기"},{"title":"<b>녹색</b>절벽"}]}"""
+    val result = BookSearchParsers.parseKakaoBooks(body)
+    assertEquals("<어린 왕자> 깊이 읽기", result[0].title)
+    assertEquals("녹색절벽", result[1].title)
+  }
+
+  @Test
   fun kakao_httpThumbnailIsUpgraded_onlyAtTheStart() {
     val body = """{"documents":[{"title":"T","thumbnail":"http://img.example/t?fname=http://origin/a.jpg"}]}"""
     assertEquals("https://img.example/t?fname=http://origin/a.jpg", BookSearchParsers.parseKakaoBooks(body)[0].coverUrl)

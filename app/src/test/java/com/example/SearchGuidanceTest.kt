@@ -32,10 +32,11 @@ class SearchGuidanceTest {
   }
 
   @Test
-  fun errorWithKakaoKey_namesKakaoRoute() {
-    val text = searchGuidanceText(query = "청춘", error = "카카오 REST 키를 확인해 주세요. (HTTP 401)", searchedWithKakao = true)
-    assertTrue(text.startsWith("카카오 도서 검색"))
-    assertTrue(text.contains("HTTP 401"))
+  fun errorWithKakaoKey_letsTheErrorNameTheFailedService() {
+    // 카카오 0건 뒤 Google만 실패한 경우도 이 경로로 온다. 머리말이 «카카오 오류»로 단정하면 틀린다.
+    val text = searchGuidanceText(query = "청춘", error = "카카오에서는 찾지 못했습니다.\nGoogle 도서 검색에 실패했습니다. (HTTP 500)", searchedWithKakao = true)
+    assertTrue(text.startsWith("도서 검색 중 오류"))
+    assertTrue(text.contains("HTTP 500"))
   }
 
   @Test

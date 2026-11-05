@@ -48,7 +48,10 @@ class BookSearchClient(private val http: OkHttpClient = OkHttpClient()) {
         currentCoroutineContext().ensureActive()
         val google = searchGoogle(query, isbn)
         return when {
-            kakao.error == null -> BookSearchOutcome(google.books, null, null, searchedWithKakao = true)
+            // 카카오는 응답했지만 0건. Google까지 실패하면 «책이 없다»고 단정하지 않고 Google 실패를 알린다.
+            kakao.error == null -> BookSearchOutcome(
+                google.books, google.error?.let { "카카오에서는 찾지 못했습니다.\n$it" }, null, searchedWithKakao = true
+            )
             google.books.isNotEmpty() -> BookSearchOutcome(
                 google.books, null, "${kakao.error} 이번 결과는 Google 도서에서 가져왔습니다.", searchedWithKakao = true
             )

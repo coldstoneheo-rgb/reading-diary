@@ -2,6 +2,9 @@ package com.example
 
 import com.example.data.api.BookSearchClient
 import com.example.data.api.BookSearchOutcome
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
@@ -32,10 +35,11 @@ class BookSearchClientTest {
 
   private val requests = mutableListOf<Request>()
 
-  private fun client(kakao: Reply?, google: Reply?) = BookSearchClient(
+  private fun client(kakao: Reply?, google: Reply?, onRequest: () -> Unit = {}) = BookSearchClient(
     OkHttpClient.Builder().addInterceptor(Interceptor { chain ->
       val request = chain.request()
       requests.add(request)
+      onRequest()
       val reply = when (request.url.host) {
         "dapi.kakao.com" -> kakao
         "www.googleapis.com" -> google
@@ -113,10 +117,32 @@ class BookSearchClientTest {
   }
 
   @Test
-  fun kakaoZeroHits_googleFailure_isStillNoResultsNotAnError() {
+  fun kakaoZeroHits_googleFailure_showsTheFailureInsteadOfClaimingNoBook() {
     val outcome = search(Reply(body = kakaoEmpty), Reply(code = 500))
     assertTrue(outcome.books.isEmpty())
+    assertTrue(outcome.error!!.contains("카카오에서는 찾지 못했습니다"))
+    assertTrue(outcome.error!!.contains("Google"))
+    assertTrue(outcome.error!!.contains("HTTP 500"))
+  }
+
+  @Test
+  fun bothZeroHits_isPlainNoResults() {
+    val outcome = search(Reply(body = kakaoEmpty), Reply(body = googleEmpty))
+    assertTrue(outcome.books.isEmpty())
     assertNull(outcome.error)
+  }
+
+  @Test
+  fun cancelledSearch_doesNotSendQueryToGoogle() {
+    // 입력이 바뀌어 취소된 검색의 검색어가 두 번째 서비스로 나가면 안 된다.
+    var job: Job? = null
+    val client = client(Reply(body = kakaoEmpty), Reply(body = googleHit), onRequest = { job!!.cancel() })
+    runBlocking {
+      job = launch(start = CoroutineStart.LAZY) { client.search("녹색절벽", key) }
+      job!!.join()
+    }
+    assertTrue(job!!.isCancelled)
+    assertEquals(listOf("dapi.kakao.com"), hosts())
   }
 
   @Test

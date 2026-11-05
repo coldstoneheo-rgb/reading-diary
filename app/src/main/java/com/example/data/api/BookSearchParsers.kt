@@ -15,7 +15,8 @@ data class SearchResultBook(
  */
 object BookSearchParsers {
 
-    private val HTML_TAG = Regex("<[^>]*>")
+    /** 검색어 강조 태그만 뗀다. 제목의 꺾쇠(«<어린 왕자> 깊이 읽기»)는 책 이름의 일부다. */
+    private val HIGHLIGHT_TAG = Regex("</?b>", RegexOption.IGNORE_CASE)
     private val TITLE_EDITION_SUFFIX =
         Regex("\\s*[\\(\\[](반양장본|양장본|개정판|제\\d+판|Paperback|Hardcover|소설|단행본|Korean Edition|번역본)[\\)\\]]")
     private val AUTHOR_ROLE_PREFIX = Regex("^(저자|지은이|글|그림|옮김)\\s*:\\s*")
@@ -37,7 +38,7 @@ object BookSearchParsers {
             val item = documents.getJSONObject(i)
 
             val cleanTitle = item.text("title")
-                .replace(HTML_TAG, "")
+                .replace(HIGHLIGHT_TAG, "")
                 .replace(TITLE_EDITION_SUFFIX, "")
                 .trim()
                 .ifBlank { "알 수 없는 제목" }
@@ -45,7 +46,7 @@ object BookSearchParsers {
             val authors = item.optJSONArray("authors")
             val cleanAuthor = (0 until (authors?.length() ?: 0))
                 .map { index -> if (authors!!.isNull(index)) "" else authors.optString(index, "") }
-                .map { it.replace(HTML_TAG, "").trim().replace(AUTHOR_ROLE_PREFIX, "").replace(AUTHOR_ROLE_SUFFIX, "").trim() }
+                .map { it.replace(HIGHLIGHT_TAG, "").trim().replace(AUTHOR_ROLE_PREFIX, "").replace(AUTHOR_ROLE_SUFFIX, "").trim() }
                 .filterNot { it.isEmpty() || AUTHOR_ROLE_ONLY.matches(it) }
                 .joinToString(", ")
                 .ifBlank { "지은이 미상" }
@@ -71,16 +72,16 @@ object BookSearchParsers {
         for (i in 0 until items.length()) {
             val item = items.getJSONObject(i)
             val volumeInfo = item.optJSONObject("volumeInfo") ?: continue
-            val titleStr = volumeInfo.optString("title", "알 수 없는 제목")
+            val titleStr = volumeInfo.text("title").ifBlank { "알 수 없는 제목" }
             val authorsArray = volumeInfo.optJSONArray("authors")
-            val authorStr = if (authorsArray != null && authorsArray.length() > 0) {
+            val authorStr = if (authorsArray != null && authorsArray.length() > 0 && !authorsArray.isNull(0)) {
                 authorsArray.getString(0)
             } else "지은이 미상"
             val pageCount = volumeInfo.optInt("pageCount", DEFAULT_PAGE_COUNT)
             val imageLinks = volumeInfo.optJSONObject("imageLinks")
             // optString은 결측 시 null이 아닌 ""를 돌려주므로 isNotBlank로 걸러야 smallThumbnail 폴백이 동작한다.
             val thumb = listOf("thumbnail", "smallThumbnail")
-                .map { imageLinks?.optString(it, "").orEmpty() }
+                .map { imageLinks?.text(it).orEmpty() }
                 .firstOrNull { it.isNotBlank() }
                 ?.replace("http://", "https://") ?: ""
             list.add(SearchResultBook(titleStr, authorStr, pageCount, thumb))

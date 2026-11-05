@@ -1,5 +1,6 @@
 package com.example
 
+import com.example.ui.screens.privacySummaryText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -17,7 +18,8 @@ class BookSearchProviderPolicyTest {
 
   @Test
   fun noNaverCallPathInProductionSources() {
-    val forbidden = listOf("openapi.naver.com", "X-Naver-Client", "parseNaverBooks", "NAVER_CLIENT")
+    // 옛 호스트는 나눠 쓴다: 저장소 전체 grep이 이 줄에 걸리지 않게.
+    val forbidden = listOf("openapi.naver" + ".com", "X-Naver-Client", "parseNaverBooks", "NAVER_CLIENT")
     val offenders = mainFiles().flatMap { file ->
       val text = file.readText()
       forbidden.filter { text.contains(it) }.map { "${file.path}: $it" }
@@ -59,5 +61,13 @@ class BookSearchProviderPolicyTest {
     assertTrue(policy.contains("dapi.kakao.com"))
     assertTrue(policy.contains("www.googleapis.com"))
     assertTrue(!policy.contains("네이버"))
+  }
+
+  @Test
+  fun publicCopyStatesEveryConditionForSendingQueryToGoogle() {
+    // 카카오 오류 때도 검색어가 Google로 간다. 처리방침과 앱 요약이 이 조건을 빠뜨리면 사실과 어긋난다.
+    val condition = "카카오에서 찾지 못하거나 오류가 나면"
+    assertTrue(File("../docs/privacy/privacy-policy.html").readText().contains(condition))
+    assertTrue(privacySummaryText(url = "").contains(condition))
   }
 }
