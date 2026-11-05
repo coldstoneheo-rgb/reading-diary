@@ -1,10 +1,9 @@
 {
-  "as_of": "2026-11-05T17:15:00+09:00",
-  "phase": "도서 검색 공급자 교체(네이버 종료 → 카카오 + Google 폴백) PR 게이트 대기 → 다음 = ② SAF 마크다운",
-  "current_task": "HO-2026-1105-rd-book-search-provider-01 — 브랜치 feat/book-search-kakao, 게이트 전 머지 0",
+  "as_of": "2026-11-05T23:15:00+09:00",
+  "phase": "R4 촬영 복귀·쪽수 수리 PR 게이트 대기 → 다음 = 테스트 순서 의존 → ② SAF 마크다운",
+  "current_task": "HO-2026-1105-rd-r4-camera-state-pagecount-01 — 브랜치 fix/camera-state-pagecount, 재게이트 전 머지 0",
   "waiting_on": [
-    "사용자: D:\\사진\\reading-diary\\reading-diary-debug-20261105-1711-f00f95a.apk 설치 후 «녹색절벽» 검색 — 카카오 실호출은 아직 0회. 401/403이면 상태 코드를 LC로",
-    "사용자: 카카오 테스트 도구로 v3/search/book 상태 코드 확인(이 창은 .env 접근 권한 거부) · .env의 NAVER_CLIENT_* 2줄 삭제(APK에는 이미 안 들어감)",
+    "사용자: D:\\사진\\reading-diary\\reading-diary-debug-20261105-2309-4e40a36.apk 설치 후 «기록하기 → 사진 촬영 → 확인 → 자르기 화면» + 검색 등록 쪽수 274/384 확인. 이미 250으로 등록된 두 권은 책 정보에서 직접 고친다. 실제 카메라·프로세스 사망은 미검증",
     "사용자: 키 넣은 APK를 테스터에게 배포하기 전 ADR-005 §4 [미확인] 3건 확인(내장 키 약관 · REST 키 범위 · 쿼터 초과 응답 코드)",
     "사용자: CLAUDE.md·critic.md·HARNESS.md 네이버 서술 교체안 승인(REPORT)",
     "사용자(최우선): 서명 키 문제 해소 — 메인 체크아웃 루트 debug.keystore로 만든 APK 인증서 aba8e5e3…가 드라이브의 이전 APK와 일치(기기 실측은 아님). 남은 것 = 오너 기기에 reading-diary-debug-20261105-1101-e0094b0.apk(드라이브 apk 폴더)를 덮어 설치하고 기록 수 동일 확인(명세 §3.4 :230). 덮어 설치가 거부되면 앱을 지우지 말고 멈춘다(지우면 기록이 사라진다)",
@@ -15,6 +14,8 @@
     "사용자 손 U1~U7 (docs/store-listing/INTERNAL-TEST-2026-11.md) — U8 첫 AAB 업로드는 P5 머지 뒤(ADR-006 A-선행)"
   ],
   "next_actions": [
+    "테스트 순서 의존: B3 순서에서 ReadingViewModelPhotoSaveTest 멈춤 — 가설 photoIoMutex(ReadingViewModel.kt:831) 정리 코루틴·메인 루퍼 소실 · 최소 재현 후보 PhraseRecallNavigationTest+PhotoSave · base 재현 미확인 · 새 테스트(NavigationRestoreTest 등)가 같은 패턴이라 악화 가능성",
+    "R4 후속: 전환 250ms 중 초안 복원(critic 추론, 미재현) · 등록 폼 복원 · 책 없는 BookDetail 복원의 진행 표시 · 쪽수 조회 실패와 없음 구분",
     "로컬 창 ② SAF 마크다운 내보내기(새 파일 생성만) + HonestCopyTest 조건화 (STAGE2-PLAN ②, P4 뒤·P5 앞 확정 — LC 11-03)",
     "로컬 창 P5: SAF zip 백업(DB+사진) + 가져오기(복원) — §3.6",
     "사용자 U8: P5 머지 뒤 bundleRelease → 첫 AAB 업로드 (부제 = 명세 §5 후보 3, 결정됨)",
@@ -24,15 +25,17 @@
     "P2 후속 소형(critic #P2): 뒤집기·회전 행렬 3중 복사(BitmapDecoding.decodeForOcr·DiaryPhotoStore.save) 공통 함수화 · save 실패 정리 경로(compress 실패·IO 예외) 테스트 · onDispose 임시 파일 삭제 Compose 테스트 · P4 선행(LC 11-03 판정): 사진 save 완료 뒤 임시 파일 삭제 순서와 앱 시작 sweep을 save와 동시 실행하지 않기 · P4 완료 조건: 명세 :167 오너 기기 JPEG 1장 실측(LC 11-03 이관)"
   ],
   "metrics": {
-    "unit_tests_after_round": 265,
-    "unit_test_classes": 40,
-    "screenshot_baselines": 16,
+    "unit_tests_after_round": 295,
+    "unit_test_classes": 43,
+    "screenshot_baselines": 17,
     "room_schema_version": 3,
     "prs_merged_this_round": 6,
     "prs_ready_unmerged": 0,
-    "critic_first_pass_rate": "3/9 (누적. 도서 검색 1차 6/10 NEEDS_REVISION → 8/10 PASS · #36 1차 6/10 NEEDS_REVISION → PASS · #37 8/10 PASS · #39 8/10 PASS · P3 1차 8/10 조건부 PASS · P4 1차 7/10 PASS, 발주서 ≥8 미달 → 수정 뒤 8/10)",
-    "gradle_runs": "45 (도서 검색 교체: 11 — 옛 경로 스텁 red 1 · 전체 test 1(간헐 실패 1) · 실패분 재실행 1 · record 2 · verify 2 · assembleDebug 2 · 보정 필터 1 · 변이 확인 1(의도된 실패) |#40 head 재검증 1 · P4: 11 — 메모리 부족 강제 종료 2 · 테스트 실패 3(테스트 방식 문제) · record 1 · verify 재사용 1 · 옛 동작 재현 1(의도된 실패) · 전체 test 1 · verify 1 · assembleDebug 1 | P3: 8 — kspDebugKotlin 1 · 필터 실행 1차 실패(MigrationTestHelper assets 미발견) · 필터 2차 15/15 · HEAD cbc3f9f testDebugUnitTest·verifyRoborazziDebug exit 0 · M5 red 변형 실행 1(의도된 실패) · HEAD 2e53c9c testDebugUnitTest 195(통과 194·건너뜀 1)·verifyRoborazziDebug 195(통과 194·건너뜀 1) · P2: 4 · #36: 8 · #37: 2 · #35·#38: 0)"
+    "critic_first_pass_rate": "3/10 (누적. R4 1차 6/10 NEEDS_REVISION → 2차 7/10 PASS · 도서 검색 1차 6/10 NEEDS_REVISION → 8/10 PASS · #36 1차 6/10 NEEDS_REVISION → PASS · #37 8/10 PASS · #39 8/10 PASS · P3 1차 8/10 조건부 PASS · P4 1차 7/10 PASS, 발주서 ≥8 미달 → 수정 뒤 8/10)",
+    "gradle_runs": "45 (도서 검색 교체: 11 — 옛 경로 스텁 red 1 · 전체 test 1(간헐 실패 1) · 실패분 재실행 1 · record 2 · verify 2 · assembleDebug 2 · 보정 필터 1 · 변이 확인 1(의도된 실패) |#40 head 재검증 1 · P4: 11 — 메모리 부족 강제 종료 2 · 테스트 실패 3(테스트 방식 문제) · record 1 · verify 재사용 1 · 옛 동작 재현 1(의도된 실패) · 전체 test 1 · verify 1 · assembleDebug 1 | P3: 8 — kspDebugKotlin 1 · 필터 실행 1차 실패(MigrationTestHelper assets 미발견) · 필터 2차 15/15 · HEAD cbc3f9f testDebugUnitTest·verifyRoborazziDebug exit 0 · M5 red 변형 실행 1(의도된 실패) · HEAD 2e53c9c testDebugUnitTest 195(통과 194·건너뜀 1)·verifyRoborazziDebug 195(통과 194·건너뜀 1) · P2: 4 · #36: 8 · #37: 2 · #35·#38: 0)",
+    "unit_tests_note": "앱 코드 4e40a36 묶음별 실행 수의 합 294 + 뒤 테스트 커밋 1건 추가(변경 2클래스만 재실행). 한 프로세스 전체 통과는 확인하지 않음",
+    "kakao_real_call": "사용자 실기기 검색 성공(11-05 18:2x 사용자 보고)"
   },
-  "head": "feat/book-search-kakao (origin/main 0df2451 기준)",
-  "last_commit": "origin/main 0df2451 (#42)"
+  "head": "fix/camera-state-pagecount (코드 4e40a36, base 4cef4dc)",
+  "last_commit": "origin/main 4cef4dc (#43)"
 }

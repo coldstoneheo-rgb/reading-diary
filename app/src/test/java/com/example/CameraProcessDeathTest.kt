@@ -205,7 +205,7 @@ class CameraProcessDeathTest {
     assertEquals(Screen.BookDetail(bookId), vm(second.get()).currentScreenState.value)
   }
 
-  /** 사용자 신고의 토스트는 결과가 RESULT_OK가 아니었음을 뜻한다. 파일이 이번 촬영으로 채워졌으면 촬영으로 본다. */
+  /** 사용자 신고의 토스트가 RESULT_OK가 아닌 결과라는 해석은 가설이다(REPORT). 파일이 이번 촬영으로 채워졌으면 촬영으로 본다. */
   @Test
   fun canceledResult_withFreshPhoto_stillShowsCropStep() {
     val first = start()
@@ -240,13 +240,12 @@ class CameraProcessDeathTest {
     assertFalse(textShown("자르기 확정하기"))
   }
 
-  /** 복원 직후 책 목록이 오기 전에 «책을 찾을 수 없다»고 단정하면 안 된다. */
+  /** 받기 전과 없음의 구분은 NavigationRestoreTest.loadedBooks_startsUnknown_notEmpty가 지킨다. */
   @Test
-  fun restoredScreen_showsNoMissingBookMessage_afterBooksArrive() {
+  fun missingBook_showsMessage_andWayBack() {
     val first = start()
     val second = killAndRestore(first, openCamera(first), Activity.RESULT_OK)
     settle { textShown("자르기 확정하기") }
-    assertFalse(textShown("해당 책을 일치시킬 수 없습니다."))
     vm(second.get()).navigateTo(Screen.AddDiary(987_654))
     settle { textShown("돌아가기") }
     assertTrue("정말 없는 책이면 안내하고 나갈 길을 준다", textShown("해당 책을 일치시킬 수 없습니다."))

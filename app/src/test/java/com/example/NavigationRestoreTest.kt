@@ -78,6 +78,12 @@ class NavigationRestoreTest {
     assertEquals(Screen.Settings, model.currentScreenState.value)
   }
 
+  /** 빈 목록으로 시작하면 복원 직후 기록 화면이 «책을 찾을 수 없다»고 잘못 말한다. */
+  @Test
+  fun loadedBooks_startsUnknown_notEmpty() {
+    assertNull(vm().loadedBooks.value)
+  }
+
   @Test
   fun restore_ignoresBrokenSnapshot() {
     val model = vm()
