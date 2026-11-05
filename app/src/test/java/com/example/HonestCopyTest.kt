@@ -54,6 +54,19 @@ class HonestCopyTest {
     assertTrue("dead-end key setup copy found:\n" + offenders.joinToString("\n"), offenders.isEmpty())
   }
 
+  /** 명세 §3.5: 사진을 보관하기 시작했으므로 «저장하지 않는다»는 옛 문구가 앱·처리방침에 남으면 거짓이다. */
+  @Test
+  fun noPhotoNotStoredCopy() {
+    val forbidden = listOf("사진 자체는 일기에 저장되지 않습니다", "사진은 일기에 저장되지 않")
+    val policy = File("../docs/privacy/privacy-policy.html")
+    assertTrue("expected privacy policy at ${policy.path}", policy.isFile)
+    val offenders = (mainSources() + policy).flatMap { file ->
+      val text = file.readText()
+      forbidden.filter { text.contains(it) }.map { "${file.path}: \"$it\"" }
+    }
+    assertTrue("stale photo copy found:\n" + offenders.joinToString("\n"), offenders.isEmpty())
+  }
+
   /** ADR-003 Q6: 기억 서랍은 LLM 생성도, 타사 앱 연동도 하지 않는다. 그렇게 읽히는 단어를 app/src/main에서 금지한다. */
   @Test
   fun noOverstatedFeatureVocabularyInProductionSources() {
