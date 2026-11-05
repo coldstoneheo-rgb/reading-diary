@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -60,7 +61,9 @@ fun AddEditBookScreen(
     viewModel: ReadingViewModel,
     bookId: Int? = null,
     startWithSearch: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    bookSearchClient: BookSearchClient = remember { BookSearchClient() },
+    kakaoKeyProvider: (Context) -> String? = { resolveKakaoRestKey(it) }
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -92,7 +95,9 @@ fun AddEditBookScreen(
     /** 카카오 키가 있으면 카카오를 먼저, 없으면 공용 Google 도서로 검색한다. 안내 카드가 이 값으로 원인을 구분한다. */
     var searchedWithKakao by remember { mutableStateOf<Boolean?>(null) }
     var searchNotice by remember { mutableStateOf<String?>(null) }
-    val bookSearchClient = remember { BookSearchClient() }
+    /** 쪽수 없는 검색 결과를 골랐을 때 Google Books에서 찾는 중인 ISBN. */
+    var pageLookupIsbn by remember { mutableStateOf<String?>(null) }
+    var pageCountMissing by remember { mutableStateOf(false) }
 
     // ISBN 바코드 스캔(ADR-003 실행 8). 스캐너 UI는 Play 서비스가 띄우므로 카메라 권한·미리보기 코드가 없다. EAN-13만 받아 부가기호(5자리)를 거른다.
     // 클라이언트는 버튼을 눌렀을 때만 만든다 — Play 서비스가 없는 기기에서 화면 진입 자체가 죽지 않게.
@@ -152,7 +157,7 @@ fun AddEditBookScreen(
             delay(400) // 400ms debounce
             isSearching = true
             val outcome = withContext(Dispatchers.IO) {
-                bookSearchClient.search(trimmedQuery, resolveKakaoRestKey(context))
+                bookSearchClient.search(trimmedQuery, kakaoKeyProvider(context))
             }
             searchedWithKakao = outcome.searchedWithKakao
             searchResults = outcome.books
@@ -165,6 +170,15 @@ fun AddEditBookScreen(
             searchNotice = null
             isSearching = false
         }
+    }
+
+    // 고른 책의 쪽수 보조 조회. 사용자가 그 사이 직접 입력했으면 덮어쓰지 않는다.
+    LaunchedEffect(pageLookupIsbn) {
+        val isbn = pageLookupIsbn ?: return@LaunchedEffect
+        val found = withContext(Dispatchers.IO) { bookSearchClient.findPageCount(isbn) }
+        if (found != null && totalPagesStr.isBlank()) totalPagesStr = found.toString()
+        pageCountMissing = found == null
+        pageLookupIsbn = null
     }
 
     Scaffold(
@@ -199,7 +213,9 @@ fun AddEditBookScreen(
                 onPick = { result ->
                     title = result.title
                     author = result.author
-                    totalPagesStr = result.pageCount.toString()
+                    totalPagesStr = result.pageCount?.toString().orEmpty()
+                    pageLookupIsbn = result.isbn.takeIf { result.pageCount == null }
+                    pageCountMissing = result.pageCount == null && result.isbn == null
                     coverUrl = result.coverUrl
                     isSearchActive = false
                 },
@@ -251,6 +267,8 @@ fun AddEditBookScreen(
                                 title = ""
                                 author = ""
                                 totalPagesStr = ""
+                                pageLookupIsbn = null
+                                pageCountMissing = false
                                 coverUrl = ""
                                 isSearchActive = true 
                             },
@@ -342,6 +360,7 @@ fun AddEditBookScreen(
                     onValueChange = { totalPagesStr = it },
                     label = { Text("전체 페이지 수 *") },
                     placeholder = { Text("전체 쪽 수 입력 (예 : 300)") },
+                    supportingText = pageCountHelpText(pageLookupIsbn != null, pageCountMissing, totalPagesStr)?.let { help -> { Text(help) } },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier
@@ -769,12 +788,6 @@ internal fun BookSearchContent(
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                     )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = "${result.pageCount} 쪽 분량",
-                                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
                                 }
 
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -792,6 +805,14 @@ internal fun BookSearchContent(
             }
         }
     }
+}
+
+/** 쪽수 칸 안내. 검색에서 쪽수를 얻지 못했으면 사용자가 채워야 저장된다. */
+internal fun pageCountHelpText(lookupRunning: Boolean, missing: Boolean, value: String): String? = when {
+    value.isNotBlank() -> null
+    lookupRunning -> "쪽수를 찾는 중입니다."
+    missing -> "검색 결과에 쪽수가 없습니다. 직접 입력해 주세요."
+    else -> null
 }
 
 /**

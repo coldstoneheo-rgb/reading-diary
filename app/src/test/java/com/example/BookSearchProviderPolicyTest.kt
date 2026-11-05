@@ -64,6 +64,13 @@ class BookSearchProviderPolicyTest {
   }
 
   @Test
+  fun publicCopyStatesIsbnLookupToGoogle() {
+    // 카카오가 성공해도 고른 책의 ISBN은 Google로 간다. 처리방침 9항: 새 경로는 먼저 공개 문구에 반영한다.
+    assertTrue(File("../docs/privacy/privacy-policy.html").readText().contains("그 책의 ISBN"))
+    assertTrue(privacySummaryText(url = "").contains("그 책의 ISBN"))
+  }
+
+  @Test
   fun publicCopyStatesEveryConditionForSendingQueryToGoogle() {
     // 카카오 오류 때도 검색어가 Google로 간다. 처리방침과 앱 요약이 이 조건을 빠뜨리면 사실과 어긋난다.
     val condition = "카카오에서 찾지 못하거나 오류가 나면"

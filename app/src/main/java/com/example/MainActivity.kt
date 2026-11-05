@@ -28,7 +28,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.ViewModelProvider
 import com.example.ui.screens.AddEditBookScreen
 import com.example.ui.screens.BookDetailScreen
 import com.example.ui.screens.DashboardScreen
@@ -43,16 +43,27 @@ import com.example.ui.viewmodel.Screen
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private val viewModel: ReadingViewModel by lazy { ViewModelProvider(this)[ReadingViewModel::class.java] }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        viewModel.restoreNavigation(savedInstanceState?.getStringArrayList(KEY_NAVIGATION))
         enableEdgeToEdge()
         setContent {
-            val viewModel: ReadingViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
             val currentThemeId by viewModel.currentThemeId.collectAsState()
             MyApplicationTheme(themeId = currentThemeId) {
                 MainAppEntry(viewModel)
             }
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putStringArrayList(KEY_NAVIGATION, ArrayList(viewModel.navigationSnapshot()))
+    }
+
+    private companion object {
+        const val KEY_NAVIGATION = "reading_diary_navigation"
     }
 }
 

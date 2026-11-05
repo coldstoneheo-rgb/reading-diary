@@ -3,6 +3,7 @@ package com.example
 import com.example.data.api.BookSearchParsers
 import org.json.JSONException
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -32,7 +33,9 @@ class BookSearchParsersTest {
     assertEquals("토비의 스프링 3.1", result[0].title)
     assertEquals("이일민", result[0].author)
     assertEquals("https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fa.jpg", result[0].coverUrl)
-    assertEquals("카카오 응답에는 쪽수가 없어 기본값을 쓴다", 250, result[0].pageCount)
+    assertNull("카카오 응답에는 쪽수가 없다. 기본값을 지어내지 않는다", result[0].pageCount)
+    assertEquals("13자리를 고른다", "9788960773431", result[0].isbn)
+    assertNull("isbn이 비면 null", result[1].isbn)
     assertEquals("조영호, 김철수", result[1].author)
     assertEquals("", result[1].coverUrl)
   }
@@ -84,8 +87,22 @@ class BookSearchParsersTest {
     assertEquals("https://books.google.com/thumb.jpg", result[0].coverUrl)
     assertEquals("No Authors", result[1].title)
     assertEquals("지은이 미상", result[1].author)
-    assertEquals(250, result[1].pageCount)
+    assertNull("쪽수가 없으면 지어내지 않는다", result[1].pageCount)
     assertEquals("", result[1].coverUrl)
+  }
+
+  @Test
+  fun google_zeroPageCountIsNoPageCount() {
+    val body = """{"items":[{"volumeInfo":{"title":"T","pageCount":0}}]}"""
+    assertNull(BookSearchParsers.parseGoogleBooks(body)[0].pageCount)
+  }
+
+  @Test
+  fun kakao_isbnVariants() {
+    fun isbnOf(raw: String) = BookSearchParsers.parseKakaoBooks("""{"documents":[{"title":"T","isbn":"$raw"}]}""")[0].isbn
+    assertEquals("9788937460449", isbnOf(" 9788937460449"))
+    assertEquals("한쪽만 있으면 10자리도 쓴다", "8937460440", isbnOf("8937460440 "))
+    assertNull("체크섬이 틀린 13자리는 버린다", isbnOf("9788937460440"))
   }
 
   @Test

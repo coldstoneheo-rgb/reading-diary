@@ -30,8 +30,8 @@ class BookSearchScreenshotTest {
   @get:Rule val composeTestRule = createComposeRule()
 
   private val books = listOf(
-    SearchResultBook("녹색절벽", "김작가, 이작가", 250, ""),
-    SearchResultBook("녹색절벽 2", "김작가", 250, "")
+    SearchResultBook("녹색절벽", "김작가, 이작가", null, ""),
+    SearchResultBook("녹색절벽 2", "김작가", null, "")
   )
 
   private fun show(

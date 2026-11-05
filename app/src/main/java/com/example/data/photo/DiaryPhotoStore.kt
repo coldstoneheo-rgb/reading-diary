@@ -119,6 +119,16 @@ object CameraTempFiles {
 
     fun deleteAll(cacheDir: File): Int = list(cacheDir).count { it.delete() }
 
+    /**
+     * 카메라가 성공을 알리지 않았어도 이번 촬영으로 파일이 채워졌는가. 앱이 내려갔다 돌아오는 경우 결과 코드만으로는 판단할 수 없다.
+     * 파일 시각이 초 단위로 잘리는 저장소가 있어 시작 시각도 초로 내려 비교한다.
+     */
+    fun hasNewPhoto(cacheDir: File, fileName: String?, startedAtMillis: Long): Boolean {
+        if (fileName == null || !fileName.startsWith(PREFIX) || startedAtMillis <= 0L) return false
+        val file = File(cacheDir, fileName)
+        return file.length() > 0L && file.lastModified() >= startedAtMillis / 1000L * 1000L
+    }
+
     /** 지금 있는 촬영 임시 파일. 저장이 진행 중이면 이 목록만 저장 뒤에 지운다(그 사이 새로 찍은 파일은 건드리지 않게). */
     fun list(cacheDir: File): List<File> =
         cacheDir.listFiles()?.filter { f -> f.isFile && f.name.startsWith(PREFIX) && f.name.endsWith(SUFFIX) }.orEmpty()

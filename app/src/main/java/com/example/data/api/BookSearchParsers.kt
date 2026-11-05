@@ -5,8 +5,11 @@ import org.json.JSONObject
 data class SearchResultBook(
     val title: String,
     val author: String,
-    val pageCount: Int,
-    val coverUrl: String
+    /** 응답에 쪽수가 없으면 null. 지어낸 기본값을 넣지 않는다(등록 화면이 그대로 저장한다). */
+    val pageCount: Int?,
+    val coverUrl: String,
+    /** 쪽수를 다른 곳에서 찾을 때 쓴다. 카카오 결과에만 있다. */
+    val isbn: String? = null
 )
 
 /**
@@ -24,8 +27,7 @@ object BookSearchParsers {
     /** 역할어만 남은 조각(예: author가 "지음")은 저자가 아니다. */
     private val AUTHOR_ROLE_ONLY = Regex("^(저|지음|글|그림|역|옮김|편|편저|감수)$")
 
-    /** 카카오 응답에 쪽수가 없어 쓰는 기본값. 네이버 때와 같고 사용자가 등록 화면에서 고칠 수 있다. */
-    private const val DEFAULT_PAGE_COUNT = 250
+    private val ISBN_10 = Regex("^[0-9]{9}[0-9Xx]$")
 
     /**
      * 카카오 책 검색 API(`/v3/search/book`) 응답 파싱. `documents`가 없으면 빈 목록.
@@ -54,9 +56,16 @@ object BookSearchParsers {
             // 표지 주소 앞머리만 https로 올린다. 쿼리에 든 원본 주소(fname=http://...)는 건드리지 않는다.
             val thumbnail = item.text("thumbnail").trim()
             val cover = if (thumbnail.startsWith("http://")) "https://" + thumbnail.removePrefix("http://") else thumbnail
-            list.add(SearchResultBook(cleanTitle, cleanAuthor, DEFAULT_PAGE_COUNT, cover))
+            // 카카오 응답에는 쪽수가 없다.
+            list.add(SearchResultBook(cleanTitle, cleanAuthor, null, cover, parseKakaoIsbn(item.text("isbn"))))
         }
         return list
+    }
+
+    /** 카카오 isbn은 "10자리 13자리"처럼 공백으로 이어지고 한쪽이 빌 수 있다. 13자리를 먼저 쓴다. */
+    private fun parseKakaoIsbn(raw: String): String? {
+        val parts = raw.trim().split(Regex("\\s+"))
+        return parts.firstNotNullOfOrNull { Isbn.fromBarcode(it) } ?: parts.firstOrNull { ISBN_10.matches(it) }
     }
 
     /** Android의 optString은 JSON null을 문자열 "null"로 돌려주므로 먼저 거른다. */
@@ -77,7 +86,7 @@ object BookSearchParsers {
             val authorStr = if (authorsArray != null && authorsArray.length() > 0 && !authorsArray.isNull(0)) {
                 authorsArray.getString(0)
             } else "지은이 미상"
-            val pageCount = volumeInfo.optInt("pageCount", DEFAULT_PAGE_COUNT)
+            val pageCount = volumeInfo.optInt("pageCount", 0).takeIf { it > 0 }
             val imageLinks = volumeInfo.optJSONObject("imageLinks")
             // optString은 결측 시 null이 아닌 ""를 돌려주므로 isNotBlank로 걸러야 smallThumbnail 폴백이 동작한다.
             val thumb = listOf("thumbnail", "smallThumbnail")

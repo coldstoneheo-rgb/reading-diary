@@ -95,6 +95,7 @@
 |---|------|---------------|---------|------|-----------|
 | N1 | 도서 검색(카카오) | **검색어**(제목·저자·ISBN) + 앱에 포함된 카카오 REST 키(`Authorization` 헤더) | `dapi.kakao.com` | 책 추가 화면에서 2글자 이상 입력 후 400ms(자동) | `AddEditBookScreen.kt:149` (`LaunchedEffect(searchQuery)`), `BookSearchClient.kt:68-74` (URL·헤더) |
 | N2 | 도서 검색(Google Books — 키가 없거나, 카카오에서 찾지 못하거나 오류가 날 때) | **검색어** | `www.googleapis.com/books` | N1과 같음. 키 없음 · 카카오 0건 · 카카오 실패 | `BookSearchClient.kt:85-91` |
+| N2-1 | 쪽수 보조 조회(Google Books) | 고른 책의 **ISBN** | `www.googleapis.com/books` | 쪽수 없는 검색 결과(카카오)를 고를 때 1회 | `AddEditBookScreen.kt` (`LaunchedEffect(pageLookupIsbn)`), `BookSearchClient.findPageCount` |
 | N3 | 표지 이미지 표시 | 이미지 요청(기기 IP·User-Agent). 사용자 기록은 실리지 않음 | 검색 결과의 표지 호스트(카카오/Google 이미지 서버, 예전에 등록한 책은 네이버 이미지 서버). 표지가 없는 책은 기기 안 플레이스홀더(요청 0, ADR-003-2) | 표지가 화면에 그려질 때 | Coil `AsyncImage`: `DashboardScreen`·`BookDetailScreen`(`Book.cleanCoverUrl` 경유), `AddEditBookScreen` 검색 결과 썸네일(응답 URL 그대로)·표지 미리보기(`displayableCoverUrl` 경유). `OcrDiaryScreen`의 `AsyncImage`는 사용자가 찍거나 고른 로컬 사진만 그림(네트워크 0); 저장된 예전 스톡 표지 URL은 `isStockCover`로 표시 시점에 거름 |
 | N4 | ISBN 바코드 스캔 | 앱은 보내지 않음. 스캐너 UI·인식은 Google Play 서비스(코드 스캐너)가 기기에서 처리하고 앱은 숫자만 받음 | — (Play 서비스) | 바코드 버튼을 눌렀을 때 | `AddEditBookScreen.kt:101` (`GmsBarcodeScanning.getClient`, EAN-13만) |
 | N5 | 밑줄 글자 인식(기본) | **사진은 나가지 않음.** ML Kit 한국어 인식은 기기 안에서 실행(모델은 Play 서비스가 첫 사용 시 내려받음) | — | 크롭 후 인식 | `MlKitTextExtractor.kt:25` (`KoreanTextRecognizerOptions`) |
@@ -111,8 +112,8 @@ Google이 공개한 ML Kit/코드 스캐너 데이터 공개 문서를 오너가
 
 | 질문 | 답 초안 |
 |------|---------|
-| 앱이 필수 사용자 데이터 유형을 수집하거나 공유하나요? | **예** (N1·N2 검색어, N6 사진 — 보수적으로 선언) |
-| 전송 중 암호화되나요? | **예** — N1·N2·N6 모두 HTTPS. Google Books 표지는 `http://`→`https://`로 재작성(`BookSearchParsers.kt:86`), 카카오 표지도 앞머리가 `http://`면 같게 바꿈(`:55-56`) |
+| 앱이 필수 사용자 데이터 유형을 수집하거나 공유하나요? | **예** (N1·N2 검색어·N2-1 ISBN, N6 사진 — 보수적으로 선언) |
+| 전송 중 암호화되나요? | **예** — N1·N2·N2-1·N6 모두 HTTPS. Google Books 표지는 `http://`→`https://`로 재작성(`BookSearchParsers.kt:86`), 카카오 표지도 앞머리가 `http://`면 같게 바꿈(`:55-56`) |
 | 사용자가 데이터 삭제를 요청할 수 있나요? | 서버에 저장하는 데이터가 없다. 기기 안 기록은 앱에서 책·일기 삭제 또는 앱 삭제로 지워진다. 콘솔에서 «삭제 요청 방법 제공» 대신 «데이터를 서버에 보관하지 않음»에 해당하는 선택지가 있으면 그쪽 — [사용자 확인] |
 | 계정 생성 | 없음 |
 
@@ -147,7 +148,7 @@ Google이 공개한 ML Kit/코드 스캐너 데이터 공개 문서를 오너가
 • 처음 설치하면 책이 비어 있습니다. 둘러보려면 설정 › «예시 2권 넣기»를 누르세요. 예시는 «예시» 표시가 붙고 통계에 들어가지 않으며 한 번에 지울 수 있습니다.
 • 밑줄 인식은 기기 안에서 합니다. 처음 한 번은 Google Play 서비스가 한국어 인식 모델을 내려받느라 잠시 걸릴 수 있습니다.
 • 사진은 자동으로는 기기 밖으로 나가지 않습니다. 단, 설정에서 본인 Gemini 키를 등록하고 동의한 뒤 직접 '정밀 분석'을 누른 사진만 Google로 전송됩니다(선택, 요금은 키 소유자 부담).
-• 책 검색어(제목·저자·ISBN)는 카카오 책 검색으로 전송되고, 키가 없거나 카카오에서 찾지 못하거나 오류가 나면 Google Books로 전송됩니다.
+• 책 검색어(제목·저자·ISBN)는 카카오 책 검색으로 전송되고, 키가 없거나 카카오에서 찾지 못하거나 오류가 나면 Google Books로 전송됩니다. 쪽수 정보가 없는 책을 고르면 그 책의 ISBN이 Google Books로 전송됩니다.
 • 기억 서랍의 '마크다운 내보내기'는 고른 폴더에 새 파일만 만들고, 같은 이름의 파일이 있으면 건너뜁니다. 건너뛴 파일 목록이 불편하면 꼭 알려 주세요(병합 기능의 착수 조건입니다).
 • 불편한 점·오류는 (피드백 채널: 오너 입력)으로 보내 주세요. 화면 캡처가 있으면 큰 도움이 됩니다.
 ```

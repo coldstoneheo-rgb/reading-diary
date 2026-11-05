@@ -58,6 +58,39 @@ sealed class Screen {
     ) : Screen()
 }
 
+/**
+ * 화면 위치를 Activity 저장 상태에 넣을 문자열로 바꾼다. 카메라 앱이 떠 있는 동안 앱이 내려가도 같은 화면으로 돌아오게 한다.
+ * 문구 회상의 필터는 보존하지 않고 검색어만 남긴다.
+ */
+internal object ScreenCodec {
+    fun encode(screen: Screen): String = when (screen) {
+        Screen.Dashboard -> "dashboard"
+        is Screen.BookDetail -> "book|${screen.bookId}"
+        is Screen.AddEditBook -> "addEdit|${screen.bookId ?: ""}|${screen.startWithSearch}"
+        is Screen.AddDiary -> "diary|${screen.bookId}|${screen.diaryId ?: ""}"
+        Screen.Settings -> "settings"
+        Screen.Statistics -> "statistics"
+        Screen.KnowledgeDrawer -> "knowledge"
+        is Screen.PhraseRecall -> "recall|${screen.initialQuery}"
+    }
+
+    /** 알 수 없는 값이면 null. */
+    fun decode(value: String): Screen? {
+        val parts = value.split("|", limit = 3)
+        return when (parts[0]) {
+            "dashboard" -> Screen.Dashboard
+            "book" -> parts.getOrNull(1)?.toIntOrNull()?.let { Screen.BookDetail(it) }
+            "addEdit" -> Screen.AddEditBook(parts.getOrNull(1)?.toIntOrNull(), parts.getOrNull(2) == "true")
+            "diary" -> parts.getOrNull(1)?.toIntOrNull()?.let { Screen.AddDiary(it, parts.getOrNull(2)?.toIntOrNull()) }
+            "settings" -> Screen.Settings
+            "statistics" -> Screen.Statistics
+            "knowledge" -> Screen.KnowledgeDrawer
+            "recall" -> Screen.PhraseRecall(value.removePrefix("recall|"))
+            else -> null
+        }
+    }
+}
+
 sealed class OcrState {
     object Idle : OcrState()
     object Processing : OcrState()
@@ -129,9 +162,6 @@ class ReadingViewModel @JvmOverloads constructor(
         .map { rows -> rows.groupBy({ it.diaryId }, { RecallPhoto(it.id, photoStore.fileFor(it.path)) }) }
         .flowOn(Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
-
-    /** 기록 화면 저장 상태의 키에 쓴다. 회전에서는 유지되고 프로세스가 새로 뜨면 바뀌어, 옛 입력이 새 폼에 복원되지 않는다. */
-    val formSessionKey: String = java.util.UUID.randomUUID().toString()
 
     private val _diarySaving = MutableStateFlow(false)
     /** 사진 저장에 시간이 걸리므로 저장 중에는 버튼을 막는다(연타로 기록이 두 건 생기지 않게). */
@@ -335,6 +365,25 @@ class ReadingViewModel @JvmOverloads constructor(
 
     // OCR visual flow state
     val ocrState = MutableStateFlow<OcrState>(OcrState.Idle)
+
+    private var navigationRestored = false
+
+    /** 저장할 화면 위치. 뒤로 가기 순서대로, 마지막이 현재 화면이다. */
+    fun navigationSnapshot(): List<String> = (backStack + currentScreenState.value).map(ScreenCodec::encode)
+
+    /**
+     * 새 ViewModel에서 한 번만 적용한다. 회전처럼 ViewModel이 살아남은 재생성에서는 지금 위치가 더 최신이므로 무시한다.
+     * 해석할 수 없는 값이 하나라도 있으면 처음 화면으로 둔다.
+     */
+    fun restoreNavigation(saved: List<String>?) {
+        if (navigationRestored) return
+        navigationRestored = true
+        val screens = saved.orEmpty().map { ScreenCodec.decode(it) ?: return }
+        val current = screens.lastOrNull() ?: return
+        backStack.clear()
+        backStack.addAll(screens.dropLast(1))
+        navigateTo(current, addToBackStack = false)
+    }
 
     // Navigation triggers
     fun navigateTo(screen: Screen, addToBackStack: Boolean = true) {

@@ -4,11 +4,13 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import android.content.pm.PackageManager
 import androidx.core.content.FileProvider
+import androidx.lifecycle.Lifecycle
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -84,9 +86,8 @@ fun OcrDiaryScreen(
     val editingDiary = remember(diaryId, diaries) { diaries.find { it.id == diaryId } }
 
     // 카메라 앱을 다녀오거나 회전하면 Activity가 다시 만들어진다. 입력 중인 글과 사진 상태를 잃지 않게 저장 가능한 상태로 둔다.
-    // 프로세스가 죽으면 화면 위치는 사라져도 저장 상태는 남아, 나중에 연 새 폼에 옛 입력이 되살아날 수 있다.
-    // rememberSaveable의 inputs는 복원 때 검증되지 않으므로, 저장 키 자체에 ViewModel 인스턴스 토큰을 넣어 막는다.
-    val formKey = remember(bookId, diaryId) { "ocr_form/${viewModel.formSessionKey}/$bookId/$diaryId" }
+    // 화면 위치도 함께 복원되므로(MainActivity) 같은 책·같은 기록의 폼에만 이어진다. inputs는 복원 때 검증되지 않아 저장 키에 넣는다.
+    val formKey = remember(bookId, diaryId) { "ocr_form/$bookId/$diaryId" }
     var pageStr by rememberSaveable(key = "$formKey/page") { mutableStateOf("") }
     var extractedText by rememberSaveable(key = "$formKey/text") { mutableStateOf("") }
     var notes by rememberSaveable(key = "$formKey/notes") { mutableStateOf("") }
@@ -117,8 +118,10 @@ fun OcrDiaryScreen(
 
     // Camera/Gallery integration state
     var cameraTempUri by rememberSaveable(key = "$formKey/cameraUri") { mutableStateOf<Uri?>(null) }
+    var cameraStartedAt by rememberSaveable(key = "$formKey/cameraStartedAt") { mutableStateOf(0L) }
 
     fun createCameraTempUri(): Uri {
+        cameraStartedAt = System.currentTimeMillis()
         val storageDir = context.cacheDir
         val tempFile = java.io.File.createTempFile(
             CameraTempFiles.PREFIX,
@@ -132,15 +135,14 @@ fun OcrDiaryScreen(
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
-        if (success) {
-            cameraTempUri?.let { uri ->
-                activeImageUrl = uri.toString()
-                isImageTaken = true
-                isCroppedReady = false
-                selectedMethod = "CAMERA"
-                Toast.makeText(context, "📸 실물 페이지 캡처 성공! 잘라내기 영역을 설정하세요.", Toast.LENGTH_SHORT).show()
-            }
-        } else {
+        val uri = cameraTempUri
+        if (uri != null && (success || CameraTempFiles.hasNewPhoto(context.cacheDir, uri.lastPathSegment, cameraStartedAt))) {
+            activeImageUrl = uri.toString()
+            isImageTaken = true
+            isCroppedReady = false
+            selectedMethod = "CAMERA"
+            Toast.makeText(context, "📸 실물 페이지 캡처 성공! 잘라내기 영역을 설정하세요.", Toast.LENGTH_SHORT).show()
+        } else if (!success) {
             Toast.makeText(context, "사진 촬영이 취소되었습니다.", Toast.LENGTH_SHORT).show()
         }
     }
@@ -200,8 +202,10 @@ fun OcrDiaryScreen(
     }
 
     val photoCameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-        val uri = photoCameraUri
-        if (success && uri != null) applyPickedPhoto(Uri.parse(uri))
+        val uri = photoCameraUri?.let(Uri::parse)
+        if (uri != null && (success || CameraTempFiles.hasNewPhoto(context.cacheDir, uri.lastPathSegment, cameraStartedAt))) {
+            applyPickedPhoto(uri)
+        }
     }
     fun launchPhotoCamera() {
         try {
@@ -240,9 +244,11 @@ fun OcrDiaryScreen(
         viewModel.enterPreciseScope("$bookId/$diaryId")
         onDispose {
             viewModel.resetOcrState()
-            // 촬영 임시 파일은 화면을 떠날 때 지운다(ADR-002 후속 발견). 회전 등 재생성에서는 지우지 않는다 —
-            // 재생성을 견디는 정밀 분석 작업이 아직 그 파일을 읽고 있을 수 있다. 보관 사진 저장이 진행 중이면 ViewModel이 끝난 뒤로 미룬다.
-            if ((context as? android.app.Activity)?.isChangingConfigurations != true) {
+            // 촬영 임시 파일은 화면을 떠날 때 지운다(ADR-002 후속 발견). 시스템이 재생성하려고 Activity를 부술 때는 지우지 않는다 —
+            // 카메라가 그 파일에 쓰는 중이거나, 재생성을 견디는 정밀 분석 작업이 읽고 있을 수 있다. 보관 사진 저장이 진행 중이면 ViewModel이 끝난 뒤로 미룬다.
+            val activity = context as? ComponentActivity
+            val recreating = activity != null && !activity.isFinishing && activity.lifecycle.currentState == Lifecycle.State.DESTROYED
+            if (!recreating) {
                 viewModel.releaseCameraTempFiles(context.cacheDir)
             }
         }
@@ -544,7 +550,7 @@ fun OcrDiaryScreen(
             // Stage 2: Captured/Selected image tools & triggers
             if (isImageTaken && activeImageUrl != null) {
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().testTag("camera_crop_card"),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)),
                     shape = RoundedCornerShape(12.dp)
                 ) {
