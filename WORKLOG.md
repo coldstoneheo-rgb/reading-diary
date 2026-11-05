@@ -156,9 +156,9 @@ scope: docs only — AGENT_STATUS.json, WORKLOG.md, REPORT
 signals:
   synergy: "메모리가 빠듯한 머신에서 여러 창이 그래들을 나눠 쓸 때 LC가 슬롯을 주는 방식이 강제 종료를 멈췄다"
   monetization: "0"
-  learning: "백그라운드 그래들은 세션이 쉬는 동안 메모리 가드에 종료될 수 있다. UP-TO-DATE verify는 results-summary.json으로 실제 비교였는지 확인한다"
+  learning: "worktree에는 gitignore된 서명 키가 없다 — 빌드 전 storeFile 존재를 확인한다. 검색 도구는 gitignore된 파일을 건너뛸 수 있어 부재 판단은 ls로 한다. 백그라운드 그래들은 세션이 쉬는 동안 메모리 가드에 종료될 수 있다"
   idea: "debug.keystore를 잃으면 기기 데이터가 묶인다. 키 백업 위치를 문서에 정하는 항목을 STAGE2 후속 후보로"
 ---
 
 **마감.** #40(`e5145db`)·#41(`e0094b0`) 머지. 문구 회상은 사진까지 이어졌지만 실기기에서는 아직 한 번도 돌지 않았다.
-막힌 곳은 코드가 아니라 서명 키다. 기존 설치본의 키를 찾지 못해 v3 APK를 기기에 안전하게 올릴 방법이 아직 없다.
+이전 블록의 «기존 디버그 키는 찾지 못했다»는 틀렸다. 키는 메인 체크아웃 루트에 있었고, 그 키로 다시 빌드한 APK를 드라이브에 올렸다. 다음은 오너 기기 덮어 설치와 기록 수 확인이다.
