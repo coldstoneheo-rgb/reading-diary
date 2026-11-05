@@ -10,6 +10,7 @@ import com.example.data.Book
 import com.example.data.Bookcase
 import com.example.data.Diary
 import com.example.data.PhotoEdit
+import com.example.data.PhotoSlot
 import com.example.data.ReadingRepository
 import com.example.data.SampleBooks
 import com.example.data.SecureKeyManager
@@ -20,8 +21,10 @@ import com.example.data.ocr.GeminiTextExtractor
 import com.example.data.ocr.MlKitTextExtractor
 import com.example.data.ocr.OcrOutcome
 import com.example.data.ocr.TextExtractor
+import com.example.data.photo.CameraTempFiles
 import com.example.data.photo.DiaryPhotoStore
 import com.example.data.photo.InternalDiaryPhotoStore
+import com.example.data.photo.RecallPhoto
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -33,6 +36,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -79,6 +83,18 @@ class ReadingViewModel @JvmOverloads constructor(
     private val repository = ReadingRepository(database, photoStore)
 
     init {
+        // 프로세스당 1회(명세 §2.4). 사용자의 첫 저장이 먼저 시작돼도 photoIoMutex가 순서를 지킨다.
+        if (photoSweepStarted.compareAndSet(false, true)) {
+            viewModelScope.launch {
+                try {
+                    sweepOrphanPhotos()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // 정리 실패는 다음 앱 시작으로 미룬다. 기록에는 영향이 없다.
+                }
+            }
+        }
         viewModelScope.launch {
             val bookcaseDao = database.bookcaseDao()
             val existing = bookcaseDao.getAllBookcasesOneShot()
@@ -107,6 +123,20 @@ class ReadingViewModel @JvmOverloads constructor(
 
     val diaries: StateFlow<List<Diary>> = repository.allDiaries
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** 일기별 보관 사진(표시 순서). 파일 확인이 디스크를 읽으므로 IO에서 계산한다. */
+    val recallPhotos: StateFlow<Map<Int, List<RecallPhoto>>> = repository.allPhotos
+        .map { rows -> rows.groupBy({ it.diaryId }, { RecallPhoto(it.id, photoStore.fileFor(it.path)) }) }
+        .flowOn(Dispatchers.IO)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    private val _diarySaving = MutableStateFlow(false)
+    /** 사진 저장에 시간이 걸리므로 저장 중에는 버튼을 막는다(연타로 기록이 두 건 생기지 않게). */
+    val diarySaving: StateFlow<Boolean> = _diarySaving
+
+    // 아래 두 값은 메인 스레드에서만 읽고 쓴다(viewModelScope·화면 onDispose).
+    private var photoSavesInFlight = 0
+    private val deferredCameraTempFiles = mutableListOf<java.io.File>()
 
     // Active Navigation / State Controllers
     val currentScreenState = MutableStateFlow<Screen>(Screen.Dashboard)
@@ -504,6 +534,88 @@ class ReadingViewModel @JvmOverloads constructor(
         }
     }
 
+    /**
+     * 사진과 함께 저장한다(명세 §3.5). 사진 쓰기를 ViewModel 스코프에서 하므로 회전·뒤로가기에도 끊기지 않는다.
+     * 사진 파일 저장과 행 커밋을 [photoIoMutex]로 묶어, sweep이 아직 행이 없는 새 파일을 지우지 못하게 한다.
+     * 파일을 쓴 뒤 저장이 실패해 남은 파일은 다음 앱 시작의 sweep이 걷는다.
+     * @param onComplete 저장하지 못한 사진 수를 받는다(사진이 실패해도 글은 저장된다).
+     */
+    fun saveDiaryWithPhotos(
+        bookId: Int,
+        page: Int,
+        selectedText: String,
+        notes: String,
+        id: Int? = null,
+        createdAt: Long? = null,
+        photos: PhotoInput,
+        onComplete: (failedPhotos: Int) -> Unit
+    ) {
+        if (_diarySaving.value) return
+        _diarySaving.value = true
+        photoSavesInFlight++
+        viewModelScope.launch {
+            try {
+                var failed = 0
+                suspend fun store(source: Uri, rotation: Float, flipped: Boolean): String? =
+                    photoStore.save(source, rotation, flipped).also { if (it == null) failed++ }
+
+                photoIoMutex.withLock {
+                    val edit = when (photos) {
+                        PhotoInput.Unchanged -> PhotoEdit.Unchanged
+                        is PhotoInput.Slots -> PhotoEdit.Set(
+                            photos.slots.mapNotNull { slot ->
+                                when (slot) {
+                                    is PhotoInputSlot.Existing -> PhotoSlot.Existing(slot.photoId)
+                                    is PhotoInputSlot.New -> store(slot.source, slot.rotation, slot.flipped)?.let { PhotoSlot.New(it) }
+                                    is PhotoInputSlot.Replace -> store(slot.source, slot.rotation, slot.flipped)?.let { PhotoSlot.New(it) }
+                                        ?: PhotoSlot.Existing(slot.photoId)
+                                }
+                            }
+                        )
+                    }
+                    repository.saveDiary(
+                        Diary(
+                            id = id ?: 0,
+                            bookId = bookId,
+                            page = page,
+                            selectedText = selectedText,
+                            notes = notes,
+                            createdAt = createdAt ?: System.currentTimeMillis()
+                        ),
+                        edit
+                    )
+                }
+                onComplete(failed)
+            } finally {
+                _diarySaving.value = false
+                photoSavesInFlight--
+                if (photoSavesInFlight == 0) {
+                    deferredCameraTempFiles.forEach { it.delete() }
+                    deferredCameraTempFiles.clear()
+                }
+            }
+        }
+    }
+
+    /**
+     * 화면을 떠날 때 촬영 임시 파일을 지운다. 저장이 아직 그 파일을 읽고 있으면 저장이 끝난 뒤로 미룬다(명세 P4 선행).
+     */
+    fun releaseCameraTempFiles(cacheDir: java.io.File) {
+        if (photoSavesInFlight == 0) CameraTempFiles.deleteAll(cacheDir)
+        else deferredCameraTempFiles += CameraTempFiles.list(cacheDir)
+    }
+
+    /** 편집 화면이 처음 그릴 사진(표시 순서). */
+    suspend fun loadPhotos(diaryId: Int): List<RecallPhoto> {
+        val rows = repository.photosFor(diaryId)
+        return withContext(Dispatchers.IO) { rows.map { RecallPhoto(it.id, photoStore.fileFor(it.path)) } }
+    }
+
+    /** 고아 파일 정리. 반환 = 지운 개수. */
+    internal suspend fun sweepOrphanPhotos(): Int = photoIoMutex.withLock {
+        photoStore.sweep(repository.allPhotoPaths().toSet())
+    }
+
     fun deleteDiary(diaryId: Int, bookId: Int) {
         viewModelScope.launch {
             repository.deleteDiary(diaryId)
@@ -643,6 +755,13 @@ class ReadingViewModel @JvmOverloads constructor(
     }
 
     companion object {
+        /**
+         * 사진 파일 저장 + 행 커밋 ↔ sweep 직렬화. 참조 목록을 읽은 뒤 저장된 새 파일을 sweep이 지우는 경쟁을 막는다.
+         * Activity가 다시 만들어지면 ViewModel이 둘일 수 있어 프로세스 단위로 둔다.
+         */
+        private val photoIoMutex = Mutex()
+        private val photoSweepStarted = java.util.concurrent.atomic.AtomicBoolean(false)
+
         const val NO_TEXT_MESSAGE = "글자를 찾지 못했어요. 더 밝게, 더 가까이 찍어 다시 시도하거나 직접 입력해 주세요."
         const val ENGINE_ERROR_MESSAGE = "글자 인식 중 오류가 났어요. 다시 시도하거나 직접 입력해 주세요."
         const val DECODE_ERROR_MESSAGE = "사진을 읽지 못했어요. 다시 촬영하거나 다른 사진을 골라 주세요."
