@@ -14,7 +14,7 @@ import java.util.UUID
  * 일기 사진 저장소 경계(명세 PHRASE-RECALL-SPEC-2026-11 §3.3, ADR-006).
  * 보관 사진은 자동으로는 기기 밖으로 나가지 않는다(사용자가 직접 실행하는 P5 zip 내보내기만 예외):
  * 루트가 noBackupFilesDir이라 클라우드 자동 백업·기기 간 자동 이전에서 빠진다.
- * 화면·DB 연결은 P3·P4에서 한다(이 파일은 저장소 계층만).
+ * 이 파일은 저장소 계층만 맡는다. 행과의 연결은 ReadingRepository·ReadingViewModel이 한다.
  */
 interface DiaryPhotoStore {
     /** 디코드·회전·축소한 JPEG를 앱 내부 저장소에 쓰고 상대 경로를 돌려준다. 실패 시 null(일기 저장은 계속). */
@@ -117,8 +117,9 @@ object CameraTempFiles {
     const val PREFIX = "camera_photo_"
     const val SUFFIX = ".jpg"
 
-    fun deleteAll(cacheDir: File): Int =
-        cacheDir.listFiles()?.count { f ->
-            f.isFile && f.name.startsWith(PREFIX) && f.name.endsWith(SUFFIX) && f.delete()
-        } ?: 0
+    fun deleteAll(cacheDir: File): Int = list(cacheDir).count { it.delete() }
+
+    /** 지금 있는 촬영 임시 파일. 저장이 진행 중이면 이 목록만 저장 뒤에 지운다(그 사이 새로 찍은 파일은 건드리지 않게). */
+    fun list(cacheDir: File): List<File> =
+        cacheDir.listFiles()?.filter { f -> f.isFile && f.name.startsWith(PREFIX) && f.name.endsWith(SUFFIX) }.orEmpty()
 }

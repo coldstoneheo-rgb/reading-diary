@@ -17,6 +17,7 @@ class ReadingRepository(
     val allBookcases: Flow<List<Bookcase>> = bookcaseDao.getAllBookcases()
     val allBooks: Flow<List<Book>> = bookDao.getAllBooks()
     val allDiaries: Flow<List<Diary>> = diaryDao.getAllDiaries()
+    val allPhotos: Flow<List<DiaryPhoto>> = diaryPhotoDao.observeAll()
 
     fun getBooksByBookcase(bookcaseId: Int): Flow<List<Book>> = bookDao.getBooksByBookcase(bookcaseId)
 
@@ -30,13 +31,15 @@ class ReadingRepository(
 
     suspend fun updateBookcase(bookcase: Bookcase) = bookcaseDao.update(bookcase)
 
-    suspend fun deleteBookcase(id: Int) = bookcaseDao.deleteById(id)
+    suspend fun deleteBookcase(id: Int) =
+        deleteWithPhotos({ diaryPhotoDao.pathsForDeletableBookcase(id) }) { bookcaseDao.deleteById(id) }
 
     suspend fun insertBook(book: Book): Long = bookDao.insert(book)
 
     suspend fun updateBook(book: Book) = bookDao.update(book)
 
-    suspend fun deleteBook(id: Int) = bookDao.deleteById(id)
+    suspend fun deleteBook(id: Int) =
+        deleteWithPhotos({ diaryPhotoDao.pathsForBook(id) }) { bookDao.deleteById(id) }
 
     suspend fun insertDiary(diary: Diary): Long = diaryDao.insert(diary)
 
@@ -82,5 +85,17 @@ class ReadingRepository(
 
     suspend fun allPhotoPaths(): List<String> = diaryPhotoDao.allPaths()
 
-    suspend fun deleteDiary(id: Int) = diaryDao.deleteById(id)
+    suspend fun deleteDiary(id: Int) =
+        deleteWithPhotos({ diaryPhotoDao.pathsForDiary(id) }) { diaryDao.deleteById(id) }
+
+    /**
+     * 행 삭제와 사진 파일 삭제를 잇는다: CASCADE가 행을 지우기 전에 경로를 읽고, 파일은 커밋 뒤에 지운다
+     * (롤백되면 행이 남으므로 파일도 남아야 한다). 놓친 파일은 앱 시작 sweep이 걷는다.
+     */
+    private suspend fun deleteWithPhotos(paths: suspend () -> List<String>, delete: suspend () -> Unit) {
+        val removed = db.withTransaction {
+            paths().also { delete() }
+        }
+        removed.forEach { photoStore.delete(it) }
+    }
 }

@@ -44,10 +44,10 @@ internal const val TERMS_SUMMARY =
 
 /** 개인정보처리방침 요약 5줄(docs/privacy/privacy-policy.html 1~5항 기준). */
 internal val PRIVACY_SUMMARY_LINES = listOf(
-    "1. 책·책장·독서 일기·설정은 이 기기에 저장됩니다. 개발자는 기록을 받아 보관하는 서버를 운영하지 않습니다.",
+    "1. 책·책장·독서 일기·기록에 남긴 사진·설정은 이 기기에 저장됩니다. 개발자는 기록을 받아 보관하는 서버를 운영하지 않습니다.",
     "2. 밑줄 구절 인식은 기기 안에서 실행되며, 사진은 기기 밖으로 전송되지 않습니다(5번 예외).",
     "3. 책을 검색하면 입력한 검색어가 네이버 책 검색(네이버 키가 없는 빌드는 Google Books)으로 전송됩니다. 책 표지를 화면에 표시할 때는 표지 이미지 서버에 요청이 갑니다.",
-    "4. 안드로이드 자동 백업이 켜져 있으면 책·일기·일반 설정이 본인 Google 계정 백업에 포함될 수 있습니다(API 키는 제외).",
+    "4. 안드로이드 자동 백업이 켜져 있으면 책·일기·일반 설정이 본인 Google 계정 백업에 포함될 수 있습니다(API 키와 기록에 남긴 사진은 제외).",
     "5. 정밀 분석은 본인 Gemini 키 등록, 사진 전송 동의, 사진마다 확인을 모두 거친 경우에만 선택한 페이지 사진을 Google Gemini로 전송합니다."
 )
 
@@ -487,7 +487,7 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                         lineHeight = 16.sp
                     )
                     Text(
-                        text = "사진은 일기에 저장되지 않고 촬영 원본은 임시 캐시에만 남으며 백업에 포함되지 않습니다. 기기 밖으로 나가지 않습니다(직접 실행한 정밀 분석 제외).",
+                        text = "기록에 남긴 사진은 앱 내부 저장소에 보관되고 자동 백업에서 제외되며, 기록·책을 지우면 함께 지워집니다. 자동으로는 기기 밖으로 나가지 않습니다(직접 실행한 정밀 분석 제외).",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                         lineHeight = 16.sp
