@@ -93,10 +93,10 @@
 
 | # | 경로 | 무엇이 나가나 | 받는 곳 | 언제 | 코드 근거 |
 |---|------|---------------|---------|------|-----------|
-| N1 | 도서 검색(네이버) | **검색어**(제목·저자·ISBN) + 앱에 포함된 네이버 앱 키(헤더) | `openapi.naver.com` | 책 추가 화면에서 2글자 이상 입력 후 400ms(자동) | `AddEditBookScreen.kt:169-200` (`LaunchedEffect(searchQuery)`, URL `:187`·`:189`, 헤더 `:194-195`) |
-| N2 | 도서 검색(Google Books, 네이버 키가 없을 때만) | **검색어** | `www.googleapis.com/books` | N1과 같음, 키 없음 | `AddEditBookScreen.kt:219-223` |
-| N3 | 표지 이미지 표시 | 이미지 요청(기기 IP·User-Agent). 사용자 기록은 실리지 않음 | 검색 결과의 표지 호스트(네이버/Google 이미지 서버). 표지가 없는 책은 기기 안 플레이스홀더(요청 0, ADR-003-2) | 표지가 화면에 그려질 때 | Coil `AsyncImage`: `DashboardScreen`·`BookDetailScreen`(`Book.cleanCoverUrl` 경유), `AddEditBookScreen` 검색 결과 썸네일·표지 미리보기(`displayableCoverUrl` 경유). `OcrDiaryScreen`의 `AsyncImage`는 사용자가 찍거나 고른 로컬 사진만 그림(네트워크 0); 저장된 예전 스톡 표지 URL은 `isStockCover`로 표시 시점에 거름 |
-| N4 | ISBN 바코드 스캔 | 앱은 보내지 않음. 스캐너 UI·인식은 Google Play 서비스(코드 스캐너)가 기기에서 처리하고 앱은 숫자만 받음 | — (Play 서비스) | 바코드 버튼을 눌렀을 때 | `AddEditBookScreen.kt:120-130` (`GmsBarcodeScanning.getClient`, EAN-13만) |
+| N1 | 도서 검색(카카오) | **검색어**(제목·저자·ISBN) + 앱에 포함된 카카오 REST 키(`Authorization` 헤더) | `dapi.kakao.com` | 책 추가 화면에서 2글자 이상 입력 후 400ms(자동) | `AddEditBookScreen.kt:149` (`LaunchedEffect(searchQuery)`), `BookSearchClient.kt:68-74` (URL·헤더) |
+| N2 | 도서 검색(Google Books — 키가 없거나, 카카오에서 찾지 못하거나 오류가 날 때) | **검색어** | `www.googleapis.com/books` | N1과 같음. 키 없음 · 카카오 0건 · 카카오 실패 | `BookSearchClient.kt:85-91` |
+| N3 | 표지 이미지 표시 | 이미지 요청(기기 IP·User-Agent). 사용자 기록은 실리지 않음 | 검색 결과의 표지 호스트(카카오/Google 이미지 서버, 예전에 등록한 책은 네이버 이미지 서버). 표지가 없는 책은 기기 안 플레이스홀더(요청 0, ADR-003-2) | 표지가 화면에 그려질 때 | Coil `AsyncImage`: `DashboardScreen`·`BookDetailScreen`(`Book.cleanCoverUrl` 경유), `AddEditBookScreen` 검색 결과 썸네일(응답 URL 그대로)·표지 미리보기(`displayableCoverUrl` 경유). `OcrDiaryScreen`의 `AsyncImage`는 사용자가 찍거나 고른 로컬 사진만 그림(네트워크 0); 저장된 예전 스톡 표지 URL은 `isStockCover`로 표시 시점에 거름 |
+| N4 | ISBN 바코드 스캔 | 앱은 보내지 않음. 스캐너 UI·인식은 Google Play 서비스(코드 스캐너)가 기기에서 처리하고 앱은 숫자만 받음 | — (Play 서비스) | 바코드 버튼을 눌렀을 때 | `AddEditBookScreen.kt:101` (`GmsBarcodeScanning.getClient`, EAN-13만) |
 | N5 | 밑줄 글자 인식(기본) | **사진은 나가지 않음.** ML Kit 한국어 인식은 기기 안에서 실행(모델은 Play 서비스가 첫 사용 시 내려받음) | — | 크롭 후 인식 | `MlKitTextExtractor.kt:25` (`KoreanTextRecognizerOptions`) |
 | N6 | **정밀 분석(선택)** | **선택한 페이지 사진**(JPEG, base64) + 사용자 본인 Gemini 키(`x-goog-api-key` 헤더) | `generativelanguage.googleapis.com` (Google) | ① 설정에서 본인 키 등록 ② 사진 전송 동의 체크 ③ 사진마다 확인 다이얼로그(«사진을 Google Gemini로 보낼까요?»)에서 «전송하고 분석» — 셋 다 있을 때만 | 동의 체크 `SettingsScreen.kt:418-424`, 버튼 노출 조건 `OcrDiaryScreen.kt:1033-1034`, 확인 다이얼로그 `:1053-1077`, ViewModel 차단 `ReadingViewModel.kt:509-512`, 엔드포인트 `GeminiApiClient.kt:40-41`, JPEG/base64 인코딩 `:69-71`, 헤더·전송 `:107-116` |
 | N7 | Android 자동 백업 | Room DB(책·일기)·일반 설정 | 사용자 본인 Google 계정 백업 | OS가 수행 | `AndroidManifest.xml:17-19`, `res/xml/backup_rules.xml`·`data_extraction_rules.xml`(키 저장소만 제외) |
@@ -112,7 +112,7 @@ Google이 공개한 ML Kit/코드 스캐너 데이터 공개 문서를 오너가
 | 질문 | 답 초안 |
 |------|---------|
 | 앱이 필수 사용자 데이터 유형을 수집하거나 공유하나요? | **예** (N1·N2 검색어, N6 사진 — 보수적으로 선언) |
-| 전송 중 암호화되나요? | **예** — N1·N2·N6 모두 HTTPS. Google Books 표지는 `http://`→`https://`로 재작성(`BookSearchParsers.kt:79`), 네이버 표지는 응답의 원본 URL을 그대로 씀(`:52`, 통상 https) |
+| 전송 중 암호화되나요? | **예** — N1·N2·N6 모두 HTTPS. Google Books 표지는 `http://`→`https://`로 재작성(`BookSearchParsers.kt:86`), 카카오 표지도 앞머리가 `http://`면 같게 바꿈(`:55-56`) |
 | 사용자가 데이터 삭제를 요청할 수 있나요? | 서버에 저장하는 데이터가 없다. 기기 안 기록은 앱에서 책·일기 삭제 또는 앱 삭제로 지워진다. 콘솔에서 «삭제 요청 방법 제공» 대신 «데이터를 서버에 보관하지 않음»에 해당하는 선택지가 있으면 그쪽 — [사용자 확인] |
 | 계정 생성 | 없음 |
 
@@ -125,7 +125,7 @@ Google이 공개한 ML Kit/코드 스캐너 데이터 공개 문서를 오너가
 | 위치 · 연락처 · 개인 식별 정보 · 금융 · 건강 · 메시지 · 오디오 · 파일 · 캘린더 · 기기 ID | 아니요 | 아니요 | — | — | — | 해당 코드 없음(권한은 `INTERNET`·`CAMERA`뿐, `AndroidManifest.xml:5-6`) |
 | 앱 정보 및 성능(비정상 종료 로그·진단) | 앱 자체는 아니요. Google SDK(ML Kit·코드 스캐너) 몫은 [사용자 확인] | | | | | N4·N5 |
 
-주(공유 여부): N1은 네이버, N6은 Google이라는 **제3자**에게 직접 전송된다. Play 정의상 «공유»는 제3자에게 데이터를 넘기는 것이며,
+주(공유 여부): N1은 카카오, N2·N6은 Google이라는 **제3자**에게 직접 전송된다. Play 정의상 «공유»는 제3자에게 데이터를 넘기는 것이며,
 예외로 «사용자가 시작한 특정 행위로 사용자가 합리적으로 예상하는 전송»은 공유로 보지 않는다. 검색창 입력·사진마다 확인은 이 예외에 해당한다고 보고
 초안은 «아니요»로 두었다. 보수적으로 가려면 «예»로 바꿔도 사실과 어긋나지 않는다 — 최종 판단은 오너 [사용자 확인].
 
@@ -147,7 +147,7 @@ Google이 공개한 ML Kit/코드 스캐너 데이터 공개 문서를 오너가
 • 처음 설치하면 책이 비어 있습니다. 둘러보려면 설정 › «예시 2권 넣기»를 누르세요. 예시는 «예시» 표시가 붙고 통계에 들어가지 않으며 한 번에 지울 수 있습니다.
 • 밑줄 인식은 기기 안에서 합니다. 처음 한 번은 Google Play 서비스가 한국어 인식 모델을 내려받느라 잠시 걸릴 수 있습니다.
 • 사진은 자동으로는 기기 밖으로 나가지 않습니다. 단, 설정에서 본인 Gemini 키를 등록하고 동의한 뒤 직접 '정밀 분석'을 누른 사진만 Google로 전송됩니다(선택, 요금은 키 소유자 부담).
-• 책 검색어(제목·저자·ISBN)는 네이버 책 검색으로 전송됩니다.
+• 책 검색어(제목·저자·ISBN)는 카카오 책 검색으로 전송되고, 키가 없거나 카카오에서 찾지 못하거나 오류가 나면 Google Books로 전송됩니다.
 • 기억 서랍의 '마크다운 내보내기'는 고른 폴더에 새 파일만 만들고, 같은 이름의 파일이 있으면 건너뜁니다. 건너뛴 파일 목록이 불편하면 꼭 알려 주세요(병합 기능의 착수 조건입니다).
 • 불편한 점·오류는 (피드백 채널: 오너 입력)으로 보내 주세요. 화면 캡처가 있으면 큰 도움이 됩니다.
 ```
@@ -163,4 +163,5 @@ Google이 공개한 ML Kit/코드 스캐너 데이터 공개 문서를 오너가
 | U5 | **테스터 ≤5명 이메일 목록 등록** + 옵트인 링크 배포(§6 안내문) | 설치 | |
 | U6 | 데이터 안전 폼 제출(§5, [사용자 확인] 3건 결정) · 콘텐츠 등급 설문 · 타겟 연령 | 출시 검토 | |
 | U7 | 스토어 부제 입력(2026-11-03 결정됨) | 등록정보 | «밑줄이 책과 책을 잇고, 떠오른 문장을 사진과 함께 되찾는 독서 다이어리»(§2) |
-| U8 | 2단계 머지 후 `bundleRelease` 실행(`!`) → AAB 업로드 → 출시 상태 «제공됨» 확인 | 완료 정의 | 셸에 `NAVER_CLIENT_SECRET`을 export한 채 빌드하면 그 값이 박힌다(CLAUDE.md) — 의도한 키인지 확인 |
+| U8 | 2단계 머지 후 `bundleRelease` 실행(`!`) → AAB 업로드 → 출시 상태 «제공됨» 확인 | 완료 정의 | 셸에 `KAKAO_REST_API_KEY`를 export한 채 빌드하면 그 값이 `.env`보다 먼저 박힌다 — 의도한 키인지 확인 |
+| U9 | **키 포함 APK·AAB를 테스터에게 내보내기 전 확인** — ADR-005 §4 [미확인] 3건(내장 키 약관 · REST 키 범위 · 쿼터 초과 응답 코드) + 네이버 종료일 2026-07-31 원문 | U5·U8 | 앱 안내 문구가 이 날짜를 사실로 쓴다. 지금 근거는 2차 자료와 `SE05` 실측 |

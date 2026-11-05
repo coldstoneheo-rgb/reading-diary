@@ -39,13 +39,13 @@ class HonestCopyTest {
     assertTrue("fake backup/restore copy found:\n" + offenders.joinToString("\n"), offenders.isEmpty())
   }
 
-  /** ADR-003 실행 7: 도서 검색 안내가 존재하지 않는 네이버 키 입력 화면으로 보내면 안 된다(오너 결정: 키 입력 UI 없음). */
+  /** ADR-003 실행 7: 도서 검색 안내가 존재하지 않는 키 입력 화면으로 보내면 안 된다(오너 결정: 키 입력 UI 없음, ADR-005 §4). */
   @Test
   fun noDeadEndKeySetupCopyInProductionSources() {
     val forbidden = listOf(
       Regex("API 설정하기"),
       // "키를 설정에 등록해 주세요"류의 지시문만 잡는다. "키가 등록되어 있지 않습니다"라는 사실 서술은 허용.
-      Regex("(네이버|Naver).{0,20}(키|Key).{0,20}(설정|등록|추가)(해|하)", RegexOption.IGNORE_CASE)
+      Regex("(네이버|Naver|카카오|Kakao).{0,20}(키|Key).{0,20}(설정|등록|추가)(해|하)", RegexOption.IGNORE_CASE)
     )
     val offenders = mainSources().flatMap { file ->
       val text = file.readText()

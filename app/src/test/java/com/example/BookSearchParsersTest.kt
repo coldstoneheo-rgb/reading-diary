@@ -16,41 +16,52 @@ import org.junit.Test
 class BookSearchParsersTest {
 
   @Test
-  fun naver_stripsHtmlTagsEditionSuffixAndAuthorRoles() {
+  fun kakao_readsDocumentsAndJoinsAuthors_ignoringOtherFields() {
     val body = """
-      {"items":[
-        {"title":"<b>토비의</b> 스프링 3.1 (양장본)","author":"<b>저자</b>: 이일민 지음","image":"https://img.example/1.jpg"},
-        {"title":"객체지향의 사실과 오해","author":"조영호 저^김철수 역|옮김: 박영희","image":""},
-        {"title":"코스모스 [양장본]","author":"칼 세이건 저"},
-        {"title":"수학의 정석 (제3판)","author":"옮김: 홍성대"}
+      {"meta":{"total_count":2,"pageable_count":2,"is_end":true},"documents":[
+        {"title":"토비의 스프링 3.1 (양장본)","authors":["이일민"],"translators":["역자"],"publisher":"에이콘","isbn":"8960773433 9788960773431",
+         "thumbnail":"https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fa.jpg",
+         "datetime":"2012-09-21T00:00:00.000+09:00","price":37800,"sale_price":34020,"status":"정상"},
+        {"title":"객체지향의 사실과 오해","authors":["조영호 저","김철수 옮김","지음"],"isbn":"","thumbnail":""}
       ]}
     """.trimIndent()
 
-    val result = BookSearchParsers.parseNaverBooks(body)
+    val result = BookSearchParsers.parseKakaoBooks(body)
 
-    assertEquals(4, result.size)
-    // HTML 제거가 역할어 접두 제거보다 먼저 적용되어야 "^저자:" 앵커가 매치된다
+    assertEquals(2, result.size)
     assertEquals("토비의 스프링 3.1", result[0].title)
     assertEquals("이일민", result[0].author)
-    assertEquals("https://img.example/1.jpg", result[0].coverUrl)
-    assertEquals(250, result[0].pageCount)
-    // 공저자마다 붙은 역할어(저/역/옮김:)가 각각 떨어져야 한다
-    assertEquals("조영호, 김철수, 박영희", result[1].author)
-    assertEquals("코스모스", result[2].title)
-    assertEquals("칼 세이건", result[2].author)
-    assertEquals("수학의 정석", result[3].title)
-    assertEquals("홍성대", result[3].author)
+    assertEquals("https://search1.kakaocdn.net/thumb/R120x174.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fa.jpg", result[0].coverUrl)
+    assertEquals("카카오 응답에는 쪽수가 없어 기본값을 쓴다", 250, result[0].pageCount)
+    assertEquals("조영호, 김철수", result[1].author)
+    assertEquals("", result[1].coverUrl)
   }
 
   @Test
-  fun naver_missingItemsOrFieldsFallsBackSafely() {
-    assertTrue(BookSearchParsers.parseNaverBooks("""{"total":0}""").isEmpty())
+  fun kakao_missingDocumentsOrFieldsFallsBackSafely() {
+    assertTrue(BookSearchParsers.parseKakaoBooks("""{"meta":{"total_count":0}}""").isEmpty())
 
-    val result = BookSearchParsers.parseNaverBooks("""{"items":[{}]}""")
-    assertEquals(1, result.size)
-    assertEquals("알 수 없는 제목", result[0].title)
-    assertEquals("지은이 미상", result[0].author)
-    assertEquals("", result[0].coverUrl)
+    val result = BookSearchParsers.parseKakaoBooks("""{"documents":[{},{"title":"","authors":[]},{"title":null,"authors":[null],"thumbnail":null}]}""")
+    assertEquals(3, result.size)
+    result.forEach {
+      assertEquals("알 수 없는 제목", it.title)
+      assertEquals("지은이 미상", it.author)
+      assertEquals("", it.coverUrl)
+    }
+  }
+
+  @Test
+  fun kakao_keepsAngleBracketsInTitle_butDropsHighlightTags() {
+    val body = """{"documents":[{"title":"<어린 왕자> 깊이 읽기"},{"title":"<b>녹색</b>절벽"}]}"""
+    val result = BookSearchParsers.parseKakaoBooks(body)
+    assertEquals("<어린 왕자> 깊이 읽기", result[0].title)
+    assertEquals("녹색절벽", result[1].title)
+  }
+
+  @Test
+  fun kakao_httpThumbnailIsUpgraded_onlyAtTheStart() {
+    val body = """{"documents":[{"title":"T","thumbnail":"http://img.example/t?fname=http://origin/a.jpg"}]}"""
+    assertEquals("https://img.example/t?fname=http://origin/a.jpg", BookSearchParsers.parseKakaoBooks(body)[0].coverUrl)
   }
 
   @Test
@@ -92,24 +103,9 @@ class BookSearchParsersTest {
   }
 
   @Test
-  fun naver_translatorAndEditorRoleSuffixes_areStripped() {
-    // 번역서의 전형적 형태. "옮김"이 접미 목록에 없으면 "박수진 옮김"이 사람 이름으로 남는다.
-    val body = """{"items":[{"title":"T","author":"김영하 지음^박수진 옮김"},{"title":"U","author":"홍길동 편저|이몽룡 감수"}]}"""
-    val result = BookSearchParsers.parseNaverBooks(body)
-    assertEquals("김영하, 박수진", result[0].author)
-    assertEquals("홍길동, 이몽룡", result[1].author)
-  }
-
-  @Test
-  fun naver_authorWithOnlyRoleWords_fallsBackToUnknown() {
-    val body = """{"items":[{"title":"T","author":"지음"}]}"""
-    assertEquals("지은이 미상", BookSearchParsers.parseNaverBooks(body)[0].author)
-  }
-
-  @Test
   fun invalidJson_propagatesJSONException() {
-    // 계약: 파싱 실패는 호출자(AddEditBookScreen의 try/catch)가 오류 배너로 처리한다
-    assertThrows(JSONException::class.java) { BookSearchParsers.parseNaverBooks("not json") }
+    // 계약: 파싱 실패는 호출자(BookSearchClient)가 원인 문구로 처리한다
+    assertThrows(JSONException::class.java) { BookSearchParsers.parseKakaoBooks("not json") }
     assertThrows(JSONException::class.java) { BookSearchParsers.parseGoogleBooks("not json") }
   }
 }
