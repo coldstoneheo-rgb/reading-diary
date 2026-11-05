@@ -47,7 +47,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        viewModel.restoreNavigation(savedInstanceState?.getStringArrayList(KEY_NAVIGATION))
+        viewModel.restoreNavigation(
+            savedInstanceState?.getStringArrayList(KEY_NAVIGATION),
+            savedInstanceState?.getString(KEY_DIARY_FORM_TOKEN)
+        )
         // 돌아오지 못한 촬영의 임시 파일(책 페이지 사진)을 새 시작에서 지운다. 복원 시작이면 카메라 결과가 아직 쓸 수 있어 남겨 둔다.
         if (savedInstanceState == null) viewModel.releaseCameraTempFiles(cacheDir)
         enableEdgeToEdge()
@@ -62,10 +65,12 @@ class MainActivity : ComponentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putStringArrayList(KEY_NAVIGATION, ArrayList(viewModel.navigationSnapshot()))
+        outState.putString(KEY_DIARY_FORM_TOKEN, viewModel.diaryFormToken)
     }
 
     private companion object {
         const val KEY_NAVIGATION = "reading_diary_navigation"
+        const val KEY_DIARY_FORM_TOKEN = "reading_diary_form_token"
     }
 }
 

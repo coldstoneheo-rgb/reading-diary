@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -372,6 +373,13 @@ class ReadingViewModel @JvmOverloads constructor(
 
     private var navigationRestored = false
 
+    /**
+     * 기록 화면 입력의 저장 키에 넣는다. 진입할 때마다 새로 만들고 Activity 저장 상태로 복원될 때만 이어진다.
+     * 번들에 남은 옛 입력이 나중에 연 새 폼에 되살아나지 않게 한다.
+     */
+    var diaryFormToken: String = ""
+        private set
+
     /** 저장할 화면 위치. 뒤로 가기 순서대로, 마지막이 현재 화면이다. */
     fun navigationSnapshot(): List<String> = (backStack + currentScreenState.value).map(ScreenCodec::encode)
 
@@ -379,9 +387,10 @@ class ReadingViewModel @JvmOverloads constructor(
      * 새 ViewModel에서 한 번만 적용한다. 회전처럼 ViewModel이 살아남은 재생성에서는 지금 위치가 더 최신이므로 무시한다.
      * 해석할 수 없는 값이 하나라도 있으면 처음 화면으로 둔다.
      */
-    fun restoreNavigation(saved: List<String>?) {
+    fun restoreNavigation(saved: List<String>?, formToken: String? = null) {
         if (navigationRestored) return
         navigationRestored = true
+        if (formToken != null) diaryFormToken = formToken
         val screens = saved.orEmpty().map { ScreenCodec.decode(it) ?: return }
         val current = screens.lastOrNull() ?: return
         backStack.clear()
@@ -391,6 +400,9 @@ class ReadingViewModel @JvmOverloads constructor(
 
     // Navigation triggers
     fun navigateTo(screen: Screen, addToBackStack: Boolean = true) {
+        if (addToBackStack && screen is Screen.AddDiary) {
+            diaryFormToken = java.util.UUID.randomUUID().toString()
+        }
         if (addToBackStack) {
             val current = currentScreenState.value
             if (current != screen) {
@@ -678,6 +690,27 @@ class ReadingViewModel @JvmOverloads constructor(
     suspend fun loadPhotos(diaryId: Int): List<RecallPhoto> {
         val rows = photoIoMutex.withLock { repository.photosFor(diaryId) }
         return withContext(Dispatchers.IO) { rows.map { RecallPhoto(it.id, photoStore.fileFor(it.path)) } }
+    }
+
+    /**
+     * 복원된 초안이 이미 저장됐는가. 저장 중 앱이 내려가면 번들에는 저장 전 화면과 초안이 남는다.
+     * 새 기록은 작성 시각이 폼을 연 순간에 정해져 저장에 그대로 쓰이므로 책 + 작성 시각으로 정확히 찾는다.
+     * 저장이 끝나지 않았으면 행이 없어(트랜잭션) false이고, 초안을 잃지 않는다.
+     */
+    suspend fun isDiaryAlreadySaved(
+        bookId: Int,
+        diaryId: Int?,
+        page: Int?,
+        selectedText: String,
+        notes: String,
+        createdAt: Long
+    ): Boolean {
+        val rows = repository.allDiaries.first()
+        return if (diaryId == null) {
+            rows.any { it.bookId == bookId && it.createdAt == createdAt }
+        } else {
+            rows.any { it.id == diaryId && it.page == page && it.selectedText == selectedText && it.notes == notes && it.createdAt == createdAt }
+        }
     }
 
     /** 고아 파일 정리. 반환 = 지운 개수. */
