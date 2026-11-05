@@ -18,6 +18,7 @@ import com.example.data.ocr.TextExtractor
 import com.example.ui.viewmodel.PhotoInput
 import com.example.ui.viewmodel.PhotoInputSlot
 import com.example.ui.viewmodel.ReadingViewModel
+import com.example.ui.viewmodel.Screen
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -155,7 +156,7 @@ class ReadingViewModelPhotoSaveTest {
   }
 
   @Test
-  fun emptySlots_clearsPhotos_butUnchangedDoesNot() {
+  fun emptySlots_clearsPhotos() {
     val store = FakeDiaryPhotoStore().apply { seed("a.jpg") }
     val d = diaryWithPhotos("a.jpg")
 
@@ -221,8 +222,7 @@ class ReadingViewModelPhotoSaveTest {
     vm.saveDiaryWithPhotos(bookId, 1, "문장", "", photos = PhotoInput.Slots(listOf(PhotoInputSlot.New(source)))) { completed = true }
     collectors += CoroutineScope(Dispatchers.Main).launch { vm.sweepOrphanPhotos(); swept = true }
     repeat(5) { shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(20) }
-    assertTrue("저장이 끝나기 전에는 sweep이 돌지 않는다", store.sweepRefs.none { "new0.jpg" !in it } || !swept)
-    assertFalse(swept)
+    assertFalse("저장이 끝나기 전에는 이 sweep이 끝나지 않는다", swept)
 
     gate.complete(Unit)
     awaitUntil { completed && swept }
@@ -290,9 +290,9 @@ class ReadingViewModelPhotoSaveTest {
     assertEquals(rows(d).map { it.id }, photos!!.map { it.photoId })
   }
 
-  /** deleteSampleBooks도 삭제 연동을 탄다. */
+  /** 예시 기록에 사용자가 붙인 사진은 «예시 지우기»로 사라지지 않는다. 그 책은 내 책으로 남고 나머지 예시만 지워진다. */
   @Test
-  fun deleteSampleBooks_removesPhotoFilesOfRemovedSamples() {
+  fun deleteSampleBooks_keepsSampleWithUserPhoto() {
     val store = FakeDiaryPhotoStore().apply { seed("sample.jpg") }
     val vm = vm(store)
     var added = -1
@@ -306,10 +306,32 @@ class ReadingViewModelPhotoSaveTest {
     runBlocking { db.diaryPhotoDao().insertAll(listOf(DiaryPhoto(diaryId = diaryId, path = "sample.jpg", sortOrder = 0))) }
 
     var removed = -1
-    vm.deleteSampleBooks { r, _ -> removed = r }
+    var kept = -1
+    vm.deleteSampleBooks { r, k -> removed = r; kept = k }
     awaitUntil { removed >= 0 }
 
-    assertEquals(2, removed)
-    assertEquals(listOf("sample.jpg"), store.deleted)
+    assertEquals(1, removed)
+    assertEquals(1, kept)
+    assertTrue("사진 파일을 지우면 안 된다: ${store.deleted}", store.deleted.isEmpty())
+    assertEquals(listOf("sample.jpg"), rows(diaryId).map { it.path })
+  }
+
+  /** 저장 중 뒤로 가면 저장 완료가 다른 화면을 닫지 않는다. */
+  @Test
+  fun navigateBackIfCurrent_onlyClosesTheScreenThatStartedTheSave() {
+    val vm = vm(FakeDiaryPhotoStore())
+    vm.navigateTo(Screen.BookDetail(bookId))
+    val saving = Screen.AddDiary(bookId)
+    vm.navigateTo(saving)
+
+    vm.navigateBack() // 저장이 끝나기 전에 사용자가 뒤로 갔다
+    val reopened = Screen.AddDiary(bookId) // 같은 책의 새 기록 화면을 다시 열었다
+    vm.navigateTo(reopened)
+    vm.navigateBackIfCurrent(saving)
+    assertEquals("다시 연 화면은 그대로", reopened, vm.currentScreenState.value)
+    assertTrue(vm.currentScreenState.value === reopened)
+
+    vm.navigateBackIfCurrent(reopened)
+    assertEquals(Screen.BookDetail(bookId), vm.currentScreenState.value)
   }
 }

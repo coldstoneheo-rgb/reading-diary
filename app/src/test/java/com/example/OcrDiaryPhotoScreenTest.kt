@@ -10,6 +10,7 @@ import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -203,6 +204,54 @@ class OcrDiaryPhotoScreenTest {
     saveAndAwait { rows(d).size == 2 }
 
     assertEquals(listOf("a.jpg", "new0.jpg"), rows(d).map { it.path })
+  }
+
+  /** 카메라 왕복·회전으로 Activity가 다시 만들어져도 글과 사진 목록이 함께 남는다. */
+  @Test
+  fun edit_recreation_keepsTextAndPhotoDrafts() {
+    val d = diaryWithPhotos("a.jpg", "b.jpg")
+    val vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, store) { false }
+    val restoration = StateRestorationTester(composeTestRule)
+    restoration.setContent {
+      CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner) {
+        MyApplicationTheme { OcrDiaryScreen(viewModel = vm, bookId = bookId, diaryId = d) }
+      }
+    }
+    awaitSection()
+    composeTestRule.onNodeWithTag("diary_photo_remove_0").performClick()
+    composeTestRule.onNodeWithTag("diary_notes_input").performScrollTo().performTextReplacement("고치던 메모")
+
+    restoration.emulateSavedInstanceStateRestore()
+
+    composeTestRule.waitUntil(10_000) { composeTestRule.onAllNodesWithText("고치던 메모").fetchSemanticsNodes().isNotEmpty() }
+    composeTestRule.onNodeWithTag("diary_photo_1").assertDoesNotExist()
+    composeTestRule.onNodeWithText("이 기록의 사진 (1/10)").assertExists()
+  }
+
+  /** 프로세스가 새로 뜨면(ViewModel 교체) 옛 입력이 나중에 연 새 폼에 되살아나지 않는다. */
+  @Test
+  fun newProcess_doesNotRestoreOldForm() {
+    var vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, store) { false }
+    val restoration = StateRestorationTester(composeTestRule)
+    restoration.setContent {
+      CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner) {
+        MyApplicationTheme { OcrDiaryScreen(viewModel = vm, bookId = bookId, diaryId = null) }
+      }
+    }
+    composeTestRule.waitUntil(10_000) {
+      composeTestRule.onAllNodesWithTag("diary_notes_input").fetchSemanticsNodes().isNotEmpty()
+    }
+    composeTestRule.onNodeWithTag("diary_notes_input").performScrollTo().performTextReplacement("옛 메모")
+
+    vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, store) { false }
+    restoration.emulateSavedInstanceStateRestore()
+    // 새 VM의 책 목록이 오기 전에는 폼이 아예 없어, 그때 단언하면 복원 여부와 무관하게 통과한다. 폼이 다시 그려진 뒤 본다.
+    composeTestRule.waitUntil(10_000) {
+      shadowOf(Looper.getMainLooper()).idle()
+      composeTestRule.onAllNodesWithTag("diary_notes_input").fetchSemanticsNodes().isNotEmpty()
+    }
+
+    assertTrue(composeTestRule.onAllNodesWithText("옛 메모").fetchSemanticsNodes().isEmpty())
   }
 
   /** dangling: 파일이 없어도 크래시 없이 안내를 보이고, 행은 지우지 않는다. */

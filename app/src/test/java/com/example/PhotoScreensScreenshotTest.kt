@@ -145,6 +145,23 @@ class PhotoScreensScreenshotTest {
     composeTestRule.onNodeWithTag("phraserecall_photo_viewer").assertIsDisplayed()
   }
 
+  /** 명세 §3.5 dangling: 복기(펼친 카드)에서도 깨진 이미지 대신 안내를 보인다. */
+  @Test
+  fun recallCard_expanded_danglingShowsNotice() {
+    composeTestRule.setContent {
+      MyApplicationTheme {
+        PhraseRecallContent(
+          books = books, diaries = diaries.take(1), sharedWords = emptyList(),
+          photosByDiary = mapOf(10 to listOf(RecallPhoto(1, null))),
+          onOpenBook = { _, _, _ -> }, onBack = {}, initialQuery = "세계"
+        )
+      }
+    }
+    composeTestRule.onAllNodesWithTag("phraserecall_result").onFirst().performClick()
+    composeTestRule.onNodeWithTag("phraserecall_photo_pager", useUnmergedTree = true).assertIsDisplayed()
+    composeTestRule.onNodeWithText("사진 없음(이 기기에 없음)", useUnmergedTree = true).assertIsDisplayed()
+  }
+
   @Test
   fun diaryEdit_photoSection_screenshot() {
     val models: List<Any?> = listOf(photoFile("a.png"), null, photoFile("b.png"))

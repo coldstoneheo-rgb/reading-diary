@@ -83,7 +83,7 @@
 - **몇 장:** 일기 1건 : 사진 **N장**(`diary_photos` 행 N개, `sortOrder` 순). 새 기록은 OCR에 쓴 사진 1장으로 시작하고, 편집에서 사진을 더하거나 빼거나 바꾼다(§3.4 `PhotoEdit`). 기록당 장수 상한은 P4 PR에서 근거 1줄과 함께 정한다.
 - **어디에:** 앱 내부 저장소 `noBackupFilesDir/diary_photos/` — 다른 앱 접근 불가, 앱 삭제 시 함께 삭제, **클라우드 자동 백업·기기 간 자동 이전 모두에서 제외**(API 24+ 전부, 백업 XML 변경 0 — ADR-006 Q-b 결정). 기기 밖으로 사진이 나가는 길은 **사용자가 직접 실행하는 zip 내보내기(P5, §3.6)뿐**이다.
 - **언제:** 일기 «저장»을 누를 때 **항상** 보관한다(체크박스 없음 — ADR-006 Q-a 결정). OCR 실행·취소·뒤로가기로는 저장 0.
-- **지우기:** 편집에서 «사진 지우기»(사진별). 일기 삭제·책 삭제(CASCADE)·책장 삭제·예시 책 지우기(`deleteSampleBooks`, `ReadingViewModel.kt:173`) 시 해당 사진 파일도 삭제(행은 `ON DELETE CASCADE`로 함께 삭제). 앱 시작 시 고아 파일 정리(sweep) 1회 — 누락된 삭제 경로도 여기서 걷힌다.
+- **지우기:** 편집에서 «사진 지우기»(사진별). 일기 삭제·책 삭제(CASCADE)·책장 삭제·예시 책 지우기(`deleteSampleBooks`, `ReadingViewModel.kt:173`, 사진이 붙은 예시 기록의 책은 지우지 않고 내 책으로 남긴다 — P4) 시 해당 사진 파일도 삭제(행은 `ON DELETE CASCADE`로 함께 삭제). 앱 시작 시 고아 파일 정리(sweep) 1회 — 누락된 삭제 경로도 여기서 걷힌다.
 - **경로는 있는데 파일이 없을 때(dangling):** Android 자동 백업 복원(DB는 백업되고 사진은 빠짐)·저장 공간 정리 등으로 생긴다. 화면은 **«사진 없음(이 기기에 없음)»**으로 표시하고 깨진 이미지를 그리지 않는다. `diary_photos` 행은 지우지 않는다(P5 zip 가져오기로 파일이 돌아오면 다시 보인다).
 - **편집 모드:** 보관된 사진 N장을 보여 주고 사진마다 **유지·교체·삭제**, 그리고 «사진 추가». 저장 시 사진 처리는 «변경 없음»과 «목록 지정»을 구분한다(null 하나로 «유지»와 «삭제»를 겸하지 않는다, §3.4). 지금처럼 «사진 없이 열기»(`OcrDiaryScreen.kt:167-176`)는 사진이 없을 때만.
 - **외부 전송 0(자동).** 보관 사진을 정밀 분석·공유 카드로 자동으로 보내는 경로 0. 정밀 분석은 지금처럼 사용자가 그 화면에서 사진마다 확인할 때만(`GeminiKeyPolicyTest` 참조 범위 불변). zip 내보내기는 사용자가 실행하고 저장 위치(SAF)를 고를 때만 — 앱 서버 0.
@@ -237,8 +237,9 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 **건드릴 파일:** `ui/screens/OcrDiaryScreen.kt`(체크박스 **없음** — 저장하면 OCR에 쓴 사진을 항상 보관(ADR-006 Q-a). 편집 모드 사진 N장 표시·사진별 바꾸기·지우기·«사진 추가» — 화면은 의도만 넘긴다) ·
 `ui/viewmodel/ReadingViewModel.kt`(**사진 쓰기는 ViewModel 스코프에서**: `saveDiaryWithPhotos(…, photos: PhotoInput)` — `sealed interface PhotoInput { object Unchanged; data class Slots(val slots: List<PhotoInputSlot>) }` · `sealed interface PhotoInputSlot { data class Existing(val photoId: Int); data class New(val source: Uri, val rotation: Float, val flipped: Boolean) }`(null·불리언 조합으로 상태를 겸하지 않는다) → `New`마다 `DiaryPhotoStore.save` 후 `PhotoSlot.New(경로)`로 바꿔 `saveDiary(photos = PhotoEdit.Set(…))`, `Unchanged`는 그대로 — 디코드를 ViewModel에 두는 기존 관례(`ReadingViewModel.kt:506-509`)와 같아 회전·뒤로가기에도 끊기지 않는다 · `deleteDiary`·`deleteBook`·`deleteBookcase`·`deleteSampleBooks`에서 사진 파일 삭제 — CASCADE 전에 해당 일기들의 `diary_photos.path`를 먼저 조회, 앱 시작 시 `sweep` 1회) ·
 `ui/screens/PhraseRecallScreen.kt`(썸네일 = `sortOrder` 0번 사진 — Coil `AsyncImage(model = File)`, 로컬 파일만 · 복기 화면은 N장 넘겨 보기·확대) ·
-`docs/privacy/privacy-policy.html:41`(«사진 자체는 일기에 저장되지 않습니다» → «기록에 남긴 사진은 기록과 함께 앱 내부 저장소에 보관되며, 자동 백업·기기 간 자동 이전에서 제외됩니다. 사용자가 직접 실행하는 백업 파일(zip)에만 포함되고, 기록·책을 지우면 함께 지워집니다») ·
+`docs/privacy/privacy-policy.html:41`(«사진 자체는 일기에 저장되지 않습니다» → «기록에 남긴 사진은 기록과 함께 앱 내부 저장소에 보관되며, 자동 백업·기기 간 자동 이전에서 제외됩니다. 사용자가 직접 실행하는 백업 파일(zip, 제공 시)에만 포함되고, 기록·책을 지우면 함께 지워집니다» — «제공 시»는 P5에서 뺀다) ·
 `docs/store-listing/INTERNAL-TEST-2026-11.md`(§5 N8 행은 2026-11-03 결정 반영 PR에서 미리 들어감 — P4에서 코드 근거 칸 채우기 · §2 문안 «사진은 기기 밖으로 나가지 않습니다»(:41) · §6 테스터 안내(:149) 같은 문구 → «자동으로는 나가지 않습니다» 계열로) · 앱 안 처리방침 요약(`PolicyCopyTest` 대상 문구가 사진을 언급하면 함께).
+**실제(P4):** `PhotoInputSlot.Replace(photoId, …)`를 더했다(교체할 사진 저장에 실패하면 기존 사진 유지). 사진이 붙은 예시 기록은 «예시 지우기»에서 지우지 않고 내 책으로 남긴다. 화면에 남겨 둔 사진은 OCR 실행 여부와 무관하게 저장한다.
 **테스트:** `OcrDiaryEditSaveTest` 확장(편집 저장 시 사진 유지·교체·삭제·추가, `Unchanged`로 텍스트만 고쳐도 사진 N장 유지) · 새 기록 저장 시 사진 1장이 체크 없이 보관됨 · Robolectric 삭제 연동(일기·책·책장·예시 책 삭제 후 파일 0, 다른 일기 파일 유지) · **dangling**(행은 있고 파일은 없는 사진 → 카드·복기 화면이 «사진 없음(이 기기에 없음)», 크래시 0) · `HonestCopyTest`에 «사진 자체는 일기에 저장되지 않습니다» 문구가 `app/src/main`에 없음 · Roborazzi 회상 카드 썸네일 1장(테스트 리소스 이미지).
 **완료 조건:** 위 통과 · dangling 표시 규칙 적용 · 사진 없이 연 기록(«사진 없이 열기»)은 지금과 같은 흐름 · 자동 외부 전송 경로 추가 0(`GeminiKeyPolicyTest` 불변) · 오너 기기에서 촬영 → 저장 → 회상 카드 사진 확인 1회.
 

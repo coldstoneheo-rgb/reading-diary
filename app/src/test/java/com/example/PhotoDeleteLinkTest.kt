@@ -101,6 +101,17 @@ class PhotoDeleteLinkTest {
     assertTrue(db.diaryPhotoDao().allPaths().contains("sys.jpg"))
   }
 
+  /** F6 재발 방지: 기존 id로 insert하면 REPLACE처럼 사진 행을 지우지 않고 실패한다. */
+  @Test
+  fun insertWithExistingId_failsAndKeepsPhotoRows() = runBlocking {
+    val before = db.diaryPhotoDao().photosFor(diary)
+
+    val result = runCatching { db.diaryDao().insert(Diary(id = diary, bookId = book, page = 9, selectedText = "덮어쓰기", notes = "")) }
+
+    assertTrue("insert는 실패해야 한다", result.isFailure)
+    assertEquals(before, db.diaryPhotoDao().photosFor(diary))
+  }
+
   /** critic 지적: 트랜잭션 원자성과 «파일은 커밋 뒤 삭제»를 고정한다. */
   @Test
   fun saveFailure_rollsBackTextAndPhotoRows_andDeletesNoFile() = runBlocking {

@@ -83,12 +83,17 @@ fun OcrDiaryScreen(
     val currentBook = books.find { it.id == bookId }
     val editingDiary = remember(diaryId, diaries) { diaries.find { it.id == diaryId } }
 
-    var pageStr by remember { mutableStateOf("") }
-    var extractedText by remember { mutableStateOf("") }
-    var notes by remember { mutableStateOf("") }
+    // 카메라 앱을 다녀오거나 회전하면 Activity가 다시 만들어진다. 입력 중인 글과 사진 상태를 잃지 않게 저장 가능한 상태로 둔다.
+    // 프로세스가 죽으면 화면 위치는 사라져도 저장 상태는 남아, 나중에 연 새 폼에 옛 입력이 되살아날 수 있다.
+    // rememberSaveable의 inputs는 복원 때 검증되지 않으므로, 저장 키 자체에 ViewModel 인스턴스 토큰을 넣어 막는다.
+    val formKey = remember(bookId, diaryId) { "ocr_form/${viewModel.formSessionKey}/$bookId/$diaryId" }
+    var pageStr by rememberSaveable(key = "$formKey/page") { mutableStateOf("") }
+    var extractedText by rememberSaveable(key = "$formKey/text") { mutableStateOf("") }
+    var notes by rememberSaveable(key = "$formKey/notes") { mutableStateOf("") }
+    var editDetailsLoaded by rememberSaveable(key = "$formKey/editLoaded") { mutableStateOf(false) }
 
     // Date & Time picker state: default to current or diary's historic time
-    var selectedTimestamp by remember { mutableStateOf(System.currentTimeMillis()) }
+    var selectedTimestamp by rememberSaveable(key = "$formKey/time") { mutableStateOf(System.currentTimeMillis()) }
 
     val dateFormatter = remember { SimpleDateFormat("yyyy년 MM월 dd일", Locale.KOREA) }
     val timeFormatter = remember { SimpleDateFormat("a h:mm", Locale.KOREA) }
@@ -97,21 +102,21 @@ fun OcrDiaryScreen(
     var selectedPaletteIndex by remember { mutableStateOf(0) }
 
     // User Selection flow variables
-    var selectedMethod by remember { mutableStateOf<String?>(null) } // "CAMERA" or "GALLERY"
-    var activeImageUrl by remember { mutableStateOf<String?>(null) }
-    var isImageTaken by remember { mutableStateOf(false) }
+    var selectedMethod by rememberSaveable(key = "$formKey/method") { mutableStateOf<String?>(null) } // "CAMERA" or "GALLERY"
+    var activeImageUrl by rememberSaveable(key = "$formKey/image") { mutableStateOf<String?>(null) }
+    var isImageTaken by rememberSaveable(key = "$formKey/imageTaken") { mutableStateOf(false) }
 
     // Transformation States
-    var imageRotation by remember { mutableStateOf(0f) }
-    var isFlipped by remember { mutableStateOf(false) }
-    var isCroppedReady by remember { mutableStateOf(false) }
-    var cropLeft by remember { mutableStateOf(0.1f) }
-    var cropRight by remember { mutableStateOf(0.9f) }
-    var cropTop by remember { mutableStateOf(0.1f) }
-    var cropBottom by remember { mutableStateOf(0.9f) }
+    var imageRotation by rememberSaveable(key = "$formKey/rotation") { mutableStateOf(0f) }
+    var isFlipped by rememberSaveable(key = "$formKey/flipped") { mutableStateOf(false) }
+    var isCroppedReady by rememberSaveable(key = "$formKey/cropReady") { mutableStateOf(false) }
+    var cropLeft by rememberSaveable(key = "$formKey/cropLeft") { mutableStateOf(0.1f) }
+    var cropRight by rememberSaveable(key = "$formKey/cropRight") { mutableStateOf(0.9f) }
+    var cropTop by rememberSaveable(key = "$formKey/cropTop") { mutableStateOf(0.1f) }
+    var cropBottom by rememberSaveable(key = "$formKey/cropBottom") { mutableStateOf(0.9f) }
 
     // Camera/Gallery integration state
-    var cameraTempUri by remember { mutableStateOf<Uri?>(null) }
+    var cameraTempUri by rememberSaveable(key = "$formKey/cameraUri") { mutableStateOf<Uri?>(null) }
 
     fun createCameraTempUri(): Uri {
         val storageDir = context.cacheDir
@@ -174,11 +179,10 @@ fun OcrDiaryScreen(
     val diarySaving by viewModel.diarySaving.collectAsState()
     var photosLoaded by remember(diaryId) { mutableStateOf(diaryId == null) }
     var loadedPhotos by remember(diaryId) { mutableStateOf<List<RecallPhoto>>(emptyList()) }
-    // 카메라 앱을 다녀오면 Activity가 다시 만들어질 수 있어 편집 중 목록과 대상은 저장 가능한 상태로 둔다.
-    var photoDrafts by rememberSaveable(diaryId, stateSaver = PhotoDraftsSaver) { mutableStateOf<List<PhotoInputSlot>>(emptyList()) }
-    var draftsInitialized by rememberSaveable(diaryId) { mutableStateOf(false) }
-    var photoReplaceIndex by rememberSaveable { mutableStateOf<Int?>(null) }
-    var photoCameraUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var photoDrafts by rememberSaveable(key = "$formKey/drafts", stateSaver = PhotoDraftsSaver) { mutableStateOf<List<PhotoInputSlot>>(emptyList()) }
+    var draftsInitialized by rememberSaveable(key = "$formKey/draftsInit") { mutableStateOf(false) }
+    var photoReplaceIndex by rememberSaveable(key = "$formKey/replaceIndex") { mutableStateOf<Int?>(null) }
+    var photoCameraUri by rememberSaveable(key = "$formKey/photoCameraUri") { mutableStateOf<String?>(null) }
 
     LaunchedEffect(diaryId) {
         if (diaryId == null) return@LaunchedEffect
@@ -216,13 +220,16 @@ fun OcrDiaryScreen(
         uri?.let { applyPickedPhoto(it) }
     }
 
-    // Load initial edit details
+    // Load initial edit details. 처음 한 번만 채운다(복원된 입력이나 편집 중 글을 DB 값으로 덮지 않게).
     LaunchedEffect(editingDiary) {
         editingDiary?.let {
-            pageStr = it.page.toString()
-            extractedText = it.selectedText
-            notes = it.notes
-            selectedTimestamp = it.createdAt
+            if (!editDetailsLoaded) {
+                pageStr = it.page.toString()
+                extractedText = it.selectedText
+                notes = it.notes
+                selectedTimestamp = it.createdAt
+                editDetailsLoaded = true
+            }
         }
     }
 
@@ -1540,6 +1547,9 @@ fun OcrDiaryScreen(
                         photoDrafts
                     }
 
+                    // 저장 완료는 사용자가 이미 다른 화면으로 갔을 수 있으므로, 저장을 시작한 이 화면일 때만 닫는다.
+                    val startedOn = viewModel.currentScreenState.value
+
                     // Save diary with selected timestamp (which defaults to System.currentTimeMillis() or selected/historical date-time value)
                     viewModel.saveDiaryWithPhotos(
                         bookId = bookId,
@@ -1560,8 +1570,7 @@ fun OcrDiaryScreen(
                             else -> saved
                         }
                         Toast.makeText(context, notice, Toast.LENGTH_LONG).show()
-                        viewModel.resetOcrState()
-                        viewModel.navigateBack()
+                        if (viewModel.navigateBackIfCurrent(startedOn)) viewModel.resetOcrState()
                     }
                 },
                 enabled = !diarySaving,

@@ -586,6 +586,7 @@ private fun ZoomablePhoto(photo: RecallPhoto, isCurrent: Boolean, onZoomChanged:
         if (!isCurrent) {
             scale = 1f
             offset = Offset.Zero
+            onZoomChanged(false)
         }
     }
     val file = photo.file

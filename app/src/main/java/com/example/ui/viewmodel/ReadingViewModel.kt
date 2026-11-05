@@ -130,6 +130,9 @@ class ReadingViewModel @JvmOverloads constructor(
         .flowOn(Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
+    /** 기록 화면 저장 상태의 키에 쓴다. 회전에서는 유지되고 프로세스가 새로 뜨면 바뀌어, 옛 입력이 새 폼에 복원되지 않는다. */
+    val formSessionKey: String = java.util.UUID.randomUUID().toString()
+
     private val _diarySaving = MutableStateFlow(false)
     /** 사진 저장에 시간이 걸리므로 저장 중에는 버튼을 막는다(연타로 기록이 두 건 생기지 않게). */
     val diarySaving: StateFlow<Boolean> = _diarySaving
@@ -216,8 +219,11 @@ class ReadingViewModel @JvmOverloads constructor(
                 val marks = withContext(Dispatchers.IO) { readSampleMarks() }
                 val targets = repository.allBooks.first().filter { SampleBooks.isSample(it, marks) }
                 val allDiaries = repository.allDiaries.first()
+                val diariesWithPhotos = repository.allPhotos.first().map { it.diaryId }.toSet()
+                // 예시 기록에 붙인 사진도 사용자가 남긴 것이다. 글이 그대로여도 그 책은 지우지 않는다(지우면 복구할 수 없다).
                 val (untouched, touched) = targets.partition { book ->
-                    SampleBooks.isUntouched(book, allDiaries.filter { it.bookId == book.id })
+                    val bookDiaries = allDiaries.filter { it.bookId == book.id }
+                    SampleBooks.isUntouched(book, bookDiaries) && bookDiaries.none { it.id in diariesWithPhotos }
                 }
                 untouched.forEach { repository.deleteBook(it.id) }
                 writeSampleMarks(emptySet())
@@ -361,6 +367,16 @@ class ReadingViewModel @JvmOverloads constructor(
             currentScreenState.value = Screen.PhraseRecall(query, filter)
         }
         navigateTo(Screen.BookDetail(bookId))
+    }
+
+    /**
+     * [screen]이 아직 현재 화면일 때만 닫고 true를 돌려준다. 저장 완료처럼 늦게 오는 콜백용으로, 사용자가 이미 떠났으면 아무것도 하지 않는다.
+     * 같은 내용의 화면을 다시 열었을 수 있어 동등성이 아니라 인스턴스로 비교한다.
+     */
+    fun navigateBackIfCurrent(screen: Screen): Boolean {
+        if (currentScreenState.value !== screen) return false
+        navigateBack()
+        return true
     }
 
     fun navigateBack() {
@@ -605,9 +621,9 @@ class ReadingViewModel @JvmOverloads constructor(
         else deferredCameraTempFiles += CameraTempFiles.list(cacheDir)
     }
 
-    /** 편집 화면이 처음 그릴 사진(표시 순서). */
+    /** 편집 화면이 처음 그릴 사진(표시 순서). 진행 중인 저장이 끝난 뒤 읽는다(옛 목록으로 이어서 저장하면 방금 넣은 사진이 지워진다). */
     suspend fun loadPhotos(diaryId: Int): List<RecallPhoto> {
-        val rows = repository.photosFor(diaryId)
+        val rows = photoIoMutex.withLock { repository.photosFor(diaryId) }
         return withContext(Dispatchers.IO) { rows.map { RecallPhoto(it.id, photoStore.fileFor(it.path)) } }
     }
 
