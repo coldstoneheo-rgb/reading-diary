@@ -75,14 +75,14 @@ fun OcrDiaryScreen(
 ) {
     val context = LocalContext.current
 
-    val books by viewModel.books.collectAsState()
+    val loadedBooks by viewModel.loadedBooks.collectAsState()
     val diaries by viewModel.diaries.collectAsState()
     val ocrState by viewModel.ocrState.collectAsState()
     val preciseState by viewModel.preciseOcrState.collectAsState()
     val preciseAvailable by viewModel.preciseAnalysisAvailable.collectAsState()
     var showPreciseConfirm by remember { mutableStateOf(false) }
 
-    val currentBook = books.find { it.id == bookId }
+    val currentBook = loadedBooks?.find { it.id == bookId }
     val editingDiary = remember(diaryId, diaries) { diaries.find { it.id == diaryId } }
 
     // 카메라 앱을 다녀오거나 회전하면 Activity가 다시 만들어진다. 입력 중인 글과 사진 상태를 잃지 않게 저장 가능한 상태로 둔다.
@@ -316,7 +316,14 @@ fun OcrDiaryScreen(
 
     if (currentBook == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("해당 책을 일치시킬 수 없습니다.")
+            if (loadedBooks == null) {
+                CircularProgressIndicator()
+            } else {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("해당 책을 일치시킬 수 없습니다.")
+                    TextButton(onClick = { viewModel.navigateBack() }) { Text("돌아가기") }
+                }
+            }
         }
         return
     }

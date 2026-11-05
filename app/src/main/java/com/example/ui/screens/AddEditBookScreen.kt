@@ -811,7 +811,7 @@ internal fun BookSearchContent(
 internal fun pageCountHelpText(lookupRunning: Boolean, missing: Boolean, value: String): String? = when {
     value.isNotBlank() -> null
     lookupRunning -> "쪽수를 찾는 중입니다."
-    missing -> "검색 결과에 쪽수가 없습니다. 직접 입력해 주세요."
+    missing -> "쪽수를 가져오지 못했습니다. 직접 입력해 주세요."
     else -> null
 }
 

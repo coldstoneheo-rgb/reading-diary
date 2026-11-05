@@ -12,6 +12,7 @@ import android.os.Looper
 import android.os.Parcel
 import android.provider.MediaStore
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -26,6 +27,9 @@ import coil.decode.DataSource
 import coil.intercept.Interceptor as CoilInterceptor
 import coil.request.SuccessResult
 import com.example.data.AppDatabase
+import com.example.data.Diary
+import com.example.data.photo.CameraTempFiles
+import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.example.data.Book
 import com.example.data.Bookcase
@@ -46,6 +50,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.android.controller.ActivityController
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
 import org.robolectric.shadows.ShadowToast
@@ -68,7 +73,8 @@ class ShadowCacheFileProvider {
  * 실제 카메라와 프로세스 사망은 아니다. 실기기 판정은 별도로 한다.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36], shadows = [ShadowCacheFileProvider::class])
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(qualifiers = RobolectricDeviceQualifiers.Pixel8, sdk = [36], shadows = [ShadowCacheFileProvider::class])
 class CameraProcessDeathTest {
 
   @get:Rule val composeTestRule = createEmptyComposeRule()
@@ -223,6 +229,106 @@ class CameraProcessDeathTest {
     settle { textShown("사진 촬영") }
     assertEquals(CANCELED_TOAST, ShadowToast.getTextOfLatestToast())
     assertFalse(textShown("자르기 확정하기"))
+  }
+
+  /** 복원 직후 책 목록이 오기 전에 «책을 찾을 수 없다»고 단정하면 안 된다. */
+  @Test
+  fun restoredScreen_showsNoMissingBookMessage_afterBooksArrive() {
+    val first = start()
+    val second = killAndRestore(first, openCamera(first), Activity.RESULT_OK)
+    settle { textShown("자르기 확정하기") }
+    assertFalse(textShown("해당 책을 일치시킬 수 없습니다."))
+    vm(second.get()).navigateTo(Screen.AddDiary(987_654))
+    settle { textShown("돌아가기") }
+    assertTrue("정말 없는 책이면 안내하고 나갈 길을 준다", textShown("해당 책을 일치시킬 수 없습니다."))
+  }
+
+  /** 편집 화면의 «사진 추가 → 카메라»도 같은 재생성을 견딘다. 이 경로는 취소 토스트가 없어 조용히 사라지기 쉽다. */
+  private fun openPhotoCamera(controller: ActivityController<MainActivity>, diaryId: Int): CameraRequest {
+    vm(controller.get()).navigateTo(Screen.AddDiary(bookId, diaryId))
+    settle { composeTestRule.onAllNodesWithTag("diary_photo_add").fetchSemanticsNodes().isNotEmpty() }
+    composeTestRule.onNodeWithTag("diary_photo_add").performScrollTo().performClick()
+    composeTestRule.onNodeWithTag("diary_photo_from_camera").performClick()
+    composeTestRule.waitForIdle()
+    shadowOf(Looper.getMainLooper()).idle()
+    val started = shadowOf(controller.get()).nextStartedActivityForResult
+      ?: error("카메라가 뜨지 않았다. 마지막 토스트: ${ShadowToast.getTextOfLatestToast()}")
+    @Suppress("DEPRECATION")
+    return CameraRequest(started.requestCode, started.intent.getParcelableExtra(MediaStore.EXTRA_OUTPUT)!!)
+  }
+
+  private fun newDiary() = runBlocking {
+    AppDatabase.getDatabase(app).diaryDao().insert(Diary(bookId = bookId, page = 1, selectedText = "처음 문장", notes = "")).toInt()
+  }
+
+  private fun assertPhotoSlot(second: ActivityController<MainActivity>, diaryId: Int, expected: Boolean) {
+    assertEquals(Screen.AddDiary(bookId, diaryId), vm(second.get()).currentScreenState.value)
+    settle { composeTestRule.onAllNodesWithTag("diary_photo_add").fetchSemanticsNodes().isNotEmpty() }
+    assertEquals(expected, composeTestRule.onAllNodesWithTag("diary_photo_0").fetchSemanticsNodes().isNotEmpty())
+  }
+
+  @Test
+  fun photoCamera_resultOk_afterRestore_addsDraft() {
+    val d = newDiary()
+    val first = start()
+    val second = killAndRestore(first, openPhotoCamera(first, d), Activity.RESULT_OK)
+    assertPhotoSlot(second, d, expected = true)
+  }
+
+  @Test
+  fun photoCamera_canceledWithFreshPhoto_afterRestore_addsDraft() {
+    val d = newDiary()
+    val first = start()
+    val second = killAndRestore(first, openPhotoCamera(first, d), Activity.RESULT_CANCELED)
+    assertPhotoSlot(second, d, expected = true)
+  }
+
+  @Test
+  fun photoCamera_canceledWithEmptyFile_afterRestore_addsNothing() {
+    val d = newDiary()
+    val first = start()
+    val second = killAndRestore(first, openPhotoCamera(first, d), Activity.RESULT_CANCELED) { }
+    assertPhotoSlot(second, d, expected = false)
+  }
+
+  private fun tempFiles() = CameraTempFiles.list(app.cacheDir)
+
+  /** 화면을 떠나면 책 페이지 임시 사진을 지운다. 재생성 보호가 이 삭제까지 막으면 캐시에 쌓인다. */
+  @Test
+  fun leavingScreen_deletesTempFiles() {
+    val first = start()
+    val request = openCamera(first)
+    File(app.cacheDir, request.output.lastPathSegment!!).writeBytes(JPEG_BYTES)
+    assertTrue(tempFiles().isNotEmpty())
+
+    vm(first.get()).navigateBack()
+    settle { tempFiles().isEmpty() }
+  }
+
+  @Test
+  fun rotation_keepsScreenAndTempFile() {
+    val first = start()
+    val request = openCamera(first)
+    val model = vm(first.get())
+    File(app.cacheDir, request.output.lastPathSegment!!).writeBytes(JPEG_BYTES)
+    val rotated = android.content.res.Configuration(first.get().resources.configuration).apply {
+      orientation = android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    }
+
+    first.configurationChange(rotated)
+    shadowOf(Looper.getMainLooper()).idle()
+
+    assertTrue("ViewModel은 살아남는다", model === vm(first.get()))
+    assertEquals(Screen.AddDiary(bookId), model.currentScreenState.value)
+    assertTrue(tempFiles().isNotEmpty())
+  }
+
+  @Test
+  fun freshStart_deletesLeftoverTempFiles() {
+    val leftover = File(app.cacheDir, CameraTempFiles.PREFIX + "old" + CameraTempFiles.SUFFIX).apply { writeBytes(JPEG_BYTES) }
+    start()
+    shadowOf(Looper.getMainLooper()).idle()
+    assertFalse(leftover.exists())
   }
 
   private companion object {

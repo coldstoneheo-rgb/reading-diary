@@ -154,6 +154,10 @@ class ReadingViewModel @JvmOverloads constructor(
     val books: StateFlow<List<Book>> = repository.allBooks
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** 아직 DB에서 받기 전이면 null. 복원 직후의 빈 목록과 «그 책이 정말 없음»을 가른다. */
+    val loadedBooks: StateFlow<List<Book>?> = repository.allBooks
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     val diaries: StateFlow<List<Diary>> = repository.allDiaries
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 

@@ -130,7 +130,8 @@ private fun PhotoSourceMenu(onPick: (useCamera: Boolean) -> Unit, anchor: @Compo
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
                 text = { Text("사진 촬영") },
-                onClick = { open = false; onPick(true) }
+                onClick = { open = false; onPick(true) },
+                modifier = Modifier.testTag("diary_photo_from_camera")
             )
             DropdownMenuItem(
                 text = { Text("사진 선택") },
