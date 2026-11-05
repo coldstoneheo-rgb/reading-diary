@@ -100,8 +100,13 @@ class CameraProcessDeathTest {
     )
   }
 
+  /** 살아 있는 Activity의 ViewModel 작업이 다음 테스트 클래스의 Dispatchers.setMain과 겹치지 않게 부순다. */
   @After
-  fun tearDown() = Coil.reset()
+  fun tearDown() {
+    openActivities.forEach { it.pause().stop().destroy() }
+    shadowOf(Looper.getMainLooper()).idle()
+    Coil.reset()
+  }
 
   private fun vm(activity: MainActivity) = ViewModelProvider(activity)[ReadingViewModel::class.java]
 
@@ -141,6 +146,7 @@ class CameraProcessDeathTest {
     val saved = Bundle()
     first.pause().stop().saveInstanceState(saved)
     first.destroy()
+    openActivities -= first
     val tempFile = File(app.cacheDir, request.output.lastPathSegment!!)
     tempFileSurvivedDestroy = tempFile.exists()
     whileCameraIsOpen(tempFile)
@@ -152,6 +158,7 @@ class CameraProcessDeathTest {
       second.get().activityResultRegistry.dispatchResult(request.requestCode, resultCode, null)
     )
     second.resume().visible()
+    openActivities += second
     shadowOf(Looper.getMainLooper()).idle()
     return second
   }
@@ -169,7 +176,9 @@ class CameraProcessDeathTest {
 
   private var tempFileSurvivedDestroy = false
 
-  private fun start() = Robolectric.buildActivity(MainActivity::class.java).setup()
+  private val openActivities = mutableListOf<ActivityController<MainActivity>>()
+
+  private fun start() = Robolectric.buildActivity(MainActivity::class.java).setup().also { openActivities += it }
 
   /** 사용자 신고 ①: 촬영 뒤 초기 화면이 아니라 기록 화면으로 돌아와 자르기 단계가 떠야 한다. */
   @Test

@@ -29,6 +29,7 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -124,6 +125,12 @@ class AddBookPageCountScreenTest {
 
     assertEquals(listOf("kakao"), requests.toList())
     assertNoFabricatedPages()
+  }
+
+  /** 잡아 둔 조회가 테스트 뒤까지 남아 메인 디스패처로 돌아오지 않게 한다. */
+  @After
+  fun releaseHeldLookup() {
+    holdLookup?.countDown()
   }
 
   private val found274 = """{"items":[{"volumeInfo":{"title":"녹색절벽","pageCount":274}}]}"""
