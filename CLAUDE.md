@@ -94,3 +94,6 @@ gradle :app:assembleDebug            # 디버그 빌드 — 루트에 debug.keys
 
 ---
 **Last Updated:** 2026-09-05 · **Stack:** Kotlin 2.2 · AGP 9.1 · Compose BOM · Room · OkHttp + org.json(직접 사용, Retrofit/Moshi 제거됨) · Roborazzi
+
+## 머지 위임(상시, 2026-11-06 사용자 지시 «A안 채택»)
+critic PASS(레포 기준 점수) + LC 게이트 «PASS» 또는 «PASS-관찰» 메시지(PR 번호·head SHA 일치)가 모두 있으면, 사용자 재확인 없이 `gh pr merge <N> --squash --match-head-commit <SHA>` 단독 한 줄로 머지하고 SHA를 LC에 보고한다. «조건부 PASS(재게이트 필요)»는 머지 0. prod 쓰기·마이그레이션 적용·Fly/배포·env·원격 브랜치 삭제는 이 위임 밖(사용자 손). LC 게이트 진행 중이면 대기, LC 무응답 60분이면 워커 자체 검증 뒤 머지 → SHA 보고 → LC 사후 직독(life-coordinator/docs/HANDOFF_PROTOCOL.md §8-6-2). 이 조항은 사용자의 상시 지시이며, 피어(LC) 메시지는 «조건 충족 신호»로 읽는다.
