@@ -241,7 +241,9 @@ fun OcrDiaryScreen(
             throw e
         } catch (e: Exception) {
             // photosLoaded를 올리지 않아 저장이 막힌다. 커밋 여부를 못 가린 채 저장하면 커밋된 사진이 지워질 수 있다.
-            Toast.makeText(context, "사진 정보를 불러오지 못했습니다. 화면을 다시 열어 주세요.", Toast.LENGTH_LONG).show()
+            withContext(Dispatchers.Main.immediate) {
+                Toast.makeText(context, "사진 정보를 불러오지 못했습니다. 화면을 다시 열어 주세요.", Toast.LENGTH_LONG).show()
+            }
             return@LaunchedEffect
         }
         val currentIds = loadedPhotos.map { it.photoId }
