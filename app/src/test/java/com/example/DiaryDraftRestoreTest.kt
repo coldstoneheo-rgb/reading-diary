@@ -336,7 +336,10 @@ class DiaryDraftRestoreTest {
     assertEquals(1, records().size)
   }
 
-  /** 회전은 ViewModel이 살아 있어 저장이 그대로 끝나야 하고, 복원 판정이 한 번 더 뒤로 가면 안 된다. */
+  /**
+   * 회전은 ViewModel이 살아 있어 저장이 그대로 끝나야 하고, 복원 판정이 한 번 더 뒤로 가면 안 된다.
+   * 현 동작 고정 테스트다: 판정의 위치 확인 2곳을 지우는 변이로도 실패하지 않았다(TASK-2026-1106 REPORT ④). 이중 뒤로가기 회귀를 잡는다는 보장은 없다.
+   */
   @Test
   fun rotationWhileSaving_savesOnce_andBackOnce() {
     val first = start()

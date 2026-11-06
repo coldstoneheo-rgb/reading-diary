@@ -162,7 +162,9 @@ class DiaryFormSubmitScreenTest {
     vm.navigateBack()
     gate.complete(Unit)
     pump { records().size == 1 && !vm.diarySaving.value }
-    repeat(10) { shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(20) }
+    composeTestRule.waitForIdle() // 저장 종료로 효과가 다시 돌아 «이 화면이 아니라서» 판정을 건너뛰게 한다
+    shadowOf(Looper.getMainLooper()).idle()
+    composeTestRule.waitForIdle()
     assertEquals("전제: 떠난 화면에서는 위치를 건드리지 않는다", Screen.BookDetail(bookId), vm.currentScreenState.value)
 
     vm.navigateTo(form)
@@ -179,6 +181,7 @@ class DiaryFormSubmitScreenTest {
     vm.navigateBack()
     gate.complete(Unit)
     pump { records().size == 1 && !vm.diarySaving.value }
+    composeTestRule.waitForIdle()
 
     val sqlite = db.openHelper.writableDatabase
     sqlite.execSQL("ALTER TABLE diaries RENAME TO diaries_hidden")
