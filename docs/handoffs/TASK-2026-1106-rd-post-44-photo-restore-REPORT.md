@@ -14,7 +14,7 @@
 - [x] 5. 묶음별 verify 실패 0, 스키마 diff 0(아래 표).
 - [x] 6. critic high 8/10 PASS → 이 REPORT·AGENT_STATUS·WORKLOG·PR 본문 → [DONE].
 - [ ] 7. (머지 뒤, LC «가») APK + 사용자 안내 1줄.
-- [ ] 로컬 브랜치 정리: `worktree-final-build` 삭제 완료. `feat/book-search-kakao`는 남았다(아래 «발견»).
+- [x] 로컬 브랜치 정리: `worktree-final-build` 삭제. `feat/book-search-kakao`(`8defb6a`)는 `git diff --stat feat/book-search-kakao 4cef4dc` 0줄 확인 뒤 LC 허용으로 `git branch -D`(로컬만, 원격 0).
 
 ## ① 원인과 수리
 
@@ -95,7 +95,7 @@ LC 코드 추적을 Robolectric으로 재현해 확정했다. 옛 코드에서 �
 
 ## 발견
 
-- **`feat/book-search-kakao` 삭제 안 함.** `git branch -d`가 «not fully merged»로 거부했다(#43이 스쿼시 머지라서). 내용은 `git diff --name-only feat/book-search-kakao 4cef4dc` 0개로 main과 같아 잃을 것은 없다. 발주서가 지정한 `-d`를 넘어 `-D`로 강제하지 않았다. `git worktree list`는 메인 1개뿐이다.
+- **`feat/book-search-kakao`:** `git branch -d`가 «not fully merged»로 거부했다(#43이 스쿼시 머지라서). 내용은 `4cef4dc`와 차이 0으로 main과 같다. 발주서의 `-d`를 넘는 강제 삭제라 LC에 물었고, 허용을 받아 `-D`로 지웠다. `git worktree list`는 메인 1개뿐이다.
 - **내 테스트가 처음엔 틀렸다(3건, 앱 결함 아님):**
   - `returningToForm`이 effect 키 제거 변이에서 통과했다. 돌아오기 전에 프레임이 돌지 않아 «건너뛴 판정»이라는 전제가 안 만들어졌다. 변이가 잡아 냈고 프레임 진행을 넣어 고쳤다.
   - 파일 단언이 클래스 첫 테스트 이후 실패했다. 기본 ViewModel 팩토리가 정적이라 ViewModel의 Application이 테스트의 것과 달라 다른 폴더를 본 것으로 추정한다. ViewModel 기준 폴더로 바꾸자 통과했다(원인은 이 결과와 일치한다는 데까지 확인).
@@ -120,5 +120,5 @@ LC 코드 추적을 Robolectric으로 재현해 확정했다. 옛 코드에서 �
 
 ## LC·사용자에게 필요한 것
 
-- LC: 재게이트. `feat/book-search-kakao` 로컬 브랜치를 `-D`로 지울지 결정(내용은 main과 동일).
+- LC: 재게이트. 판정 쿼리 실패 시 표식 해제·중복 알림·저장 허용 판단은 LC 수용(11-06).
 - 사용자: 게이트 PASS 뒤 «머지». 머지 뒤 APK 재테스트(촬영 → 확인 → 자르기 화면 · 쪽수 274/384 · 편집에서 사진 교체 저장).
