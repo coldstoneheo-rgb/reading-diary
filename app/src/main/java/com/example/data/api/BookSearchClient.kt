@@ -60,6 +60,13 @@ class BookSearchClient(private val http: OkHttpClient = OkHttpClient()) {
         }
     }
 
+    /**
+     * 고른 책 1권의 쪽수를 Google Books에서 찾는다. 카카오 응답에는 쪽수가 없다.
+     * 못 찾거나 실패하면 null이고, 사용자가 직접 입력한다. 결과 목록 전체를 조회하면 공용 한도를 소진하므로 고른 책만 부른다.
+     */
+    fun findPageCount(isbn: String): Int? =
+        searchGoogle(isbn, isbn).books.firstNotNullOfOrNull { it.pageCount }
+
     private fun searchKakao(query: String, isbn: String?, key: String): Attempt {
         // 비ASCII가 섞인 키를 헤더에 넣으면 OkHttp 예외 메시지에 값이 통째로 실린다(CLAUDE.md 안전 규칙).
         if (!SecureKeyManager.isHeaderSafe(key)) {

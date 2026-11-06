@@ -228,30 +228,36 @@ class OcrDiaryPhotoScreenTest {
     composeTestRule.onNodeWithText("이 기록의 사진 (1/10)").assertExists()
   }
 
-  /** 프로세스가 새로 뜨면(ViewModel 교체) 옛 입력이 나중에 연 새 폼에 되살아나지 않는다. */
+  /** 프로세스가 새로 떠도(ViewModel 교체) 화면 위치와 함께 복원되므로 같은 폼의 입력은 이어지고, 다른 책의 폼에는 섞이지 않는다. */
   @Test
-  fun newProcess_doesNotRestoreOldForm() {
+  fun newProcess_keepsSameForm_butNotOtherBooksForm() {
+    val otherBook = runBlocking {
+      db.bookDao().insert(Book(title = "다른 책", author = "", totalPages = 50, bookcaseId = db.bookDao().getAllBooks().first().first().bookcaseId, status = "READING")).toInt()
+    }
     var vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, store) { false }
+    var shownBook = bookId
     val restoration = StateRestorationTester(composeTestRule)
     restoration.setContent {
       CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner) {
-        MyApplicationTheme { OcrDiaryScreen(viewModel = vm, bookId = bookId, diaryId = null) }
+        MyApplicationTheme { OcrDiaryScreen(viewModel = vm, bookId = shownBook, diaryId = null) }
       }
     }
-    composeTestRule.waitUntil(10_000) {
-      composeTestRule.onAllNodesWithTag("diary_notes_input").fetchSemanticsNodes().isNotEmpty()
-    }
-    composeTestRule.onNodeWithTag("diary_notes_input").performScrollTo().performTextReplacement("옛 메모")
-
-    vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, store) { false }
-    restoration.emulateSavedInstanceStateRestore()
-    // 새 VM의 책 목록이 오기 전에는 폼이 아예 없어, 그때 단언하면 복원 여부와 무관하게 통과한다. 폼이 다시 그려진 뒤 본다.
-    composeTestRule.waitUntil(10_000) {
+    fun awaitForm() = composeTestRule.waitUntil(10_000) {
       shadowOf(Looper.getMainLooper()).idle()
       composeTestRule.onAllNodesWithTag("diary_notes_input").fetchSemanticsNodes().isNotEmpty()
     }
+    awaitForm()
+    composeTestRule.onNodeWithTag("diary_notes_input").performScrollTo().performTextReplacement("쓰던 메모")
 
-    assertTrue(composeTestRule.onAllNodesWithText("옛 메모").fetchSemanticsNodes().isEmpty())
+    vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, store) { false }
+    restoration.emulateSavedInstanceStateRestore()
+    awaitForm()
+    composeTestRule.waitUntil(10_000) { composeTestRule.onAllNodesWithText("쓰던 메모").fetchSemanticsNodes().isNotEmpty() }
+
+    shownBook = otherBook
+    restoration.emulateSavedInstanceStateRestore()
+    awaitForm()
+    assertTrue(composeTestRule.onAllNodesWithText("쓰던 메모").fetchSemanticsNodes().isEmpty())
   }
 
   /** dangling: 파일이 없어도 크래시 없이 안내를 보이고, 행은 지우지 않는다. */

@@ -2,6 +2,7 @@ package com.example.data
 
 import androidx.room.withTransaction
 import com.example.data.photo.DiaryPhotoStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 
 class ReadingRepository(
@@ -55,7 +56,16 @@ class ReadingRepository(
             id
         }
         // 파일은 커밋 뒤에 지운다(롤백되면 행이 남으므로 파일도 남아야 한다). 놓친 파일은 앱 시작 sweep이 걷는다.
-        removedPaths.forEach { photoStore.delete(it) }
+        // 여기서 실패해도 저장은 끝났다. 예외를 올리면 호출자가 저장 실패로 알린다.
+        removedPaths.forEach { path ->
+            try {
+                photoStore.delete(path)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // 다음 앱 시작의 sweep에 맡긴다.
+            }
+        }
         return id
     }
 

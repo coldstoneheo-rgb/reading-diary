@@ -28,7 +28,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.ViewModelProvider
 import com.example.ui.screens.AddEditBookScreen
 import com.example.ui.screens.BookDetailScreen
 import com.example.ui.screens.DashboardScreen
@@ -43,16 +43,34 @@ import com.example.ui.viewmodel.Screen
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    private val viewModel: ReadingViewModel by lazy { ViewModelProvider(this)[ReadingViewModel::class.java] }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        viewModel.restoreNavigation(
+            savedInstanceState?.getStringArrayList(KEY_NAVIGATION),
+            savedInstanceState?.getString(KEY_DIARY_FORM_TOKEN)
+        )
+        // 돌아오지 못한 촬영의 임시 파일(책 페이지 사진)을 새 시작에서 지운다. 복원 시작이면 카메라 결과가 아직 쓸 수 있어 남겨 둔다.
+        if (savedInstanceState == null) viewModel.releaseCameraTempFiles(cacheDir)
         enableEdgeToEdge()
         setContent {
-            val viewModel: ReadingViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
             val currentThemeId by viewModel.currentThemeId.collectAsState()
             MyApplicationTheme(themeId = currentThemeId) {
                 MainAppEntry(viewModel)
             }
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putStringArrayList(KEY_NAVIGATION, ArrayList(viewModel.navigationSnapshot()))
+        outState.putString(KEY_DIARY_FORM_TOKEN, viewModel.diaryFormToken.value)
+    }
+
+    private companion object {
+        const val KEY_NAVIGATION = "reading_diary_navigation"
+        const val KEY_DIARY_FORM_TOKEN = "reading_diary_form_token"
     }
 }
 
@@ -63,6 +81,7 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
     val context = LocalContext.current
 
     val currentScreen by viewModel.currentScreenState.collectAsState()
+    val diaryFormToken by viewModel.diaryFormToken.collectAsState()
     val bookcases by viewModel.bookcases.collectAsState()
     val selectedBookcaseId by viewModel.selectedBookcaseId.collectAsState()
 
@@ -354,11 +373,14 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                             )
                         }
                         is Screen.AddDiary -> {
-                            OcrDiaryScreen(
-                                viewModel = viewModel,
-                                bookId = screen.bookId,
-                                diaryId = screen.diaryId
-                            )
+                            // 전환 중 다시 들어오면 나가던 구성이 재사용된다. 토큰으로 갈라 저장된 초안이 이어지지 않게 한다.
+                            key(diaryFormToken) {
+                                OcrDiaryScreen(
+                                    viewModel = viewModel,
+                                    bookId = screen.bookId,
+                                    diaryId = screen.diaryId
+                                )
+                            }
                         }
                         is Screen.Settings -> {
                             SettingsScreen(

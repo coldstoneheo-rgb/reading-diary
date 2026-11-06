@@ -1,5 +1,6 @@
 package com.example
 
+import com.example.ui.screens.TERMS_SUMMARY
 import com.example.ui.screens.privacySummaryText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -61,6 +62,14 @@ class BookSearchProviderPolicyTest {
     assertTrue(policy.contains("dapi.kakao.com"))
     assertTrue(policy.contains("www.googleapis.com"))
     assertTrue(!policy.contains("네이버"))
+  }
+
+  @Test
+  fun publicCopyStatesIsbnLookupToGoogle() {
+    // 카카오가 성공해도 고른 책의 ISBN은 Google로 간다. 처리방침 9항: 새 경로는 먼저 공개 문구에 반영한다.
+    assertTrue(File("../docs/privacy/privacy-policy.html").readText().contains("그 책의 ISBN"))
+    assertTrue(privacySummaryText(url = "").contains("그 책의 ISBN"))
+    assertTrue(TERMS_SUMMARY.contains("그 책의 ISBN"))
   }
 
   @Test

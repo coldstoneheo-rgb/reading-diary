@@ -58,6 +58,39 @@ sealed class Screen {
     ) : Screen()
 }
 
+/**
+ * 화면 위치를 Activity 저장 상태에 넣을 문자열로 바꾼다. 카메라 앱이 떠 있는 동안 앱이 내려가도 같은 화면으로 돌아오게 한다.
+ * 문구 회상의 필터는 보존하지 않고 검색어만 남긴다.
+ */
+internal object ScreenCodec {
+    fun encode(screen: Screen): String = when (screen) {
+        Screen.Dashboard -> "dashboard"
+        is Screen.BookDetail -> "book|${screen.bookId}"
+        is Screen.AddEditBook -> "addEdit|${screen.bookId ?: ""}|${screen.startWithSearch}"
+        is Screen.AddDiary -> "diary|${screen.bookId}|${screen.diaryId ?: ""}"
+        Screen.Settings -> "settings"
+        Screen.Statistics -> "statistics"
+        Screen.KnowledgeDrawer -> "knowledge"
+        is Screen.PhraseRecall -> "recall|${screen.initialQuery}"
+    }
+
+    /** 알 수 없는 값이면 null. */
+    fun decode(value: String): Screen? {
+        val parts = value.split("|", limit = 3)
+        return when (parts[0]) {
+            "dashboard" -> Screen.Dashboard
+            "book" -> parts.getOrNull(1)?.toIntOrNull()?.let { Screen.BookDetail(it) }
+            "addEdit" -> Screen.AddEditBook(parts.getOrNull(1)?.toIntOrNull(), parts.getOrNull(2) == "true")
+            "diary" -> parts.getOrNull(1)?.toIntOrNull()?.let { Screen.AddDiary(it, parts.getOrNull(2)?.toIntOrNull()) }
+            "settings" -> Screen.Settings
+            "statistics" -> Screen.Statistics
+            "knowledge" -> Screen.KnowledgeDrawer
+            "recall" -> Screen.PhraseRecall(value.removePrefix("recall|"))
+            else -> null
+        }
+    }
+}
+
 sealed class OcrState {
     object Idle : OcrState()
     object Processing : OcrState()
@@ -121,6 +154,10 @@ class ReadingViewModel @JvmOverloads constructor(
     val books: StateFlow<List<Book>> = repository.allBooks
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** 아직 DB에서 받기 전이면 null. 복원 직후의 빈 목록과 «그 책이 정말 없음»을 가른다. */
+    val loadedBooks: StateFlow<List<Book>?> = repository.allBooks
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     val diaries: StateFlow<List<Diary>> = repository.allDiaries
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -129,9 +166,6 @@ class ReadingViewModel @JvmOverloads constructor(
         .map { rows -> rows.groupBy({ it.diaryId }, { RecallPhoto(it.id, photoStore.fileFor(it.path)) }) }
         .flowOn(Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
-
-    /** 기록 화면 저장 상태의 키에 쓴다. 회전에서는 유지되고 프로세스가 새로 뜨면 바뀌어, 옛 입력이 새 폼에 복원되지 않는다. */
-    val formSessionKey: String = java.util.UUID.randomUUID().toString()
 
     private val _diarySaving = MutableStateFlow(false)
     /** 사진 저장에 시간이 걸리므로 저장 중에는 버튼을 막는다(연타로 기록이 두 건 생기지 않게). */
@@ -336,8 +370,38 @@ class ReadingViewModel @JvmOverloads constructor(
     // OCR visual flow state
     val ocrState = MutableStateFlow<OcrState>(OcrState.Idle)
 
+    private var navigationRestored = false
+
+    /**
+     * 기록 화면 입력의 저장 키에 넣는다. 진입할 때마다 새로 만들고 Activity 저장 상태로 복원될 때만 이어진다.
+     * 번들에 남은 옛 입력이 나중에 연 새 폼에 되살아나지 않게 한다.
+     */
+    private val _diaryFormToken = MutableStateFlow("")
+    val diaryFormToken: StateFlow<String> = _diaryFormToken
+
+    /** 저장할 화면 위치. 뒤로 가기 순서대로, 마지막이 현재 화면이다. */
+    fun navigationSnapshot(): List<String> = (backStack + currentScreenState.value).map(ScreenCodec::encode)
+
+    /**
+     * 새 ViewModel에서 한 번만 적용한다. 회전처럼 ViewModel이 살아남은 재생성에서는 지금 위치가 더 최신이므로 무시한다.
+     * 해석할 수 없는 값이 하나라도 있으면 처음 화면으로 둔다.
+     */
+    fun restoreNavigation(saved: List<String>?, formToken: String? = null) {
+        if (navigationRestored) return
+        navigationRestored = true
+        if (formToken != null) _diaryFormToken.value = formToken
+        val screens = saved.orEmpty().map { ScreenCodec.decode(it) ?: return }
+        val current = screens.lastOrNull() ?: return
+        backStack.clear()
+        backStack.addAll(screens.dropLast(1))
+        navigateTo(current, addToBackStack = false)
+    }
+
     // Navigation triggers
     fun navigateTo(screen: Screen, addToBackStack: Boolean = true) {
+        if (addToBackStack && screen is Screen.AddDiary && currentScreenState.value != screen) {
+            _diaryFormToken.value = java.util.UUID.randomUUID().toString()
+        }
         if (addToBackStack) {
             val current = currentScreenState.value
             if (current != screen) {
@@ -564,6 +628,7 @@ class ReadingViewModel @JvmOverloads constructor(
         id: Int? = null,
         createdAt: Long? = null,
         photos: PhotoInput,
+        onFailure: () -> Unit = {},
         onComplete: (failedPhotos: Int) -> Unit
     ) {
         if (_diarySaving.value) return
@@ -575,33 +640,41 @@ class ReadingViewModel @JvmOverloads constructor(
                 suspend fun store(source: Uri, rotation: Float, flipped: Boolean): String? =
                     photoStore.save(source, rotation, flipped).also { if (it == null) failed++ }
 
-                photoIoMutex.withLock {
-                    val edit = when (photos) {
-                        PhotoInput.Unchanged -> PhotoEdit.Unchanged
-                        is PhotoInput.Slots -> PhotoEdit.Set(
-                            photos.slots.mapNotNull { slot ->
-                                when (slot) {
-                                    is PhotoInputSlot.Existing -> PhotoSlot.Existing(slot.photoId)
-                                    is PhotoInputSlot.New -> store(slot.source, slot.rotation, slot.flipped)?.let { PhotoSlot.New(it) }
-                                    is PhotoInputSlot.Replace -> store(slot.source, slot.rotation, slot.flipped)?.let { PhotoSlot.New(it) }
-                                        ?: PhotoSlot.Existing(slot.photoId)
+                val committed = try {
+                    photoIoMutex.withLock {
+                        val edit = when (photos) {
+                            PhotoInput.Unchanged -> PhotoEdit.Unchanged
+                            is PhotoInput.Slots -> PhotoEdit.Set(
+                                photos.slots.mapNotNull { slot ->
+                                    when (slot) {
+                                        is PhotoInputSlot.Existing -> PhotoSlot.Existing(slot.photoId)
+                                        is PhotoInputSlot.New -> store(slot.source, slot.rotation, slot.flipped)?.let { PhotoSlot.New(it) }
+                                        is PhotoInputSlot.Replace -> store(slot.source, slot.rotation, slot.flipped)?.let { PhotoSlot.New(it) }
+                                            ?: PhotoSlot.Existing(slot.photoId)
+                                    }
                                 }
-                            }
+                            )
+                        }
+                        repository.saveDiary(
+                            Diary(
+                                id = id ?: 0,
+                                bookId = bookId,
+                                page = page,
+                                selectedText = selectedText,
+                                notes = notes,
+                                createdAt = createdAt ?: System.currentTimeMillis()
+                            ),
+                            edit
                         )
                     }
-                    repository.saveDiary(
-                        Diary(
-                            id = id ?: 0,
-                            bookId = bookId,
-                            page = page,
-                            selectedText = selectedText,
-                            notes = notes,
-                            createdAt = createdAt ?: System.currentTimeMillis()
-                        ),
-                        edit
-                    )
+                    true
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // 디스크 부족·책 동시 삭제 등. 앱을 죽이지 않고 화면의 입력을 남긴다. 행은 트랜잭션이라 남지 않는다.
+                    false
                 }
-                onComplete(failed)
+                if (committed) onComplete(failed) else onFailure()
             } finally {
                 _diarySaving.value = false
                 photoSavesInFlight--
@@ -625,6 +698,16 @@ class ReadingViewModel @JvmOverloads constructor(
     suspend fun loadPhotos(diaryId: Int): List<RecallPhoto> {
         val rows = photoIoMutex.withLock { repository.photosFor(diaryId) }
         return withContext(Dispatchers.IO) { rows.map { RecallPhoto(it.id, photoStore.fileFor(it.path)) } }
+    }
+
+    /**
+     * 복원된 새 기록 초안이 이미 저장됐는가. 저장 중 앱이 내려가면 번들에는 저장 전 화면과 초안이 남는다.
+     * 작성 시각은 폼을 연 순간에 정해져 저장에 그대로 쓰이므로 책 + 작성 시각으로 정확히 찾는다.
+     * 저장이 끝나지 않았으면 행이 없어(트랜잭션) false이고 초안을 잃지 않는다.
+     * 편집에는 쓰지 않는다. 다시 저장해도 기록이 중복되지 않고, 사진 변경의 커밋 여부는 화면이 기준 사진 id로 가린다(OcrDiaryScreen.draftBaseIds).
+     */
+    suspend fun isNewDiaryAlreadySaved(bookId: Int, createdAt: Long): Boolean = photoIoMutex.withLock {
+        repository.allDiaries.first().any { it.bookId == bookId && it.createdAt == createdAt }
     }
 
     /** 고아 파일 정리. 반환 = 지운 개수. */

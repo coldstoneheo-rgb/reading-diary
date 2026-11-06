@@ -8,7 +8,8 @@ import java.io.File
 /** 파일 없이 저장·삭제·sweep 호출을 기록한다. [gate]를 걸면 save가 그 자리에서 기다린다(경쟁 시나리오용). */
 class FakeDiaryPhotoStore(
     private val failFor: Set<Uri> = emptySet(),
-    var gate: CompletableDeferred<Unit>? = null
+    var gate: CompletableDeferred<Unit>? = null,
+    private val failDelete: Boolean = false
 ) : DiaryPhotoStore {
     val files = linkedSetOf<String>()
     val deleted = mutableListOf<String>()
@@ -28,6 +29,7 @@ class FakeDiaryPhotoStore(
 
     override suspend fun delete(relativePath: String) {
         deleted += relativePath
+        if (failDelete) throw java.io.IOException("delete failed")
         files -= relativePath
     }
 

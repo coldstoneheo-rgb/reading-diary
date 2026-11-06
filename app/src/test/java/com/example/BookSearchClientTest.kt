@@ -57,6 +57,24 @@ class BookSearchClientTest {
   private fun hosts() = requests.map { it.url.host }
 
   @Test
+  fun findPageCount_queriesGoogleByIsbnOnly_neverKakao() {
+    val found = client(null, Reply(body = googleHit)).findPageCount("9788937460449")
+
+    assertEquals(312, found)
+    assertEquals(listOf("www.googleapis.com"), hosts())
+    assertEquals("isbn:9788937460449", requests.single().url.queryParameter("q"))
+  }
+
+  @Test
+  fun findPageCount_skipsVolumesWithoutPages_returnsNullOnFailure() {
+    val mixed = """{"items":[{"volumeInfo":{"title":"A"}},{"volumeInfo":{"title":"B","pageCount":274}}]}"""
+    assertEquals(274, client(null, Reply(body = mixed)).findPageCount("9788937460449"))
+    assertNull(client(null, Reply(body = googleEmpty)).findPageCount("9788937460449"))
+    assertNull(client(null, Reply(code = 429)).findPageCount("9788937460449"))
+    assertNull(client(null, Reply(thrown = UnknownHostException())).findPageCount("9788937460449"))
+  }
+
+  @Test
   fun generalQuery_callsKakaoWithoutTarget_withKakaoAkHeader_andStopsThere() {
     val outcome = search(Reply(body = kakaoHit), null)
 
