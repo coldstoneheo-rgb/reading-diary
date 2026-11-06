@@ -14,6 +14,14 @@
       "Read(./.env)",
       "Read(./my-upload-key.jks)",
       "Read(./debug.keystore)"
+    ],
+    "allow": [
+      "Bash(gh pr merge *)",
+      "PowerShell(gh pr merge *)",
+      "Bash(gh pr close *)",
+      "PowerShell(gh pr close *)",
+      "Bash(gh pr view *)",
+      "PowerShell(gh pr view *)"
     ]
   },
   "modelSettings": {
