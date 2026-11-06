@@ -1,7 +1,7 @@
 {
   "as_of": "2026-11-06T12:35:00+09:00",
-  "phase": "R4 PR #44 재게이트 2차 대기(편집 사진 유실 경로 수리 완료, 머지 전)",
-  "current_task": "LC 재게이트 대기 — 머지는 사용자 «머지», APK는 머지 뒤 LC «가»",
+  "phase": "R4 PR #44 LC 재게이트 2차 PASS-관찰, 사용자 머지 대기",
+  "current_task": "사용자 «머지» 대기 — APK는 머지 뒤 LC «가»",
   "waiting_on": [
     "사용자: D:\\사진\\reading-diary\\reading-diary-debug-20261105-2309-4e40a36.apk 설치 후 «기록하기 → 사진 촬영 → 확인 → 자르기 화면» + 검색 등록 쪽수 274/384 확인. 이미 250으로 등록된 두 권은 책 정보에서 직접 고친다. 실제 카메라·프로세스 사망은 미검증",
     "사용자: 키 넣은 APK를 테스터에게 배포하기 전 ADR-005 §4 [미확인] 3건 확인(내장 키 약관 · REST 키 범위 · 쿼터 초과 응답 코드)",
@@ -14,8 +14,8 @@
     "사용자 손 U1~U7 (docs/store-listing/INTERNAL-TEST-2026-11.md) — U8 첫 AAB 업로드는 P5 머지 뒤(ADR-006 A-선행)"
   ],
   "next_actions": [
-    "PR #44: critic 8/10 PASS, 묶음 316건 실패 0(head 2af984c 코드). LC 재게이트 → 사용자 «머지» → LC «가» 뒤 APK 1회 + 사용자 재테스트(촬영 → 자르기 · 쪽수 274/384 · 편집 사진 교체 저장)",
-    "#44 후속: 저장 중 사진 입력 잠금(저장 누른 뒤 촬영·사진 칸 수정 → 커밋 → 사망 → 복원 때 그 입력이 말없이 사라짐, 커밋 사진은 유지) · loadPhotos 실패 뒤 저장 토스트 문구 구분 · 편집 저장 중 회전 테스트 · 이중 뒤로가기 회귀 테스트(rotationWhileSaving은 고정 테스트) · deleteWithPhotos 삭제 예외. 정본 docs/handoffs/TASK-2026-1106-rd-post-44-photo-restore-REPORT.md",
+    "PR #44: LC 재게이트 2차 PASS-관찰(차단 0). 사용자 «머지» → LC «가» 뒤 APK 1회(메인 트리·루트 debug.keystore) + 사용자 재테스트(촬영 → 자르기 · 쪽수 274/384 · 편집 사진 교체 저장)",
+    "#44 후속 TASK(LC 관찰, REPORT «LC 재게이트 2차»): ① loadPhotos 실패 뒤 저장 문구 ② 재동기화 때 미커밋 입력 소실 3경로 → 저장 중 사진 입력 잠금 ③ 재동기화 사용자 표시 ④ deleteWithPhotos 삭제 예외 ⑤ Replace·화면 사진 반대 케이스·편집 저장 중 회전 테스트 ⑥ 판정 실패 중복 경로 단언 ⑦ CI 0건·단일 프로세스 미확인. 그 밖에 이중 뒤로가기 회귀 테스트(rotationWhileSaving은 고정 테스트)",
     "사용자 재테스트: 4e40a36 APK로 촬영 → 자르기 · 쪽수 274/384. 초안 중복 보정(b219ca6)은 이 APK에 없고 다음 RD 빌드에 실린다",
     "테스트 순서 의존: B3 순서에서 ReadingViewModelPhotoSaveTest 멈춤 — 가설 photoIoMutex(ReadingViewModel.kt:831) 정리 코루틴·메인 루퍼 소실 · 최소 재현 후보 PhraseRecallNavigationTest+PhotoSave · base 재현 미확인 · 새 테스트(NavigationRestoreTest 등)가 같은 패턴이라 악화 가능성",
     "R4 후속: 등록 폼 복원 · 책 없는 BookDetail 복원의 진행 표시 · 쪽수 조회 실패와 없음 구분 · AddBookPageCountScreenTest.choosingAnotherBook의 Coil 실제 로더(.example DNS 시도 가능, «네트워크 0» 설명과 어긋남, Coil.reset 없음) · 커밋 뒤 사망 경로의 책 진행률 미갱신 · critic 4차 잔여(REPORT 후속: 복원 경로 테스트 공백, 삼킨 예외 로그, 판정 쿼리 EXISTS, 고아 사진 즉시 삭제)",
