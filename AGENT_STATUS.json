@@ -1,7 +1,7 @@
 {
-  "as_of": "2026-11-06T02:00:00+09:00",
-  "phase": "R4 PR #44 열어 둠(LC 재게이트 PASS-관찰, 머지 안 함) → 다음 = 후속 ① 편집 사진 소실 수리(같은 브랜치) → ② SAF 마크다운",
-  "current_task": "대기 — 후속 ①~⑤는 LC가 새 RD 창 TASK로 발주. 브랜치 fix/camera-state-pagecount 이어서 작업",
+  "as_of": "2026-11-06T12:35:00+09:00",
+  "phase": "R4 PR #44 재게이트 2차 대기(편집 사진 유실 경로 수리 완료, 머지 전)",
+  "current_task": "LC 재게이트 대기 — 머지는 사용자 «머지», APK는 머지 뒤 LC «가»",
   "waiting_on": [
     "사용자: D:\\사진\\reading-diary\\reading-diary-debug-20261105-2309-4e40a36.apk 설치 후 «기록하기 → 사진 촬영 → 확인 → 자르기 화면» + 검색 등록 쪽수 274/384 확인. 이미 250으로 등록된 두 권은 책 정보에서 직접 고친다. 실제 카메라·프로세스 사망은 미검증",
     "사용자: 키 넣은 APK를 테스터에게 배포하기 전 ADR-005 §4 [미확인] 3건 확인(내장 키 약관 · REST 키 범위 · 쿼터 초과 응답 코드)",
@@ -14,11 +14,8 @@
     "사용자 손 U1~U7 (docs/store-listing/INTERNAL-TEST-2026-11.md) — U8 첫 AAB 업로드는 P5 머지 뒤(ADR-006 A-선행)"
   ],
   "next_actions": [
-    "① 1순위 · #44를 머지하지 않은 이유. 편집 모드: 사진 추가/교체 저장 중 홈 이탈 → 백그라운드 커밋 → 사망 → 복원(draftsInitialized=true라 DB 재독 0, 커밋 전 슬롯 잔존) → 재저장 때 원본 재store. 원본을 못 읽으면(DiaryPhotoStore save null) New 슬롯은 커밋된 사진 삭제, Replace는 원본·새 사진 모두 소실. LC 코드 추적, 미재현. 수리 방향(반박 가능): store null 슬롯은 커밋 행 유지·삭제 0, 또는 편집 복원 시 DB 기준 슬롯 재동기화 + 옛 코드 red 테스트 1. #44 단독 APK 금지, ① 뒤 빌드 1회. 이후 b219ca6 포함 critic 재채점 → LC 게이트 → 머지",
-    "② ReadingRepository.kt:58 커밋 뒤 photoStore.delete 예외가 try 안 → 편집에서 커밋됐는데 onFailure(거짓 실패)",
-    "③ 단언 테스트 없음: 효과 키 currentScreen · 이탈 뒤 실패 문구 · 저장 실패 뒤 버튼 재활성(화면 수준). 판정 쿼리 DB 예외가 LaunchedEffect 안에서 미처리",
-    "④ rotationWhileSaving·commitFailure red 미확인(commitFailure는 옛 코드 컴파일 불가). 변이로 대체 가능하면 처리",
-    "⑤ ReadingViewModel.kt:37-38 import kotlinx.coroutines.flow.first 중복",
+    "PR #44: critic 8/10 PASS, 묶음 316건 실패 0(head 2af984c 코드). LC 재게이트 → 사용자 «머지» → LC «가» 뒤 APK 1회 + 사용자 재테스트(촬영 → 자르기 · 쪽수 274/384 · 편집 사진 교체 저장)",
+    "#44 후속: 저장 중 사진 입력 잠금(저장 누른 뒤 촬영·사진 칸 수정 → 커밋 → 사망 → 복원 때 그 입력이 말없이 사라짐, 커밋 사진은 유지) · loadPhotos 실패 뒤 저장 토스트 문구 구분 · 편집 저장 중 회전 테스트 · 이중 뒤로가기 회귀 테스트(rotationWhileSaving은 고정 테스트) · deleteWithPhotos 삭제 예외. 정본 docs/handoffs/TASK-2026-1106-rd-post-44-photo-restore-REPORT.md",
     "사용자 재테스트: 4e40a36 APK로 촬영 → 자르기 · 쪽수 274/384. 초안 중복 보정(b219ca6)은 이 APK에 없고 다음 RD 빌드에 실린다",
     "테스트 순서 의존: B3 순서에서 ReadingViewModelPhotoSaveTest 멈춤 — 가설 photoIoMutex(ReadingViewModel.kt:831) 정리 코루틴·메인 루퍼 소실 · 최소 재현 후보 PhraseRecallNavigationTest+PhotoSave · base 재현 미확인 · 새 테스트(NavigationRestoreTest 등)가 같은 패턴이라 악화 가능성",
     "R4 후속: 등록 폼 복원 · 책 없는 BookDetail 복원의 진행 표시 · 쪽수 조회 실패와 없음 구분 · AddBookPageCountScreenTest.choosingAnotherBook의 Coil 실제 로더(.example DNS 시도 가능, «네트워크 0» 설명과 어긋남, Coil.reset 없음) · 커밋 뒤 사망 경로의 책 진행률 미갱신 · critic 4차 잔여(REPORT 후속: 복원 경로 테스트 공백, 삼킨 예외 로그, 판정 쿼리 EXISTS, 고아 사진 즉시 삭제)",
@@ -42,6 +39,6 @@
     "unit_tests_note": "b219ca6 묶음별 verify, 겹치지 않게 센 합 304, 실패 0. B3 조합은 순서 의존으로 피함. 한 프로세스 전체 통과는 확인하지 않음",
     "kakao_real_call": "사용자 실기기 검색 성공(11-05 18:2x 사용자 보고)"
   },
-  "head": "fix/camera-state-pagecount (PR #44 OPEN, 코드 b219ca6, APK 기준 4e40a36, base 4cef4dc)",
+  "head": "2af984c 코드(이후 문서만), 브랜치 fix/camera-state-pagecount",
   "last_commit": "origin/main 4cef4dc (#43)"
 }
