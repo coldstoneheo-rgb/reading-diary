@@ -1,9 +1,10 @@
 {
-  "as_of": "2026-11-06T12:35:00+09:00",
-  "phase": "R4 PR #44 LC 재게이트 2차 PASS-관찰, 사용자 머지 대기",
-  "current_task": "사용자 «머지» 대기 — APK는 머지 뒤 LC «가»",
+  "as_of": "2026-11-06T13:00:00+09:00",
+  "phase": "R4 PR #44 머지 완료(main c6b83f3), APK 전달, 사용자 재테스트 대기",
+  "current_task": "마감 — 다음은 LC 후속 TASK(관찰 7건)",
   "waiting_on": [
-    "사용자: D:\\사진\\reading-diary\\reading-diary-debug-20261105-2309-4e40a36.apk 설치 후 «기록하기 → 사진 촬영 → 확인 → 자르기 화면» + 검색 등록 쪽수 274/384 확인. 이미 250으로 등록된 두 권은 책 정보에서 직접 고친다. 실제 카메라·프로세스 사망은 미검증",
+    "사용자: D:\\사진\\reading-diary\\reading-diary-debug-20261106-1255-c6b83f3.apk 설치 후 재테스트 — 촬영 → 확인 → 자르기 화면 · 검색 등록 쪽수 274/384 · 편집에서 사진 교체 저장 · 저장 중 홈 이탈 뒤 재진입. 이미 250으로 등록된 두 권은 직접 고친다",
+    "사용자: 원격 브랜치 fix/camera-state-pagecount 삭제",
     "사용자: 키 넣은 APK를 테스터에게 배포하기 전 ADR-005 §4 [미확인] 3건 확인(내장 키 약관 · REST 키 범위 · 쿼터 초과 응답 코드)",
     "사용자: CLAUDE.md·critic.md·HARNESS.md 네이버 서술 교체안 승인(REPORT)",
     "사용자(최우선): 서명 키 문제 해소 — 메인 체크아웃 루트 debug.keystore로 만든 APK 인증서 aba8e5e3…가 드라이브의 이전 APK와 일치(기기 실측은 아님). 남은 것 = 오너 기기에 reading-diary-debug-20261105-1101-e0094b0.apk(드라이브 apk 폴더)를 덮어 설치하고 기록 수 동일 확인(명세 §3.4 :230). 덮어 설치가 거부되면 앱을 지우지 말고 멈춘다(지우면 기록이 사라진다)",
@@ -14,9 +15,8 @@
     "사용자 손 U1~U7 (docs/store-listing/INTERNAL-TEST-2026-11.md) — U8 첫 AAB 업로드는 P5 머지 뒤(ADR-006 A-선행)"
   ],
   "next_actions": [
-    "PR #44: LC 재게이트 2차 PASS-관찰(차단 0). 사용자 «머지» → LC «가» 뒤 APK 1회(메인 트리·루트 debug.keystore) + 사용자 재테스트(촬영 → 자르기 · 쪽수 274/384 · 편집 사진 교체 저장)",
+    "실기기 판정 대기: main c6b83f3 APK 재테스트 결과(실기기 검증 0회). 증상 보고가 오면 이 APK 기준으로 읽는다",
     "#44 후속 TASK(LC 관찰, REPORT «LC 재게이트 2차»): ① loadPhotos 실패 뒤 저장 문구 ② 재동기화 때 미커밋 입력 소실 3경로 → 저장 중 사진 입력 잠금 ③ 재동기화 사용자 표시 ④ deleteWithPhotos 삭제 예외 ⑤ Replace·화면 사진 반대 케이스·편집 저장 중 회전 테스트 ⑥ 판정 실패 중복 경로 단언 ⑦ CI 0건·단일 프로세스 미확인. 그 밖에 이중 뒤로가기 회귀 테스트(rotationWhileSaving은 고정 테스트)",
-    "사용자 재테스트: 4e40a36 APK로 촬영 → 자르기 · 쪽수 274/384. 초안 중복 보정(b219ca6)은 이 APK에 없고 다음 RD 빌드에 실린다",
     "테스트 순서 의존: B3 순서에서 ReadingViewModelPhotoSaveTest 멈춤 — 가설 photoIoMutex(ReadingViewModel.kt:831) 정리 코루틴·메인 루퍼 소실 · 최소 재현 후보 PhraseRecallNavigationTest+PhotoSave · base 재현 미확인 · 새 테스트(NavigationRestoreTest 등)가 같은 패턴이라 악화 가능성",
     "R4 후속: 등록 폼 복원 · 책 없는 BookDetail 복원의 진행 표시 · 쪽수 조회 실패와 없음 구분 · AddBookPageCountScreenTest.choosingAnotherBook의 Coil 실제 로더(.example DNS 시도 가능, «네트워크 0» 설명과 어긋남, Coil.reset 없음) · 커밋 뒤 사망 경로의 책 진행률 미갱신 · critic 4차 잔여(REPORT 후속: 복원 경로 테스트 공백, 삼킨 예외 로그, 판정 쿼리 EXISTS, 고아 사진 즉시 삭제)",
     "로컬 창 ② SAF 마크다운 내보내기(새 파일 생성만) + HonestCopyTest 조건화 (STAGE2-PLAN ②, P4 뒤·P5 앞 확정 — LC 11-03)",
@@ -39,6 +39,6 @@
     "unit_tests_note": "b219ca6 묶음별 verify, 겹치지 않게 센 합 304, 실패 0. B3 조합은 순서 의존으로 피함. 한 프로세스 전체 통과는 확인하지 않음",
     "kakao_real_call": "사용자 실기기 검색 성공(11-05 18:2x 사용자 보고)"
   },
-  "head": "2af984c 코드(이후 문서만), 브랜치 fix/camera-state-pagecount",
+  "head": "c6b83f3 (main)",
   "last_commit": "origin/main 4cef4dc (#43)"
 }
