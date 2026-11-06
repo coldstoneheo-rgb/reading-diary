@@ -704,7 +704,7 @@ class ReadingViewModel @JvmOverloads constructor(
      * 복원된 새 기록 초안이 이미 저장됐는가. 저장 중 앱이 내려가면 번들에는 저장 전 화면과 초안이 남는다.
      * 작성 시각은 폼을 연 순간에 정해져 저장에 그대로 쓰이므로 책 + 작성 시각으로 정확히 찾는다.
      * 저장이 끝나지 않았으면 행이 없어(트랜잭션) false이고 초안을 잃지 않는다.
-     * 편집에는 쓰지 않는다. 행이 이미 있어 커밋 여부를 가릴 수 없고, 다시 저장해도 중복이 생기지 않는다.
+     * 편집에는 쓰지 않는다. 다시 저장해도 기록이 중복되지 않고, 사진 변경의 커밋 여부는 화면이 기준 사진 id로 가린다(OcrDiaryScreen.draftBaseIds).
      */
     suspend fun isNewDiaryAlreadySaved(bookId: Int, createdAt: Long): Boolean = photoIoMutex.withLock {
         repository.allDiaries.first().any { it.bookId == bookId && it.createdAt == createdAt }

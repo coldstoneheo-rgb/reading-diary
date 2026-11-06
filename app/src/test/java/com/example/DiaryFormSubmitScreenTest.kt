@@ -22,6 +22,8 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.data.AppDatabase
 import com.example.data.Book
 import com.example.data.Bookcase
+import com.example.data.Diary
+import com.example.data.DiaryPhoto
 import com.example.data.ocr.OcrOutcome
 import com.example.data.ocr.TextExtractor
 import com.example.ui.screens.OcrDiaryScreen
@@ -122,6 +124,37 @@ class DiaryFormSubmitScreenTest {
 
   private fun awaitToast(text: String) = pump { ShadowToast.getTextOfLatestToast()?.contains(text) == true }
 
+  /** 편집 화면이 사진을 읽지 못하면 앱이 죽지 않고, 커밋 여부를 가릴 수 없으니 저장을 열지 않는다. */
+  @Test
+  fun editPhotoLoadFailure_doesNotCrash_andKeepsSaveClosed() {
+    val photoRows = runBlocking {
+      val d = db.diaryDao().insert(Diary(bookId = bookId, page = 7, selectedText = "처음 문장", notes = "")).toInt()
+      db.diaryPhotoDao().insertAll(listOf(DiaryPhoto(diaryId = d, path = "kept.jpg", sortOrder = 0)))
+      store.seed("kept.jpg")
+      d
+    }
+    val sqlite = db.openHelper.writableDatabase
+    sqlite.execSQL("ALTER TABLE diary_photos RENAME TO diary_photos_hidden")
+    try {
+      vm.navigateTo(Screen.BookDetail(bookId))
+      vm.navigateTo(Screen.AddDiary(bookId, photoRows))
+      composeTestRule.setContent {
+        CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner) {
+          MyApplicationTheme { OcrDiaryScreen(viewModel = vm, bookId = bookId, diaryId = photoRows) }
+        }
+      }
+      awaitToast("사진 정보를 불러오지 못했습니다")
+      pump { composeTestRule.onAllNodesWithText("처음 문장").fetchSemanticsNodes().isNotEmpty() }
+      clickSave()
+      awaitToast("사진 정보를 불러오는 중입니다")
+      assertTrue(!vm.diarySaving.value)
+    } finally {
+      sqlite.execSQL("ALTER TABLE diary_photos_hidden RENAME TO diary_photos")
+    }
+    assertEquals(listOf("kept.jpg"), runBlocking { db.diaryPhotoDao().photosFor(photoRows) }.map { it.path })
+    assertTrue(store.deleted.isEmpty())
+  }
+
   /** 저장 실패 뒤 표식이 풀려 버튼이 살아나고, 다시 누르면 저장된다. */
   @Test
   fun saveFailure_onForm_saysInputKept_reenablesButton_andRetrySaves() {
@@ -154,7 +187,10 @@ class DiaryFormSubmitScreenTest {
     assertTrue(records().isEmpty())
   }
 
-  /** 떠난 동안 커밋되면 판정이 건너뛰어진다. 돌아오면 위치 변화로 판정을 다시 돌려 초안을 버려야 한다. */
+  /**
+   * 떠난 동안 커밋되면 판정이 건너뛰어진다. 돌아오면 위치 변화로 판정을 다시 돌려 초안을 버려야 한다.
+   * effect 키를 고정하는 테스트이고 사용자 경로의 재현은 아니다. 실제 앱의 navigateTo는 토큰을 바꿔 새 폼을 만든다.
+   */
   @Test
   fun returningToForm_rerunsCheck_andLeavesWhenAlreadySaved() {
     openAndSubmit()

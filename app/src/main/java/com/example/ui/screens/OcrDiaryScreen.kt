@@ -216,7 +216,7 @@ fun OcrDiaryScreen(
             if (alreadySaved == null) {
                 // 못 가렸다. 버튼을 계속 막으면 초안을 저장할 길이 없어지므로 풀어 주되, 중복 가능성을 알린다.
                 submittedCreatedAt = null
-                Toast.makeText(context, "저장 여부를 확인하지 못했습니다. 기록 목록을 먼저 확인해 주세요.", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "저장 여부를 확인하지 못했습니다. 이미 저장됐다면 다시 저장할 때 기록이 2건이 될 수 있습니다.", Toast.LENGTH_LONG).show()
             } else if (!alreadySaved) {
                 submittedCreatedAt = null
             } else if (viewModel.currentScreenState.value == here) {
@@ -235,14 +235,22 @@ fun OcrDiaryScreen(
 
     LaunchedEffect(diaryId) {
         if (diaryId == null) return@LaunchedEffect
-        loadedPhotos = viewModel.loadPhotos(diaryId)
+        loadedPhotos = try {
+            viewModel.loadPhotos(diaryId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // photosLoaded를 올리지 않아 저장이 막힌다. 커밋 여부를 못 가린 채 저장하면 커밋된 사진이 지워질 수 있다.
+            Toast.makeText(context, "사진 정보를 불러오지 못했습니다. 화면을 다시 열어 주세요.", Toast.LENGTH_LONG).show()
+            return@LaunchedEffect
+        }
         val currentIds = loadedPhotos.map { it.photoId }
         val baseIds = draftBaseIds
         // DB가 기준과 다르면 이 초안은 이미 커밋됐다. 그대로 다시 저장하면 원본을 못 읽을 때 커밋된 사진이 지워지므로 커밋 결과를 새 기준으로 삼는다.
         if (baseIds != currentIds) {
             photoDrafts = currentIds.map { PhotoInputSlot.Existing(it) }
             draftBaseIds = ArrayList(currentIds)
-            if (baseIds != null) clearShownPhoto() // 화면의 사진도 커밋에 들어갔다
+            if (baseIds != null) clearShownPhoto() // 화면의 사진은 커밋 때 함께 보관됐다. 남겨 두면 다시 저장될 때 또 들어간다
         }
         photosLoaded = true
     }
