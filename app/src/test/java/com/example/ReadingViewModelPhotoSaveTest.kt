@@ -166,6 +166,23 @@ class ReadingViewModelPhotoSaveTest {
     assertEquals(listOf("a.jpg"), store.deleted)
   }
 
+  /** 커밋 뒤 파일 삭제가 실패해도 저장은 끝난 것이다. 실패로 알리면 사용자가 저장된 기록을 다시 쓴다. 남은 파일은 sweep이 걷는다. */
+  @Test
+  fun commitThenFileDeleteFails_reportsSuccess_andTriesEveryFile() {
+    val store = FakeDiaryPhotoStore(failDelete = true).apply { seed("a.jpg", "b.jpg") }
+    val d = diaryWithPhotos("a.jpg", "b.jpg")
+    val vm = vm(store)
+    var failedCalled = false
+    var completed = false
+
+    vm.saveDiaryWithPhotos(bookId, 1, "문장", "", id = d, createdAt = 1_000L, photos = PhotoInput.Slots(emptyList()), onFailure = { failedCalled = true }) { completed = true }
+    awaitUntil { completed || failedCalled }
+
+    assertFalse("커밋됐는데 실패로 알리면 안 된다", failedCalled)
+    assertTrue(rows(d).isEmpty())
+    assertEquals(listOf("a.jpg", "b.jpg"), store.deleted)
+  }
+
   /** 교체할 사진을 못 읽어도 기존 사진을 잃지 않는다. */
   @Test
   fun replaceFailure_keepsOldPhoto_andReportsFailure() {

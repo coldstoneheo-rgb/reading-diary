@@ -60,6 +60,7 @@ import com.example.ui.viewmodel.PhotoDrafts
 import com.example.ui.viewmodel.PhotoInputSlot
 import com.example.ui.viewmodel.ReadingViewModel
 import com.example.ui.viewmodel.Screen
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -122,6 +123,19 @@ fun OcrDiaryScreen(
     // Camera/Gallery integration state
     var cameraTempUri by rememberSaveable(key = "$formKey/cameraUri") { mutableStateOf<Uri?>(null) }
     var cameraStartedAt by rememberSaveable(key = "$formKey/cameraStartedAt") { mutableStateOf(0L) }
+
+    fun clearShownPhoto() {
+        activeImageUrl = null
+        isImageTaken = false
+        isCroppedReady = false
+        imageRotation = 0f
+        isFlipped = false
+        selectedMethod = null
+        cropLeft = 0.1f
+        cropRight = 0.9f
+        cropTop = 0.1f
+        cropBottom = 0.9f
+    }
 
     fun createCameraTempUri(): Uri {
         cameraStartedAt = System.currentTimeMillis()
@@ -191,9 +205,19 @@ fun OcrDiaryScreen(
         if (diarySaving) return@LaunchedEffect
         val here = Screen.AddDiary(bookId, diaryId)
         if (viewModel.currentScreenState.value != here) return@LaunchedEffect
-        val alreadySaved = viewModel.isNewDiaryAlreadySaved(bookId, createdAt)
+        val alreadySaved = try {
+            viewModel.isNewDiaryAlreadySaved(bookId, createdAt)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
         withContext(Dispatchers.Main.immediate) {
-            if (!alreadySaved) {
+            if (alreadySaved == null) {
+                // 못 가렸다. 버튼을 계속 막으면 초안을 저장할 길이 없어지므로 풀어 주되, 중복 가능성을 알린다.
+                submittedCreatedAt = null
+                Toast.makeText(context, "저장 여부를 확인하지 못했습니다. 기록 목록을 먼저 확인해 주세요.", Toast.LENGTH_LONG).show()
+            } else if (!alreadySaved) {
                 submittedCreatedAt = null
             } else if (viewModel.currentScreenState.value == here) {
                 Toast.makeText(context, "이미 저장된 기록입니다.", Toast.LENGTH_SHORT).show()
@@ -204,16 +228,21 @@ fun OcrDiaryScreen(
     var photosLoaded by remember(diaryId) { mutableStateOf(diaryId == null) }
     var loadedPhotos by remember(diaryId) { mutableStateOf<List<RecallPhoto>>(emptyList()) }
     var photoDrafts by rememberSaveable(key = "$formKey/drafts", stateSaver = PhotoDraftsSaver) { mutableStateOf<List<PhotoInputSlot>>(emptyList()) }
-    var draftsInitialized by rememberSaveable(key = "$formKey/draftsInit") { mutableStateOf(false) }
+    // 초안이 출발한 DB 사진 id. null = 아직 불러오지 않음. 저장 중 앱이 내려가면 번들에는 커밋 전 초안이 남으므로, 복원 때 이 값으로 커밋 여부를 가린다.
+    var draftBaseIds by rememberSaveable(key = "$formKey/draftBaseIds") { mutableStateOf<ArrayList<Int>?>(null) }
     var photoReplaceIndex by rememberSaveable(key = "$formKey/replaceIndex") { mutableStateOf<Int?>(null) }
     var photoCameraUri by rememberSaveable(key = "$formKey/photoCameraUri") { mutableStateOf<String?>(null) }
 
     LaunchedEffect(diaryId) {
         if (diaryId == null) return@LaunchedEffect
         loadedPhotos = viewModel.loadPhotos(diaryId)
-        if (!draftsInitialized) {
-            photoDrafts = loadedPhotos.map { PhotoInputSlot.Existing(it.photoId) }
-            draftsInitialized = true
+        val currentIds = loadedPhotos.map { it.photoId }
+        val baseIds = draftBaseIds
+        // DB가 기준과 다르면 이 초안은 이미 커밋됐다. 그대로 다시 저장하면 원본을 못 읽을 때 커밋된 사진이 지워지므로 커밋 결과를 새 기준으로 삼는다.
+        if (baseIds != currentIds) {
+            photoDrafts = currentIds.map { PhotoInputSlot.Existing(it) }
+            draftBaseIds = ArrayList(currentIds)
+            if (baseIds != null) clearShownPhoto() // 화면의 사진도 커밋에 들어갔다
         }
         photosLoaded = true
     }
@@ -880,16 +909,7 @@ fun OcrDiaryScreen(
                             // DELETE/RESET Photo button supporting first requirement
                             OutlinedButton(
                                 onClick = {
-                                    activeImageUrl = null
-                                    isImageTaken = false
-                                    isCroppedReady = false
-                                    imageRotation = 0f
-                                    isFlipped = false
-                                    selectedMethod = null
-                                    cropLeft = 0.1f
-                                    cropRight = 0.9f
-                                    cropTop = 0.1f
-                                    cropBottom = 0.9f
+                                    clearShownPhoto()
                                     Toast.makeText(context, "사진 삭제가 성공적으로 이루어졌습니다.", Toast.LENGTH_SHORT).show()
                                 },
                                 modifier = Modifier.weight(1f),
