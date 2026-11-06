@@ -13,7 +13,7 @@
 - [x] 4. ④ commitFailure는 변이 red. rotation은 «현 동작 고정 테스트»로 명시. ⑤ import 중복 0.
 - [x] 5. 묶음별 verify 실패 0, 스키마 diff 0(아래 표).
 - [x] 6. critic high 8/10 PASS → 이 REPORT·AGENT_STATUS·WORKLOG·PR 본문 → [DONE].
-- [ ] 7. (머지 뒤, LC «가») APK + 사용자 안내 1줄.
+- [x] 7. APK `D:\사진\reading-diary\reading-diary-debug-20261106-1255-c6b83f3.apk`(main `c6b83f3`, 21,615,525바이트, 서명 SHA-256 `aba8e5e3…`, `:app:assembleDebug` exit 0 142초, `apksigner verify` exit 0). 사용자 재테스트는 아직 없다.
 - [x] 로컬 브랜치 정리: `worktree-final-build` 삭제. `feat/book-search-kakao`(`8defb6a`)는 `git diff --stat feat/book-search-kakao 4cef4dc` 0줄 확인 뒤 LC 허용으로 `git branch -D`(로컬만, 원격 0).
 
 ## ① 원인과 수리
