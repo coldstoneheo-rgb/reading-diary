@@ -14,6 +14,9 @@ import com.example.data.PhotoSlot
 import com.example.data.ReadingRepository
 import com.example.data.SampleBooks
 import com.example.data.SecureKeyManager
+import com.example.data.backup.BackupArchive
+import com.example.data.backup.BackupRestore
+import com.example.data.backup.RestoreOutcome
 import com.example.data.knowledge.KeywordLinks
 import com.example.data.knowledge.SharedWord
 import com.example.data.ocr.BitmapDecoding
@@ -89,6 +92,17 @@ internal object ScreenCodec {
             else -> null
         }
     }
+}
+
+/** 백업 파일 만들기·복원 상태(명세 §3.6). */
+sealed class BackupState {
+    object Idle : BackupState()
+    /** [done]/[total]: 담은 사진 수(만들기). 복원·사진 전 단계는 0/0. */
+    data class Running(val restoring: Boolean, val done: Int, val total: Int) : BackupState()
+    data class Created(val books: Int, val diaries: Int, val photos: Int) : BackupState()
+    /** [missingPhotos]: 행은 있는데 zip에 파일이 없던 사진(«사진 없음»으로 보인다). */
+    data class Restored(val books: Int, val diaries: Int, val photos: Int, val missingPhotos: Int) : BackupState()
+    data class Error(val restoring: Boolean, val message: String) : BackupState()
 }
 
 sealed class OcrState {
@@ -710,6 +724,83 @@ class ReadingViewModel @JvmOverloads constructor(
         repository.allDiaries.first().any { it.bookId == bookId && it.createdAt == createdAt }
     }
 
+    private val backupRestore = BackupRestore(application, database, photoStore)
+    private val _backupState = MutableStateFlow<BackupState>(BackupState.Idle)
+    /** 백업 파일 만들기·복원 진행과 결과(명세 §3.6). 화면은 Running이면 진행 표시, 결과면 다이얼로그. */
+    val backupState: StateFlow<BackupState> = _backupState
+
+    /**
+     * 사용자가 SAF로 고른 위치([openOutput])에 zip을 쓴다. 사진 저장·sweep과 겹치지 않게 [photoIoMutex] 안에서.
+     * 키 저장소·설정은 넣지 않는다(BackupArchive). 자동 실행 0 — 설정 화면의 버튼에서만 불린다.
+     */
+    fun createBackup(openOutput: () -> java.io.OutputStream?) {
+        if (_backupState.value is BackupState.Running) return
+        _backupState.value = BackupState.Running(restoring = false, done = 0, total = 0)
+        viewModelScope.launch {
+            _backupState.value = try {
+                withContext(Dispatchers.IO) {
+                    photoIoMutex.withLock {
+                        val out = openOutput() ?: return@withLock BackupState.Error(restoring = false, message = BACKUP_WRITE_ERROR)
+                        val manifest = out.use { stream ->
+                            backupRestore.createBackup(stream) { done, total ->
+                                _backupState.value = BackupState.Running(restoring = false, done = done, total = total)
+                            }
+                        }
+                        BackupState.Created(manifest.books, manifest.diaries, manifest.photoFiles)
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                BackupState.Error(restoring = false, message = BACKUP_WRITE_ERROR)
+            }
+        }
+    }
+
+    /** [openInput]의 zip으로 기록을 **교체**한다(병합 0). 화면이 확인 다이얼로그를 거친 뒤에만 부른다. 실패하면 기존 기록 그대로. */
+    fun restoreBackup(openInput: () -> java.io.InputStream?) {
+        if (_backupState.value is BackupState.Running) return
+        _backupState.value = BackupState.Running(restoring = true, done = 0, total = 0)
+        viewModelScope.launch {
+            _backupState.value = try {
+                withContext(Dispatchers.IO) {
+                    photoIoMutex.withLock {
+                        val input = openInput() ?: return@withLock BackupState.Error(restoring = true, message = RESTORE_READ_ERROR)
+                        when (val outcome = input.use { backupRestore.restore(it) }) {
+                            is RestoreOutcome.Restored -> BackupState.Restored(outcome.books, outcome.diaries, outcome.photoFiles, outcome.photoRows - outcome.photoFiles)
+                            is RestoreOutcome.Rejected -> BackupState.Error(restoring = true, message = rejectMessage(outcome.reason))
+                            RestoreOutcome.Failed -> BackupState.Error(restoring = true, message = RESTORE_FAILED)
+                        }
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                BackupState.Error(restoring = true, message = RESTORE_READ_ERROR)
+            }
+            if (_backupState.value is BackupState.Restored) {
+                // 교체 전 화면 상태(열린 책·예시 표식)를 버린다.
+                sampleMarks.value = readSampleMarks()
+                activeBook.value = null
+                activeBookDiaries.value = emptyList()
+                backStack.clear()
+                backStack.add(Screen.Dashboard)
+                currentScreenState.value = Screen.Settings
+            }
+        }
+    }
+
+    fun dismissBackupResult() {
+        if (_backupState.value !is BackupState.Running) _backupState.value = BackupState.Idle
+    }
+
+    private fun rejectMessage(reason: BackupArchive.Reason?): String = when (reason) {
+        BackupArchive.Reason.NEWER_VERSION -> "이 백업 파일은 더 새 버전의 앱에서 만들어졌어요. 앱을 업데이트한 뒤 다시 시도해 주세요."
+        BackupArchive.Reason.NOT_ZIP, BackupArchive.Reason.NO_MANIFEST -> "독서 다이어리 백업 파일이 아니에요."
+        BackupArchive.Reason.UNSAFE_PATH, BackupArchive.Reason.UNKNOWN_ENTRY -> "백업 파일에 허용되지 않는 항목이 있어 복원하지 않았어요."
+        else -> "백업 파일이 손상되었거나 읽을 수 없어요."
+    } + " 지금 기록은 그대로입니다."
+
     /** 고아 파일 정리. 반환 = 지운 개수. */
     internal suspend fun sweepOrphanPhotos(): Int = photoIoMutex.withLock {
         photoStore.sweep(repository.allPhotoPaths().toSet())
@@ -864,6 +955,9 @@ class ReadingViewModel @JvmOverloads constructor(
         const val NO_TEXT_MESSAGE = "글자를 찾지 못했어요. 더 밝게, 더 가까이 찍어 다시 시도하거나 직접 입력해 주세요."
         const val ENGINE_ERROR_MESSAGE = "글자 인식 중 오류가 났어요. 다시 시도하거나 직접 입력해 주세요."
         const val DECODE_ERROR_MESSAGE = "사진을 읽지 못했어요. 다시 촬영하거나 다른 사진을 골라 주세요."
+        const val BACKUP_WRITE_ERROR = "백업 파일을 저장하지 못했어요. 다른 위치를 골라 다시 시도해 주세요."
+        const val RESTORE_READ_ERROR = "백업 파일을 읽지 못했어요. 지금 기록은 그대로입니다."
+        const val RESTORE_FAILED = "복원 중 문제가 생겨 되돌렸어요. 지금 기록은 그대로입니다."
         const val CONSENT_REQUIRED_MESSAGE = "정밀 분석을 쓰려면 설정에서 Gemini API 키를 등록하고 사진 전송에 동의해야 해요."
     }
 

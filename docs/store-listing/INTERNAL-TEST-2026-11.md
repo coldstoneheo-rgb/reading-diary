@@ -52,6 +52,7 @@
 
 ■ 내 기록은 내 기기에
 계정이 없고 서버도 없습니다. 기록은 이 기기에 저장되며, 안드로이드 자동 백업이 켜져 있으면 책·일기·일반 설정이 구글 계정 백업에 포함됩니다.
+설정의 «백업 파일 만들기»로 기록과 사진을 zip 파일 하나로 내가 고른 곳(Google 드라이브 등)에 저장하고, «백업 파일에서 복원»으로 되돌릴 수 있습니다.
 
 ■ 선택 기능: 정밀 분석
 원하는 분만 설정에서 본인의 Google Gemini API 키를 등록하고 사진 전송에 동의하면, 사진마다 확인을 거쳐 그 페이지 사진을 Google Gemini로 보내 분석할 수 있습니다.
@@ -60,7 +61,7 @@
 
 문안 원칙(ADR-003 Q6·Q9·ADR-004 Q8): «RAG·AI 지식 그래프·옵시디언» 등 구현되지 않은 기능을 암시하는 단어를 쓰지 않는다.
 2단계 SAF 내보내기가 머지되면 «■ 마크다운으로 복사» 항목을 «■ 마크다운 파일로 내보내기(책마다 1파일, 이미 있는 파일은 건드리지 않음)»로 바꾼다.
-«백업»이라 부르지 않는다(복원 기능 없음 — ADR-005 §6 ADR-003-5).
+마크다운 내보내기는 «백업»이라 부르지 않는다(되돌리는 기능 없음 — ADR-005 §6 ADR-003-5). «백업»은 복원이 있는 P5 «백업 파일 만들기 / 백업 파일에서 복원»(명세 §3.6)만 부른다.
 
 ## 3. 그래픽 애셋 규격
 
@@ -101,7 +102,7 @@
 | N5 | 밑줄 글자 인식(기본) | **사진은 나가지 않음.** ML Kit 한국어 인식은 기기 안에서 실행(모델은 Play 서비스가 첫 사용 시 내려받음) | — | 크롭 후 인식 | `MlKitTextExtractor.kt:25` (`KoreanTextRecognizerOptions`) |
 | N6 | **정밀 분석(선택)** | **선택한 페이지 사진**(JPEG, base64) + 사용자 본인 Gemini 키(`x-goog-api-key` 헤더) | `generativelanguage.googleapis.com` (Google) | ① 설정에서 본인 키 등록 ② 사진 전송 동의 체크 ③ 사진마다 확인 다이얼로그(«사진을 Google Gemini로 보낼까요?»)에서 «전송하고 분석» — 셋 다 있을 때만 | 동의 체크 `SettingsScreen.kt:418-424`, 버튼 노출 조건 `OcrDiaryScreen.kt:1033-1034`, 확인 다이얼로그 `:1053-1077`, ViewModel 차단 `ReadingViewModel.kt:509-512`, 엔드포인트 `GeminiApiClient.kt:40-41`, JPEG/base64 인코딩 `:69-71`, 헤더·전송 `:107-116` |
 | N7 | Android 자동 백업 | Room DB(책·일기)·일반 설정 | 사용자 본인 Google 계정 백업 | OS가 수행 | `AndroidManifest.xml:17-19`, `res/xml/backup_rules.xml`·`data_extraction_rules.xml`(키 저장소만 제외) |
-| N8 | **기록 사진 보관**(문구 회상 P4·P5 — 2026-11-03 결정, [ADR-006](../adr/ADR-006-phrase-recall-photo-storage.md)) | **사진 보관(기기 안)** — 앱 내부 `noBackupFilesDir/diary_photos/`, 자동 백업·기기 간 자동 이전 제외. **사용자 내보내기 zip에만 포함**(사용자가 «백업 파일 만들기»를 누르고 SAF로 저장 위치를 고를 때만). **자동 전송 0** · 앱 서버 0 | 사용자가 고른 저장 위치(본인 Google 드라이브 등 SAF 프로바이더) | 사용자가 zip 백업을 실행할 때만 | 보관 = `DiaryPhotoStore.kt`(`noBackupFilesDir/diary_photos/`) · 저장 경로 `ReadingViewModel.saveDiaryWithPhotos` · 삭제 연동 `ReadingRepository.deleteWithPhotos`. 기록에 남긴 사진(글자 인식에 쓴 사진 + 편집에서 추가한 사진) 전부가 대상. zip은 코드 미구현 — P5 PR에서 근거 칸 채움([명세 §3.6](../PHRASE-RECALL-SPEC-2026-11.md)) |
+| N8 | **기록 사진 보관**(문구 회상 P4·P5 — 2026-11-03 결정, [ADR-006](../adr/ADR-006-phrase-recall-photo-storage.md)) | **사진 보관(기기 안)** — 앱 내부 `noBackupFilesDir/diary_photos/`, 자동 백업·기기 간 자동 이전 제외. **사용자 내보내기 zip에만 포함**(사용자가 «백업 파일 만들기»를 누르고 SAF로 저장 위치를 고를 때만). **자동 전송 0** · 앱 서버 0 | 사용자가 고른 저장 위치(본인 Google 드라이브 등 SAF 프로바이더) | 사용자가 zip 백업을 실행할 때만 | 보관 = `DiaryPhotoStore.kt`(`noBackupFilesDir/diary_photos/`) · 저장 경로 `ReadingViewModel.saveDiaryWithPhotos` · 삭제 연동 `ReadingRepository.deleteWithPhotos`. 기록에 남긴 사진(글자 인식에 쓴 사진 + 편집에서 추가한 사진) 전부가 대상. zip = `SettingsScreen.kt`(`CreateDocument("application/zip")`·`OpenDocument`, testTag `settings_backup_create`·`settings_backup_restore`) · `ReadingViewModel.createBackup`/`restoreBackup` · `data/backup/BackupRestore.kt`(스냅숏 DB + 사진) · `data/backup/BackupArchive.kt`(항목은 `manifest.json`·`db/`·`photos/`만 — 키 저장소·설정 0)([명세 §3.6](../PHRASE-RECALL-SPEC-2026-11.md)) |
 
 Play 기준상 **N7(OS 자동 백업)은 앱의 «수집»이 아니다**(사용자 계정으로 OS가 처리). N4·N5는 Google SDK 자체의 진단·사용 통계 전송이 있을 수 있어(ADR-002 «후속 발견»)
 Google이 공개한 ML Kit/코드 스캐너 데이터 공개 문서를 오너가 확인해 SDK 몫을 반영한다 — [사용자 확인].

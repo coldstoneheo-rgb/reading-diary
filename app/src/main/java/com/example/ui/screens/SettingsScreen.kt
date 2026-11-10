@@ -28,6 +28,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.BuildConfig
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.example.ui.viewmodel.ReadingViewModel
 
 /**
@@ -47,7 +49,7 @@ internal val PRIVACY_SUMMARY_LINES = listOf(
     "1. 책·책장·독서 일기·기록에 남긴 사진·설정은 이 기기에 저장됩니다. 개발자는 기록을 받아 보관하는 서버를 운영하지 않습니다.",
     "2. 밑줄 구절 인식은 기기 안에서 실행되며, 사진은 기기 밖으로 전송되지 않습니다(5번 예외).",
     "3. 책을 검색하면 입력한 검색어가 카카오 책 검색으로 전송됩니다(키가 없거나, 카카오에서 찾지 못하거나 오류가 나면 Google Books로 전송). 쪽수 정보가 없는 책을 고르면 그 책의 ISBN이 Google Books로 전송됩니다. 책 표지를 화면에 표시할 때는 표지 이미지 서버에 요청이 갑니다.",
-    "4. 안드로이드 자동 백업이 켜져 있으면 책·일기·일반 설정이 본인 Google 계정 백업에 포함될 수 있습니다(API 키와 기록에 남긴 사진은 제외).",
+    "4. 안드로이드 자동 백업이 켜져 있으면 책·일기·일반 설정이 본인 Google 계정 백업에 포함될 수 있습니다(API 키와 기록에 남긴 사진은 제외). 설정의 «백업 파일 만들기»를 직접 실행하면 기록과 사진이 zip 파일 하나로 내가 고른 위치에 저장됩니다(API 키·설정 제외).",
     "5. 정밀 분석은 본인 Gemini 키 등록, 사진 전송 동의, 사진마다 확인을 모두 거친 경우에만 선택한 페이지 사진을 Google Gemini로 전송합니다."
 )
 
@@ -74,6 +76,27 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
     var showTerms by remember { mutableStateOf(false) }
     var showPrivacyPolicy by remember { mutableStateOf(false) }
     var confirmDeleteSamples by remember { mutableStateOf(false) }
+
+    val backupState by viewModel.backupState.collectAsState()
+    /** 고른 백업 파일. 확인 다이얼로그에서 «복원하기»를 누르기 전에는 아무것도 바꾸지 않는다. */
+    var pendingRestoreUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    val backupFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri != null) viewModel.createBackup { context.contentResolver.openOutputStream(uri) }
+    }
+    val restoreFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        pendingRestoreUri = uri
+    }
+    pendingRestoreUri?.let { uri ->
+        RestoreConfirmDialog(
+            onConfirm = {
+                pendingRestoreUri = null
+                viewModel.restoreBackup { context.contentResolver.openInputStream(uri) }
+            },
+            onDismiss = { pendingRestoreUri = null }
+        )
+    }
+    BackupProgressDialog(state = backupState)
+    BackupResultDialog(state = backupState, onDismiss = { viewModel.dismissBackupResult() })
 
     Scaffold(
         topBar = {
@@ -487,10 +510,17 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                         lineHeight = 16.sp
                     )
                     Text(
-                        text = "기록에 남긴 사진은 앱 내부 저장소에 보관되고 자동 백업에서 제외되며, 기록·책을 지우면 함께 지워집니다. 자동으로는 기기 밖으로 나가지 않습니다(직접 실행한 정밀 분석 제외).",
+                        text = "기록에 남긴 사진은 앱 내부 저장소에 보관되고 자동 백업에서 제외되며, 기록·책을 지우면 함께 지워집니다. 자동으로는 기기 밖으로 나가지 않습니다(직접 실행한 정밀 분석·백업 파일 만들기 제외).",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                         lineHeight = 16.sp
+                    )
+
+                    // 백업 파일(명세 §3.6): 사용자가 고른 위치에 zip 1개 · 복원은 교체. 자동 실행 0.
+                    BackupSection(
+                        state = backupState,
+                        onCreate = { backupFileLauncher.launch(BackupFileNames.suggested(System.currentTimeMillis())) },
+                        onRestore = { restoreFileLauncher.launch(arrayOf("application/zip", "application/octet-stream")) }
                     )
 
                     // 예시 2권(ADR-003-1): 신규 설치는 빈 서재. 원할 때만 넣고, «예시» 배지가 붙으며 통계에서 빠진다.

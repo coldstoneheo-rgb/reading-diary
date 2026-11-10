@@ -208,6 +208,7 @@ class MigrationTest {
       override fun fileFor(relativePath: String): File? = null
       override suspend fun delete(relativePath: String) { deleted += relativePath }
       override suspend fun sweep(referenced: Set<String>): Int = 0
+      override suspend fun importFile(relativePath: String, source: File): Boolean = error("unused")
     }
     val repo = ReadingRepository(db, store)
     db.diaryPhotoDao().insertAll(listOf("a", "b", "c").mapIndexed { i, p -> DiaryPhoto(diaryId = 1, path = p, sortOrder = i) })

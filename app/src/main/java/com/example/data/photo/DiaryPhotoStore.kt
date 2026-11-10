@@ -26,6 +26,12 @@ interface DiaryPhotoStore {
     suspend fun delete(relativePath: String)
 
     /**
+     * 백업 복원(P5): [source] 파일을 [relativePath] 이름으로 들여온다. 이미 그 이름이 있으면 건드리지 않고 false
+     * (이름이 UUID라 같은 이름 = 같은 사진). 새로 들였으면 true. 저장소 밖 경로는 false. IO 실패는 예외.
+     */
+    suspend fun importFile(relativePath: String, source: File): Boolean
+
+    /**
      * 참조되지 않는 파일 삭제. 반환 = 지운 개수.
      * [save]와 동시에 부르지 않는다: 참조 목록을 만든 뒤 저장된 새 파일은 미참조로 보여 지워진다(호출자 = 앱 시작 1회, P4).
      */
@@ -75,6 +81,21 @@ class InternalDiaryPhotoStore(context: Context) : DiaryPhotoStore {
 
     override suspend fun delete(relativePath: String) {
         withContext(Dispatchers.IO) { resolve(relativePath)?.delete() }
+    }
+
+    override suspend fun importFile(relativePath: String, source: File): Boolean = withContext(Dispatchers.IO) {
+        val target = resolve(relativePath) ?: return@withContext false
+        if (target.exists()) return@withContext false
+        if (!root.mkdirs() && !root.isDirectory) throw java.io.IOException("photo root not created")
+        // 임시 이름에 다 쓴 뒤 옮긴다: 중간에 실패해도 반쯤 쓴 사진이 남지 않는다.
+        val partial = File(root, "$relativePath.part")
+        try {
+            source.inputStream().use { input -> partial.outputStream().use { input.copyTo(it) } }
+            if (!partial.renameTo(target)) throw java.io.IOException("rename failed")
+        } finally {
+            partial.delete()
+        }
+        true
     }
 
     override suspend fun sweep(referenced: Set<String>): Int = withContext(Dispatchers.IO) {

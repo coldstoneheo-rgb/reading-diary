@@ -110,3 +110,32 @@ interface DiaryPhotoDao {
     )
     suspend fun pathsForDeletableBookcase(bookcaseId: Int): List<String>
 }
+
+/**
+ * 백업·복원(명세 §3.6) 전용 일괄 읽기·교체. 스키마 변경 0 — 기존 네 테이블을 그대로 읽고 쓴다.
+ * 교체는 호출자가 `withTransaction` 안에서 [deleteAll] → insert 순으로 부른다(실패하면 전부 되돌아간다).
+ */
+@Dao
+interface BackupDao {
+    @Query("SELECT * FROM bookcases ORDER BY id ASC")
+    suspend fun bookcases(): List<Bookcase>
+
+    @Query("SELECT * FROM books ORDER BY id ASC")
+    suspend fun books(): List<Book>
+
+    @Query("SELECT * FROM diaries ORDER BY id ASC")
+    suspend fun diaries(): List<Diary>
+
+    @Query("SELECT * FROM diary_photos ORDER BY id ASC")
+    suspend fun photos(): List<DiaryPhoto>
+
+    @Insert suspend fun insertBookcases(rows: List<Bookcase>)
+    @Insert suspend fun insertBooks(rows: List<Book>)
+    @Insert suspend fun insertDiaries(rows: List<Diary>)
+    @Insert suspend fun insertPhotos(rows: List<DiaryPhoto>)
+
+    @Query("DELETE FROM diary_photos") suspend fun deletePhotos()
+    @Query("DELETE FROM diaries") suspend fun deleteDiaries()
+    @Query("DELETE FROM books") suspend fun deleteBooks()
+    @Query("DELETE FROM bookcases") suspend fun deleteBookcases()
+}

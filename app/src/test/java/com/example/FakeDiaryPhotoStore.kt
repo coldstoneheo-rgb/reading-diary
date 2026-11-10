@@ -33,6 +33,12 @@ class FakeDiaryPhotoStore(
         files -= relativePath
     }
 
+    override suspend fun importFile(relativePath: String, source: File): Boolean {
+        if (relativePath in files) return false
+        files += relativePath
+        return true
+    }
+
     override suspend fun sweep(referenced: Set<String>): Int {
         sweepRefs += referenced
         val orphans = files.filter { it !in referenced }
