@@ -73,7 +73,7 @@ class ReadingViewModelBackupTest {
   fun createThenRestore_replacesRecords() {
     val vm = viewModel()
     val out = ByteArrayOutputStream()
-    vm.createBackup { out }
+    vm.createBackup(openOutput = { out })
     val created = awaitResult(vm) as BackupState.Created
     assertEquals(1, created.books)
     vm.dismissBackupResult()
@@ -90,7 +90,7 @@ class ReadingViewModelBackupTest {
   @Test
   fun unopenableStreams_areErrors_andRecordsUnchanged() {
     val vm = viewModel()
-    vm.createBackup { null }
+    vm.createBackup(openOutput = { null })
     assertTrue(awaitResult(vm) is BackupState.Error)
     vm.dismissBackupResult()
     vm.restoreBackup { null }

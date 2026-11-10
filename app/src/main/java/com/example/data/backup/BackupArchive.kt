@@ -18,8 +18,8 @@ object BackupArchive {
     const val DB_ENTRY = "db/reading_diary.db"
     const val PHOTO_DIR = "photos/"
 
-    /** 압축 해제 상한(zip 폭탄 방어). 오너 실측 레퍼런스 50~58MB의 수십 배. */
-    const val MAX_TOTAL_BYTES = 2L * 1024 * 1024 * 1024
+    /** 압축 해제 상한(zip 폭탄 방어). 오너 실측 레퍼런스 50~58MB의 약 17배. 해제 + 들여오기로 최대 2배 공간을 쓴다. */
+    const val MAX_TOTAL_BYTES = 1L * 1024 * 1024 * 1024
     const val MAX_ENTRIES = 50_000
 
     /** 사진 이름 규칙(DiaryPhotoStore가 만드는 이름과 같은 모양): 경로 구분자·`..` 없는 파일 이름 하나. */
@@ -62,7 +62,13 @@ object BackupArchive {
         data class Invalid(val reason: Reason) : Result()
     }
 
-    enum class Reason { NOT_ZIP, NO_MANIFEST, BAD_MANIFEST, UNSAFE_PATH, UNKNOWN_ENTRY, NEWER_VERSION, UNSUPPORTED_VERSION, NO_DATABASE, TOO_LARGE }
+    /**
+     * [IO_ERROR]는 형식 문제가 아니다 — 읽기 스트림 끊김(드라이브 연결)·임시 해제 공간 부족. 파일이 멀쩡할 수 있으므로
+     * «백업 파일이 아니에요»와 구분해 보인다(critic P5 사전 지적 2).
+     */
+    enum class Reason { NOT_ZIP, IO_ERROR, NO_MANIFEST, BAD_MANIFEST, BAD_DATABASE, UNSAFE_PATH, UNKNOWN_ENTRY, NEWER_VERSION, UNSUPPORTED_VERSION, NO_DATABASE, TOO_LARGE }
+
+    private val SQLITE_HEADER = "SQLite format 3\u0000".toByteArray(Charsets.US_ASCII)
 
     /**
      * [input]을 빈 폴더 [dir]에 풀고 검증한다. 기존 기록은 건드리지 않는다(교체는 호출자가 검증 통과 뒤에만).
@@ -117,7 +123,7 @@ object BackupArchive {
         } catch (e: java.util.zip.ZipException) {
             return Result.Invalid(Reason.NOT_ZIP)
         } catch (e: java.io.IOException) {
-            return Result.Invalid(Reason.NOT_ZIP)
+            return Result.Invalid(Reason.IO_ERROR)
         }
         if (entries == 0) return Result.Invalid(Reason.NOT_ZIP)
         val text = manifestText ?: return Result.Invalid(Reason.NO_MANIFEST)
@@ -126,6 +132,17 @@ object BackupArchive {
         if (manifest.roomVersion > appRoomVersion) return Result.Invalid(Reason.NEWER_VERSION)
         if (manifest.roomVersion < minRoomVersion) return Result.Invalid(Reason.UNSUPPORTED_VERSION)
         if (!sawDb) return Result.Invalid(Reason.NO_DATABASE)
+        // SQLite 파일이 아니면 프레임워크가 «손상»으로 지우고 빈 DB를 새로 만들어 버린다 → 열기 전에 머리말로 거른다.
+        val header = ByteArray(SQLITE_HEADER.size)
+        val headerRead = try {
+            java.io.DataInputStream(dbFile.inputStream()).use { it.readFully(header) }
+            true
+        } catch (e: java.io.IOException) {
+            false // 16바이트보다 짧다
+        }
+        if (!headerRead || !header.contentEquals(SQLITE_HEADER)) return Result.Invalid(Reason.BAD_DATABASE)
+        // 항목 경계에서 잘린 zip은 예외 없이 끝난다 → manifest가 말한 사진 수와 대조한다.
+        if (photoNames.size != manifest.photoFiles) return Result.Invalid(Reason.BAD_MANIFEST)
         return Result.Ok(Extracted(manifest, dbFile, photoDir, photoNames))
     }
 

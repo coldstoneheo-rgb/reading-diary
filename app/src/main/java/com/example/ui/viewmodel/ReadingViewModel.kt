@@ -135,6 +135,8 @@ class ReadingViewModel @JvmOverloads constructor(
             viewModelScope.launch {
                 try {
                     sweepOrphanPhotos()
+                    // 백업·복원 도중 죽은 프로세스가 남긴 스냅숏 DB·임시 해제 폴더(P5).
+                    photoIoMutex.withLock { withContext(Dispatchers.IO) { BackupRestore.cleanupLeftovers(application) } }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -733,7 +735,8 @@ class ReadingViewModel @JvmOverloads constructor(
      * 사용자가 SAF로 고른 위치([openOutput])에 zip을 쓴다. 사진 저장·sweep과 겹치지 않게 [photoIoMutex] 안에서.
      * 키 저장소·설정은 넣지 않는다(BackupArchive). 자동 실행 0 — 설정 화면의 버튼에서만 불린다.
      */
-    fun createBackup(openOutput: () -> java.io.OutputStream?) {
+    /** [discard]: 실패하면 부른다 — 화면이 SAF로 이미 만든 빈·반쯤 쓴 zip 문서를 지운다(정상 백업처럼 보이지 않게). */
+    fun createBackup(openOutput: () -> java.io.OutputStream?, discard: () -> Unit = {}) {
         if (_backupState.value is BackupState.Running) return
         _backupState.value = BackupState.Running(restoring = false, done = 0, total = 0)
         viewModelScope.launch {
@@ -750,10 +753,12 @@ class ReadingViewModel @JvmOverloads constructor(
                     }
                 }
             } catch (e: CancellationException) {
+                withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) { runCatching(discard) }
                 throw e
             } catch (e: Exception) {
                 BackupState.Error(restoring = false, message = BACKUP_WRITE_ERROR)
             }
+            if (_backupState.value is BackupState.Error) withContext(Dispatchers.IO) { runCatching(discard) }
         }
     }
 
@@ -767,7 +772,7 @@ class ReadingViewModel @JvmOverloads constructor(
                     photoIoMutex.withLock {
                         val input = openInput() ?: return@withLock BackupState.Error(restoring = true, message = RESTORE_READ_ERROR)
                         when (val outcome = input.use { backupRestore.restore(it) }) {
-                            is RestoreOutcome.Restored -> BackupState.Restored(outcome.books, outcome.diaries, outcome.photoFiles, outcome.photoRows - outcome.photoFiles)
+                            is RestoreOutcome.Restored -> BackupState.Restored(outcome.books, outcome.diaries, outcome.photoFiles, outcome.missingPhotos)
                             is RestoreOutcome.Rejected -> BackupState.Error(restoring = true, message = rejectMessage(outcome.reason))
                             RestoreOutcome.Failed -> BackupState.Error(restoring = true, message = RESTORE_FAILED)
                         }
@@ -782,6 +787,7 @@ class ReadingViewModel @JvmOverloads constructor(
                 // 교체 전 화면 상태(열린 책·예시 표식)를 버린다.
                 sampleMarks.value = readSampleMarks()
                 activeBook.value = null
+                selectedBookcaseId.value = null
                 activeBookDiaries.value = emptyList()
                 backStack.clear()
                 backStack.add(Screen.Dashboard)
@@ -797,6 +803,7 @@ class ReadingViewModel @JvmOverloads constructor(
     private fun rejectMessage(reason: BackupArchive.Reason?): String = when (reason) {
         BackupArchive.Reason.NEWER_VERSION -> "이 백업 파일은 더 새 버전의 앱에서 만들어졌어요. 앱을 업데이트한 뒤 다시 시도해 주세요."
         BackupArchive.Reason.NOT_ZIP, BackupArchive.Reason.NO_MANIFEST -> "독서 다이어리 백업 파일이 아니에요."
+        BackupArchive.Reason.IO_ERROR -> "파일을 읽거나 임시로 풀지 못했어요(저장 공간·연결을 확인해 주세요). 백업 파일은 지우지 말고 그대로 두세요."
         BackupArchive.Reason.UNSAFE_PATH, BackupArchive.Reason.UNKNOWN_ENTRY -> "백업 파일에 허용되지 않는 항목이 있어 복원하지 않았어요."
         else -> "백업 파일이 손상되었거나 읽을 수 없어요."
     } + " 지금 기록은 그대로입니다."

@@ -11,6 +11,8 @@ import com.example.data.Bookcase
 import com.example.data.Diary
 import com.example.data.DiaryPhoto
 import com.example.data.photo.DiaryPhotoStore
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
@@ -18,7 +20,8 @@ import java.util.UUID
 
 /** 복원 결과. [Restored]의 수는 복원된 행·들여온 사진 파일 수. */
 sealed class RestoreOutcome {
-    data class Restored(val books: Int, val diaries: Int, val photoRows: Int, val photoFiles: Int) : RestoreOutcome()
+    /** [photoFiles]: 복원 뒤 이 기기에 파일이 있는 사진 경로 수. [missingPhotos]: 파일이 없어 «사진 없음»으로 보일 경로 수. */
+    data class Restored(val books: Int, val diaries: Int, val photoRows: Int, val photoFiles: Int, val missingPhotos: Int) : RestoreOutcome()
     data class Rejected(val reason: BackupArchive.Reason?) : RestoreOutcome()
     /** 교체 도중 실패 — 트랜잭션이 되돌아가 기존 기록은 그대로다. */
     object Failed : RestoreOutcome()
@@ -87,6 +90,9 @@ class BackupRestore(
             val snapshotFile = appContext.getDatabasePath(snapshotName)
             snapshotFile.parentFile?.mkdirs()
             if (!extracted.dbFile.renameTo(snapshotFile)) extracted.dbFile.copyTo(snapshotFile, overwrite = true)
+            // 프레임워크 기본 오류 처리기는 손상 파일을 지우고 빈 DB로 다시 연다 → 빈 기록으로 «교체»될 수 있다.
+            // Room으로 열기 전에 읽기 전용 + 삭제하지 않는 처리기로 무결성을 먼저 본다.
+            if (!passesIntegrityCheck(snapshotFile)) return RestoreOutcome.Rejected(BackupArchive.Reason.BAD_DATABASE)
             val rows = try {
                 val snapshot = snapshotBuilder(snapshotName).build()
                 try {
@@ -95,39 +101,46 @@ class BackupRestore(
                 } finally {
                     snapshot.close()
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
-                return RestoreOutcome.Rejected(null) // DB 파일 손상·열 수 없는 버전
+                return RestoreOutcome.Rejected(BackupArchive.Reason.BAD_DATABASE) // DB 파일 손상·열 수 없는 버전
             }
             val m = extracted.manifest
             if (rows.bookcases.size != m.bookcases || rows.books.size != m.books || rows.diaries.size != m.diaries || rows.photos.size != m.photoRows) {
                 return RestoreOutcome.Rejected(BackupArchive.Reason.BAD_MANIFEST)
             }
 
-            try {
-                for (path in rows.photos.map { it.path }.distinct()) {
-                    if (path !in extracted.photoNames) continue // zip에 없는 사진 → 행은 남고 «사진 없음»(dangling)
-                    if (photoStore.importFile(path, File(extracted.photoDir, path))) added += path
+            // 들여오기 → 교체 → 정리는 취소되지 않게 한 덩어리로 끝낸다. 커밋 직후 취소되면 방금 들여온(이미 참조되는) 사진을
+            // 지워 버리는 경로가 생긴다(critic P5 사전 지적 4).
+            val committed = withContext(NonCancellable) {
+                try {
+                    for (path in rows.photos.map { it.path }.distinct()) {
+                        if (path !in extracted.photoNames) continue // zip에 없는 사진 → 행은 남고 «사진 없음»(dangling)
+                        if (photoStore.importFile(path, File(extracted.photoDir, path))) added += path
+                    }
+                    database.withTransaction {
+                        val dao = database.backupDao()
+                        dao.deletePhotos()
+                        dao.deleteDiaries()
+                        dao.deleteBooks()
+                        dao.deleteBookcases()
+                        rows.insertInto(database)
+                        beforeCommit()
+                    }
+                    true
+                } catch (e: Exception) {
+                    added.forEach { runCatching { photoStore.delete(it) } }
+                    false
                 }
-                database.withTransaction {
-                    val dao = database.backupDao()
-                    dao.deletePhotos()
-                    dao.deleteDiaries()
-                    dao.deleteBooks()
-                    dao.deleteBookcases()
-                    rows.insertInto(database)
-                    beforeCommit()
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                added.forEach { runCatching { photoStore.delete(it) } }
-                throw e
-            } catch (e: Exception) {
-                added.forEach { runCatching { photoStore.delete(it) } }
-                return RestoreOutcome.Failed
             }
+            if (!committed) return RestoreOutcome.Failed
             // 예시 책 표식은 책 id로 저장돼 있어, 교체 뒤에는 다른 책을 가리킬 수 있다 → 지운다(지우기 버튼이 진짜 책을 지우지 않게).
             AppDatabase.clearSampleMarks(appContext)
-            runCatching { photoStore.sweep(rows.photos.map { it.path }.toSet()) }
-            return RestoreOutcome.Restored(rows.books.size, rows.diaries.size, rows.photos.size, rows.photos.map { it.path }.distinct().count { it in extracted.photoNames })
+            val paths = rows.photos.map { it.path }.distinct()
+            withContext(NonCancellable) { runCatching { photoStore.sweep(paths.toSet()) } }
+            val present = paths.count { photoStore.fileFor(it) != null }
+            return RestoreOutcome.Restored(rows.books.size, rows.diaries.size, rows.photos.size, present, paths.size - present)
         } finally {
             appContext.deleteDatabase(snapshotName)
             tempDir.deleteRecursively()
@@ -144,6 +157,16 @@ class BackupRestore(
         }
     }
 
+    private fun passesIntegrityCheck(file: File): Boolean = try {
+        android.database.sqlite.SQLiteDatabase.openDatabase(
+            file.path, null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY
+        ) { throw android.database.sqlite.SQLiteException("corrupt backup database") }.use { db ->
+            db.rawQuery("PRAGMA quick_check", null).use { c -> c.moveToFirst() && c.getString(0) == "ok" }
+        }
+    } catch (e: Exception) {
+        false
+    }
+
     /** 앱 빌더와 같은 마이그레이션, 콜백 없음(시드 책장을 넣지 않는다), 단일 파일(TRUNCATE 저널). */
     private fun snapshotBuilder(name: String): RoomDatabase.Builder<AppDatabase> =
         Room.databaseBuilder(appContext, AppDatabase::class.java, name)
@@ -151,7 +174,26 @@ class BackupRestore(
             .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
 
     companion object {
-        /** `@Database(version = …)`와 같아야 한다(BackupRestoreTest가 스키마 JSON 최신 번호와 대조). */
+        private const val CREATE_SNAPSHOT_PREFIX = "backup_snapshot_"
+        private const val RESTORE_SNAPSHOT_PREFIX = "restore_snapshot_"
+        private const val RESTORE_DIR_PREFIX = "restore_"
+
+        /**
+         * 만들기·복원 도중 프로세스가 죽으면 남는 스냅숏 DB(기록 전체 사본 — 자동 백업에도 실린다)와 임시 해제 폴더를 지운다.
+         * 앱 시작 정리(사진 sweep과 같은 자리, photoIoMutex 안)에서 1회 부른다. 반환 = 지운 항목 수.
+         */
+        fun cleanupLeftovers(context: Context): Int {
+            val app = context.applicationContext
+            var removed = 0
+            app.databaseList().filter { it.startsWith(CREATE_SNAPSHOT_PREFIX) || it.startsWith(RESTORE_SNAPSHOT_PREFIX) }
+                .filterNot { it.endsWith("-journal") || it.endsWith("-wal") || it.endsWith("-shm") }
+                .forEach { if (app.deleteDatabase(it)) removed++ }
+            app.cacheDir.listFiles()?.filter { it.isDirectory && it.name.startsWith(RESTORE_DIR_PREFIX) }
+                ?.forEach { if (it.deleteRecursively()) removed++ }
+            return removed
+        }
+
+        /** `@Database(version = …)`와 같아야 한다(BackupArchiveTest.roomVersionConstantMatchesLatestExportedSchema가 스키마 JSON 최신 번호와 대조). */
         const val ROOM_VERSION = 3
         /** 등록된 마이그레이션의 가장 낮은 시작 버전(MIGRATION_2_3). 그보다 낮은 백업은 열 수 없다. */
         const val MIN_ROOM_VERSION = 2

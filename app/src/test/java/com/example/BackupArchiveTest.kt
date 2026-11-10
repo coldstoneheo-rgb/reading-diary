@@ -142,7 +142,7 @@ class BackupArchiveTest {
     val fresh = freshDb()
 
     val outcome = restore(fresh, zip)
-    assertEquals(RestoreOutcome.Restored(books = 2, diaries = 3, photoRows = 3, photoFiles = 3), outcome)
+    assertEquals(RestoreOutcome.Restored(books = 2, diaries = 3, photoRows = 3, photoFiles = 3, missingPhotos = 0), outcome)
     assertEquals(before, snapshot(fresh))
     photos.forEach { (name, bytes) -> assertArrayEquals(name, bytes, store.fileFor(name)!!.readBytes()) }
   }
@@ -153,10 +153,13 @@ class BackupArchiveTest {
     val db = freshDb()
     seed(db, "old")
     val before = snapshot(db)
+    val good = entries(backup(db))
     for (evil in listOf("../evil.jpg", "photos/../../evil.jpg", "/abs/evil.jpg", "photos\\..\\evil.jpg", "C:/evil.jpg", "photos/sub/evil.jpg")) {
-      val zip = zipOf(linkedMapOf(BackupArchive.MANIFEST to manifestJson(), evil to byteArrayOf(1, 2, 3)))
+      // 정상 백업(DB·manifest·사진 3장)에 악성 항목 1개만 섞는다 → 경로 검사만이 거부 이유가 된다.
+      // (기기 targetSdk≥34에서는 플랫폼 ZipPathValidator가 `..`·`/` 시작 이름을 먼저 ZipException으로 막아 NOT_ZIP이 된다 — 거부는 같다.)
+      val zip = zipOf(LinkedHashMap(good).apply { put(evil, byteArrayOf(1, 2, 3)) })
       val outcome = restore(db, zip)
-      assertTrue("$evil → $outcome", outcome is RestoreOutcome.Rejected)
+      assertEquals(evil, RestoreOutcome.Rejected(BackupArchive.Reason.UNSAFE_PATH), outcome)
       assertFalse(File(app.cacheDir, "evil.jpg").exists())
       assertFalse(File(app.cacheDir.parentFile, "evil.jpg").exists())
     }
@@ -217,7 +220,14 @@ class BackupArchiveTest {
     val before = snapshot(db)
     val good = entries(backup(db))
     val badDb = zipOf(good + (BackupArchive.DB_ENTRY to ByteArray(4096) { 7 }))
-    assertTrue(restore(db, badDb) is RestoreOutcome.Rejected)
+    assertEquals(RestoreOutcome.Rejected(BackupArchive.Reason.BAD_DATABASE), restore(db, badDb))
+    // 머리말은 SQLite인데 본문이 깨진 파일 → 열기 실패도 BAD_DATABASE
+    val header = "SQLite format 3\u0000".toByteArray(Charsets.US_ASCII)
+    val brokenBody = zipOf(good + (BackupArchive.DB_ENTRY to header + ByteArray(4096) { 9 }))
+    assertEquals(RestoreOutcome.Rejected(BackupArchive.Reason.BAD_DATABASE), restore(db, brokenBody))
+    // 항목 경계에서 잘린 zip(사진 항목 하나가 사라짐) → manifest 사진 수와 달라 거부
+    val truncated = zipOf(good.filterKeys { it != good.keys.last { k -> k.startsWith(BackupArchive.PHOTO_DIR) } })
+    assertEquals(RestoreOutcome.Rejected(BackupArchive.Reason.BAD_MANIFEST), restore(db, truncated))
     val manifest = BackupManifest.parse(String(good.getValue(BackupArchive.MANIFEST)))!!
     val mismatch = zipOf(good + (BackupArchive.MANIFEST to manifest.copy(diaries = manifest.diaries + 1).toJson().toByteArray()))
     assertEquals(RestoreOutcome.Rejected(BackupArchive.Reason.BAD_MANIFEST), restore(db, mismatch))
@@ -245,12 +255,14 @@ class BackupArchiveTest {
     val good = entries(backup(db))
     val dropped = "photos/orig-b.jpg"
     assertTrue(dropped in good.keys)
-    val zip = zipOf(good - dropped)
+    // 백업을 만들 때 이미 기기에 없던 사진: 행은 담기고 파일은 빠지며 manifest의 사진 파일 수도 그만큼 적다(BackupRestore.createBackup).
+    val manifest = BackupManifest.parse(String(good.getValue(BackupArchive.MANIFEST)))!!
+    val zip = zipOf((good - dropped) + (BackupArchive.MANIFEST to manifest.copy(photoFiles = 2).toJson().toByteArray()))
     resetDatabase(); store.root.deleteRecursively()
     val fresh = freshDb()
 
     val outcome = restore(fresh, zip)
-    assertEquals(RestoreOutcome.Restored(books = 2, diaries = 3, photoRows = 3, photoFiles = 2), outcome)
+    assertEquals(RestoreOutcome.Restored(books = 2, diaries = 3, photoRows = 3, photoFiles = 2, missingPhotos = 1), outcome)
     assertTrue(snapshot(fresh).photos.any { it.path == "orig-b.jpg" })
     assertNull(store.fileFor("orig-b.jpg"))
     assertTrue(store.fileFor("orig-a.jpg") != null)
@@ -268,6 +280,58 @@ class BackupArchiveTest {
     assertTrue(restore(current, zip) is RestoreOutcome.Restored)
     assertEquals(backupState, snapshot(current))
     assertEquals(setOf("bak-a.jpg", "bak-b.jpg", "bak-c.jpg"), store.root.listFiles()!!.map { it.name }.toSet())
+  }
+
+  /** 백업이 실제로 dangling을 만드는 경로: 기기에 파일이 없는 사진 행은 zip에 파일 없이 담기고 manifest 수가 맞는다. */
+  @Test
+  fun backupOfDeviceWithMissingPhotoFile_isRestorable() {
+    val db = freshDb()
+    seed(db, "orig")
+    File(store.root, "orig-c.jpg").delete()
+    val zip = backup(db)
+    assertEquals(2, BackupManifest.parse(String(entries(zip).getValue(BackupArchive.MANIFEST)))!!.photoFiles)
+    resetDatabase(); store.root.deleteRecursively()
+    val outcome = restore(freshDb(), zip)
+    assertEquals(RestoreOutcome.Restored(books = 2, diaries = 3, photoRows = 3, photoFiles = 2, missingPhotos = 1), outcome)
+  }
+
+  /** critic P5 사전 지적 2: 읽기 도중 끊김(드라이브)·임시 해제 실패는 «백업 파일이 아님»이 아니다. */
+  @Test
+  fun ioFailureWhileReading_isIoError_notNotZip() {
+    val db = freshDb()
+    seed(db, "orig")
+    val zip = backup(db)
+    val failing = object : java.io.InputStream() {
+      private val inner = ByteArrayInputStream(zip)
+      private var read = 0
+      override fun read(): Int {
+        if (read > zip.size / 2) throw java.io.IOException("connection reset")
+        read++
+        return inner.read()
+      }
+      override fun read(b: ByteArray, off: Int, len: Int): Int {
+        if (read > zip.size / 2) throw java.io.IOException("connection reset")
+        val n = inner.read(b, off, minOf(len, 1024))
+        if (n > 0) read += n
+        return n
+      }
+    }
+    val before = snapshot(db)
+    assertEquals(RestoreOutcome.Rejected(BackupArchive.Reason.IO_ERROR), runBlocking { BackupRestore(app, db, store).restore(failing) })
+    assertEquals(before, snapshot(db))
+  }
+
+  @Test
+  fun leftoverSnapshotsAndTempDirs_areCleanedUp() {
+    app.openOrCreateDatabase("backup_snapshot_dead", 0, null).close()
+    app.openOrCreateDatabase("restore_snapshot_dead", 0, null).close()
+    File(app.cacheDir, "restore_dead").apply { mkdirs(); File(this, "x").writeText("x") }
+    File(app.cacheDir, "keep_me").apply { mkdirs() }
+    assertEquals(3, BackupRestore.cleanupLeftovers(app))
+    assertTrue(app.databaseList().none { it.startsWith("backup_snapshot_") || it.startsWith("restore_snapshot_") })
+    assertFalse(File(app.cacheDir, "restore_dead").exists())
+    assertTrue(File(app.cacheDir, "keep_me").exists())
+    File(app.cacheDir, "keep_me").delete()
   }
 
   @Test
