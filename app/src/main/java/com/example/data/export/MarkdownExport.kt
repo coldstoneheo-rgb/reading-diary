@@ -34,7 +34,7 @@ object MarkdownExport {
     /**
      * 제목 → 확장자 없는 파일 이름. 120자 컷, 빈 값이면 «제목 없음».
      * 안드로이드 파일 시스템의 이름 한도는 255 **바이트**라 한글(3바이트)·이모지(4바이트)는 120자 안에서도 넘친다 →
-     * UTF-8 [MAX_NAME_BYTES]바이트에서도 코드포인트 경계로 자른다(« (99)»·«.md» 여유). 계획의 «120자 컷»에 더한 규칙.
+     * UTF-8 [MAX_NAME_BYTES]바이트에서도 코드포인트 경계로 자른다(« (999)»·«.md» 여유). 계획의 «120자 컷»에 더한 규칙.
      */
     fun sanitize(title: String): String {
         var name = FORBIDDEN.replace(title, "").trim().trim('.').trim()
