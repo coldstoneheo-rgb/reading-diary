@@ -47,7 +47,7 @@ internal const val TERMS_SUMMARY =
 /** 개인정보처리방침 요약 5줄(docs/privacy/privacy-policy.html 1~5항 기준). */
 internal val PRIVACY_SUMMARY_LINES = listOf(
     "1. 책·책장·독서 일기·기록에 남긴 사진·설정은 이 기기에 저장됩니다. 개발자는 기록을 받아 보관하는 서버를 운영하지 않습니다.",
-    "2. 밑줄 구절 인식은 기기 안에서 실행되며, 사진은 기기 밖으로 전송되지 않습니다(5번 예외).",
+    "2. 밑줄 구절 인식은 기기 안에서 실행되며, 사진은 기기 밖으로 전송되지 않습니다(4·5번 예외).",
     "3. 책을 검색하면 입력한 검색어가 카카오 책 검색으로 전송됩니다(키가 없거나, 카카오에서 찾지 못하거나 오류가 나면 Google Books로 전송). 쪽수 정보가 없는 책을 고르면 그 책의 ISBN이 Google Books로 전송됩니다. 책 표지를 화면에 표시할 때는 표지 이미지 서버에 요청이 갑니다.",
     "4. 안드로이드 자동 백업이 켜져 있으면 책·일기·일반 설정이 본인 Google 계정 백업에 포함될 수 있습니다(API 키와 기록에 남긴 사진은 제외). 설정의 «백업 파일 만들기»를 직접 실행하면 기록과 사진이 zip 파일 하나로 내가 고른 위치에 저장됩니다(API 키·설정 제외).",
     "5. 정밀 분석은 본인 Gemini 키 등록, 사진 전송 동의, 사진마다 확인을 모두 거친 경우에만 선택한 페이지 사진을 Google Gemini로 전송합니다."
@@ -82,7 +82,11 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
     var pendingRestoreUri by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<android.net.Uri?>(null) }
     val backupFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri != null) viewModel.createBackup(
-            openOutput = { context.contentResolver.openOutputStream(uri, "wt") },
+            // "wt"를 모르는 프로바이더가 있다 → 막 만든 빈 문서이므로 "w"로 다시 연다.
+            openOutput = {
+                runCatching { context.contentResolver.openOutputStream(uri, "wt") }.getOrNull()
+                    ?: context.contentResolver.openOutputStream(uri, "w")
+            },
             discard = { android.provider.DocumentsContract.deleteDocument(context.contentResolver, uri) }
         )
     }

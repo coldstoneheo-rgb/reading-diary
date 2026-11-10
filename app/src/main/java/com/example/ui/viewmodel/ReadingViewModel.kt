@@ -787,8 +787,8 @@ class ReadingViewModel @JvmOverloads constructor(
     /**
      * 사용자가 SAF로 고른 위치([openOutput])에 zip을 쓴다. 사진 저장·sweep과 겹치지 않게 [photoIoMutex] 안에서.
      * 키 저장소·설정은 넣지 않는다(BackupArchive). 자동 실행 0 — 설정 화면의 버튼에서만 불린다.
+     * [discard]: 실패하면 부른다 — 화면이 SAF로 이미 만든 빈·반쯤 쓴 zip 문서를 지운다(정상 백업처럼 보이지 않게).
      */
-    /** [discard]: 실패하면 부른다 — 화면이 SAF로 이미 만든 빈·반쯤 쓴 zip 문서를 지운다(정상 백업처럼 보이지 않게). */
     fun createBackup(openOutput: () -> java.io.OutputStream?, discard: () -> Unit = {}) {
         if (_backupState.value is BackupState.Running) return
         _backupState.value = BackupState.Running(restoring = false, done = 0, total = 0)
