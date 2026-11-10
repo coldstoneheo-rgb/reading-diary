@@ -146,9 +146,13 @@ class ReadingViewModel @JvmOverloads constructor(
         if (photoSweepStarted.compareAndSet(false, true)) {
             viewModelScope.launch {
                 try {
-                    sweepOrphanPhotos()
-                    // 백업·복원 도중 죽은 프로세스가 남긴 스냅숏 DB·임시 해제 폴더(P5).
-                    photoIoMutex.withLock { withContext(Dispatchers.IO) { BackupRestore.cleanupLeftovers(application) } }
+                    // 잠금을 IO 스레드에서 잡고 푼다. Main에서 잡으면 풀기가 Main 재개에 달려, Main이 멈춘 동안(테스트의 루퍼 교체 등)
+                    // 프로세스 단위 잠금이 영영 풀리지 않아 백업·사진 저장이 그 뒤로 전부 막힌다.
+                    withContext(Dispatchers.IO) {
+                        sweepOrphanPhotos()
+                        // 백업·복원 도중 죽은 프로세스가 남긴 스냅숏 DB·임시 해제 폴더(P5).
+                        photoIoMutex.withLock { BackupRestore.cleanupLeftovers(application) }
+                    }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
