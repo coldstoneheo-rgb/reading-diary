@@ -11,7 +11,8 @@
 - [x] 2. P5 PR #48 — 테스트 7항 + 회귀 6항 · 설정 메뉴 2개(`settings_backup_create`·`settings_backup_restore`) · 확인 다이얼로그 · 진행 표시 · 문구 정합 · critic 사전 6/10 → 8/10 PASS(최종 head 12a98d1 재확인 PASS) · [ASK] 게이트 보냄 → **머지 0(오너 기기 확인 전, [HOLD-머지대기])**
 - [x] 3. P5 head debug APK `D:\사진\reading-diary\reading-diary-debug-20261111-0320-12a98d1.apk` · 서명 SHA-256 `aba8e5e3…54c0bc` = 앞 APK(c6b83f3)와 동일(`apksigner verify --print-certs` 두 파일)
 - [x] 4. 전체 단위 + Roborazzi verify 결과(아래) · 순서 의존 재현·우회 기록
-- [x] 5. REPORT · AGENT_STATUS · WORKLOG → 이 기록 PR
+- [x] 5. REPORT · AGENT_STATUS · WORKLOG → 이 기록 PR #49
+- AGENT_STATUS waiting_on 정리: «원격 브랜치 fix/camera-state-pagecount 삭제» — 메인 체크아웃 `refs/remotes/origin`에 없음(삭제 시점·주체는 기록에 없음) · «e0094b0 덮어 설치로 서명 확인» — 같은 인증서(`aba8e5e3…`)의 12a98d1 APK 덮어 설치(아침 손 1)가 같은 확인을 대신하므로 그 항목에 합침
 
 ## 한 일
 
@@ -52,7 +53,7 @@
 ## 발견
 
 1. **복원에서 프레임워크 SQLite 오류 처리기가 위험하다.** 머리말만 SQLite인 깨진 DB를 기본 처리기가 지우고 빈 DB로 다시 열어, manifest가 0이면 «빈 기록으로 교체»가 가능했다(테스트가 BAD_MANIFEST로 실제 재현). 읽기 전용 + 던지는 처리기로 `quick_check`를 먼저 해 BAD_DATABASE로 막음.
-2. **순서 의존의 유력한 원인.** 앱 시작 sweep이 프로세스 단위 `photoIoMutex`를 Main에서 잡고 IO에서 돌아와 Main 재개로 푼다 → 앞 테스트의 Main 루퍼가 버려지면 잠금이 영원히 안 풀린다. #48에서 시작 정리 전체를 IO에서 잠그도록 옮긴 뒤 N·O·PhotoSave 한 묶음 36건 통과(재현 1회 — 확정 아님). critic 경미: PhotoSave를 단독으로 돌리면 시작 sweep이 테스트의 sweep과 경쟁해 개수 단언이 흔들릴 수 있음 → 시작 sweep 테스트 훅 후속.
+2. **순서 의존의 유력한 원인.** 앱 시작 sweep이 프로세스 단위 `photoIoMutex`를 Main에서 잡고 IO에서 돌아와 Main 재개로 푼다 → 앞 테스트의 Main 루퍼가 버려지면 잠금이 영원히 안 풀린다. #48에서 시작 정리 전체를 IO에서 잠그도록 옮긴 뒤: 수정 전 «Running»에 멈추던 N·RVM·S* 묶음이 같은 구성 그대로 52건 통과(전후 비교 1회), N·O·PhotoSave 한 묶음 36건 통과. PhotoSave가 원래 멈춘 N~S 한 묶음 자체는 다시 돌리지 않았다 — 확정 아님. critic 경미: PhotoSave를 단독으로 돌리면 시작 sweep이 테스트의 sweep과 경쟁해 개수 단언이 흔들릴 수 있음 → 시작 sweep 테스트 훅 후속.
 3. 계획의 «120자 컷»은 한국어에서 255바이트 한도를 넘는다(critic 1차) — 계획 문서 갱신 후보.
 
 ## 후속
@@ -66,7 +67,7 @@
 
 ## 아침 손 목록
 
-1. **#48 오너 기기 확인(머지 조건):** `D:\사진\reading-diary\reading-diary-debug-20261111-0320-12a98d1.apk` 덮어 설치(서명 동일 — 거부되면 앱을 지우지 말고 멈춤) → 설정 «백업 파일 만들기»로 드라이브에 저장 → 기기 설정에서 앱 데이터 삭제 → 앱 열고 설정 «백업 파일에서 복원»으로 그 zip 선택·«복원하기» → 책·기록·사진 수가 전과 같은지. 통과하면 #48 머지 지시.
+1. **#48 오너 기기 확인(머지 조건):** `D:\사진\reading-diary\reading-diary-debug-20261111-0320-12a98d1.apk` 덮어 설치(서명 동일 — 거부되면 앱을 지우지 말고 멈춤) → 기억 서랍 «마크다운 파일로 내보내기»로 2차 사본 확보 → 설정 «백업 파일 만들기»로 드라이브에 저장 → **드라이브에서 zip이 있고 크기가 0이 아닌지 확인 — 만들기가 실패했거나 확인이 안 되면 앱 데이터를 지우지 않는다**(지우면 기기의 유일한 원본이 사라진다) → 기기 설정에서 앱 데이터 삭제 → 앱 열고 설정 «백업 파일에서 복원»으로 그 zip 선택·«복원하기» → 책·기록·사진 수가 전과 같은지. 통과하면 #48 머지 지시(LC 게이트 결과도 필요). 최우선 손 작업은 이것 하나다.
 2. 기억 서랍 «마크다운 파일로 내보내기»를 같은 폴더에 두 번 → 두 번째는 전부 «건너뜀» · 드라이브 폴더를 골랐을 때 사본(« (1)»)이 생기는지.
 3. 메인 체크아웃 미커밋 2파일(`.claude/settings.json` allow 6줄 · `CLAUDE.md` 위임 개정)을 직접 커밋할지 결정.
 4. 원격 가지 삭제: `feat/markdown-export`(#47 머지됨). `feat/zip-backup-restore`는 #48 머지 뒤.
