@@ -1,5 +1,6 @@
 package com.example
 
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -30,7 +31,9 @@ class HonestCopyTest {
       "복원 진행하기",
       "클라우드 아카이브",
       "iCloud",
-      "runSimulatedProgress"
+      "runSimulatedProgress",
+      // 마크다운 내보내기는 되돌리는 기능이 없으므로 «백업»이 아니다(ADR-005 §6, STAGE2-PLAN ②).
+      "마크다운 백업"
     )
     val offenders = mainSources().flatMap { file ->
       val text = file.readText()
@@ -67,11 +70,44 @@ class HonestCopyTest {
     assertTrue("stale photo copy found:\n" + offenders.joinToString("\n"), offenders.isEmpty())
   }
 
+  /**
+   * ADR-004 Q8: «옵시디언»은 내보내기 구현이 소스에 있을 때만 허용한다. 조건 = [root] 아래
+   * `src/main/java/com/example/data/export/DocumentTree.kt`가 있고 `DocumentsContract.createDocument`를 포함한다.
+   */
+  private fun obsidianExportImplemented(root: File): Boolean {
+    val tree = File(root, "src/main/java/com/example/data/export/DocumentTree.kt")
+    return tree.isFile && tree.readText().contains("DocumentsContract.createDocument")
+  }
+
+  /** 조건 판정 자체를 고정한다: 파일이 없거나 SAF 생성 호출이 없으면 다시 금지된다. */
+  @Test
+  fun obsidianAllowanceRequiresSafExportImplementation() {
+    val root = kotlin.io.path.createTempDirectory("honestcopy").toFile()
+    try {
+      assertFalse("no export file → forbidden", obsidianExportImplemented(root))
+      val file = File(root, "src/main/java/com/example/data/export/DocumentTree.kt")
+      file.parentFile!!.mkdirs()
+      file.writeText("interface DocumentTree { fun existingNames(): Set<String> }")
+      assertFalse("export file without createDocument → forbidden", obsidianExportImplemented(root))
+      file.writeText("val x = DocumentsContract.createDocument(resolver, parent, mime, name)")
+      assertTrue("export file with createDocument → allowed", obsidianExportImplemented(root))
+      file.delete()
+      assertFalse("file deleted → forbidden again", obsidianExportImplemented(root))
+      // 실제 프로덕션 소스는 지금 조건을 만족한다(이 PR이 구현을 넣었다).
+      assertTrue(obsidianExportImplemented(File(".")))
+    } finally {
+      root.deleteRecursively()
+    }
+  }
+
   /** ADR-003 Q6: 기억 서랍은 LLM 생성도, 타사 앱 연동도 하지 않는다. 그렇게 읽히는 단어를 app/src/main에서 금지한다. */
   @Test
   fun noOverstatedFeatureVocabularyInProductionSources() {
-    val forbidden = listOf(
-      Regex("\\bRAG\\b", RegexOption.IGNORE_CASE), Regex("Obsidian", RegexOption.IGNORE_CASE), Regex("옵시디언"),
+    // «옵시디언»은 내보내기 구현이 있을 때만 허용(ADR-004 Q8). 나머지는 무조건 금지.
+    val obsidian = if (obsidianExportImplemented(File("."))) emptyList()
+    else listOf(Regex("Obsidian", RegexOption.IGNORE_CASE), Regex("옵시디언"))
+    val forbidden = obsidian + listOf(
+      Regex("\\bRAG\\b", RegexOption.IGNORE_CASE),
       Regex("Logseq", RegexOption.IGNORE_CASE), Regex("뇌세포"), Regex("브레인 링킹"), Regex("매칭 연동률"),
       Regex("연결 성공 지식"), Regex("지능형 기억"), Regex("v1\\.2\\.0"),
       // 옛 앱 이름(발견 D8). 앱 이름은 «독서 다이어리»(ADR-005).

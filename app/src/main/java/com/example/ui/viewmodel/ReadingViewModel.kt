@@ -14,6 +14,8 @@ import com.example.data.PhotoSlot
 import com.example.data.ReadingRepository
 import com.example.data.SampleBooks
 import com.example.data.SecureKeyManager
+import com.example.data.export.DocumentTree
+import com.example.data.export.MarkdownExport
 import com.example.data.knowledge.KeywordLinks
 import com.example.data.knowledge.SharedWord
 import com.example.data.ocr.BitmapDecoding
@@ -89,6 +91,16 @@ internal object ScreenCodec {
             else -> null
         }
     }
+}
+
+/** 마크다운 내보내기 상태(STAGE2-PLAN ②). 파일 이름은 확장자 포함. */
+sealed class ExportState {
+    object Idle : ExportState()
+    object Running : ExportState()
+    /** [renamed]: (요청한 이름, 프로바이더가 실제로 붙인 이름) — 그 사이에 같은 이름이 생긴 경우. */
+    data class Done(val created: List<String>, val skipped: List<String>, val renamed: List<Pair<String, String>>) : ExportState()
+    /** [failedFile]: 쓰지 못한 파일(폴더 접근 자체가 실패하면 null). [created]: 실패 전에 이미 만든 파일. */
+    data class Error(val failedFile: String?, val created: List<String>) : ExportState()
 }
 
 sealed class OcrState {
@@ -362,6 +374,47 @@ class ReadingViewModel @JvmOverloads constructor(
         KeywordLinks.build(allBooks, allDiaries)
     }.flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _exportState = MutableStateFlow<ExportState>(ExportState.Idle)
+    /** 마크다운 내보내기 진행·결과(STAGE2-PLAN ②). 화면은 Done/Error면 결과 다이얼로그를 띄우고 닫을 때 [dismissExportResult]. */
+    val exportState: StateFlow<ExportState> = _exportState
+
+    /**
+     * 책당 1파일 + 인덱스 노트를 [tree]에 **새 파일로만** 쓴다(ADR-004 Q7). 이미 있는 이름은 쓰지 않고 건너뛴다 —
+     * [DocumentTree]에는 기존 문서를 여는 API가 없다. 쓰기 실패가 나면 거기서 멈추고 Error(그때까지 만든 파일 포함).
+     */
+    fun exportMarkdown(tree: DocumentTree, exportedDate: String = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())) {
+        if (_exportState.value == ExportState.Running) return
+        _exportState.value = ExportState.Running
+        viewModelScope.launch {
+            _exportState.value = try {
+                withContext(Dispatchers.IO) {
+                    val allBooks = repository.allBooks.first()
+                    val allDiaries = repository.allDiaries.first()
+                    val plan = MarkdownExport.plan(
+                        allBooks, allDiaries, KeywordLinks.build(allBooks, allDiaries), tree.existingNames(), exportedDate
+                    )
+                    val created = mutableListOf<String>()
+                    val renamed = mutableListOf<Pair<String, String>>()
+                    for (file in plan.toCreate) {
+                        val actual = tree.createAndWrite(file.fileName, MarkdownExport.MIME_TYPE, file.content)
+                            ?: return@withContext ExportState.Error(file.fileName, created.toList())
+                        created += actual
+                        if (actual != file.fileName) renamed += file.fileName to actual
+                    }
+                    ExportState.Done(created, plan.skipped, renamed)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                ExportState.Error(null, emptyList())
+            }
+        }
+    }
+
+    fun dismissExportResult() {
+        if (_exportState.value != ExportState.Running) _exportState.value = ExportState.Idle
+    }
 
     // Active Details states
     val activeBook = MutableStateFlow<Book?>(null)
