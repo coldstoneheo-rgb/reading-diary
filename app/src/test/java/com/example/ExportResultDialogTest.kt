@@ -58,6 +58,17 @@ class ExportResultDialogTest {
   }
 
   @Test
+  fun secondRunWithNothingCreatedSaysSo() {
+    composeTestRule.setContent {
+      MyApplicationTheme {
+        ExportResultDialog(state = ExportState.Done(emptyList(), listOf("가.md"), emptyList()), onDismiss = {})
+      }
+    }
+    composeTestRule.onNodeWithText("만든 파일 0 · 건너뛴 파일 1").assertIsDisplayed()
+    composeTestRule.onNodeWithText("새로 만든 파일이 없습니다(모두 이미 있음).").assertIsDisplayed()
+  }
+
+  @Test
   fun idleDrawsNothing() {
     composeTestRule.setContent { MyApplicationTheme { ExportResultDialog(state = ExportState.Idle, onDismiss = {}) } }
     composeTestRule.onNodeWithTag("knowledgedrawer_export_result").assertDoesNotExist()

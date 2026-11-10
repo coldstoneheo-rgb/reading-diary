@@ -107,7 +107,10 @@ fun ExportResultDialog(state: ExportState, onDismiss: () -> Unit) {
                             "만든 파일 ${state.created.size} · 건너뛴 파일 ${state.skipped.size}",
                             fontWeight = FontWeight.Bold
                         )
-                        Text("«${MarkdownExport.FOLDER_NAME}» 폴더에 새 파일로만 만들었습니다.")
+                        Text(
+                            if (state.created.isEmpty()) "새로 만든 파일이 없습니다(모두 이미 있음)."
+                            else "«${MarkdownExport.FOLDER_NAME}» 폴더에 새 파일로만 만들었습니다."
+                        )
                         if (state.skipped.isNotEmpty()) {
                             Text("이미 같은 이름이 있어 건너뛴 파일(덮어쓰지 않았습니다):", style = MaterialTheme.typography.labelLarge)
                             state.skipped.forEach { Text("· $it", style = MaterialTheme.typography.bodySmall) }
@@ -119,7 +122,7 @@ fun ExportResultDialog(state: ExportState, onDismiss: () -> Unit) {
                             }
                         }
                         Text(
-                            "옵시디언 등 마크다운 노트 앱에서 이 폴더를 열 수 있습니다.",
+                            "옵시디언 등 마크다운 노트 앱이 열 수 있는 위치라면 이 폴더를 그대로 열어 볼 수 있습니다.",
                             style = MaterialTheme.typography.bodySmall
                         )
                     }

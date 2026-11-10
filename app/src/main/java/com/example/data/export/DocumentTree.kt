@@ -45,15 +45,16 @@ class SafDocumentTree(context: Context, private val treeUri: Uri) : DocumentTree
         } catch (e: Exception) {
             null
         } ?: return null
-        return try {
+        try {
             val stream = resolver.openOutputStream(created) ?: error("no output stream")
             stream.use { it.write(content.toByteArray(Charsets.UTF_8)) }
-            displayName(created) ?: fileName
         } catch (e: Exception) {
             // 방금 만든 빈 문서만 지운다(남겨 두면 다음 내보내기가 그 이름을 영원히 건너뛴다). 원래 있던 문서는 건드리지 않는다.
             try { DocumentsContract.deleteDocument(resolver, created) } catch (_: Exception) {}
-            null
+            return null
         }
+        // 다 쓴 뒤의 이름 조회 실패는 쓰기 실패가 아니다.
+        return try { displayName(created) } catch (e: Exception) { null } ?: fileName
     }
 
     private data class Child(val id: String, val name: String, val mime: String)

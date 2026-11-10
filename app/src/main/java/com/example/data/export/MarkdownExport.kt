@@ -21,6 +21,8 @@ object MarkdownExport {
     const val EXTENSION = ".md"
     const val MIME_TYPE = "text/markdown"
     private const val MAX_NAME_LENGTH = 120
+    /** 이름 본체의 UTF-8 상한. 접미 « (999)»(6바이트)·«.md»(3바이트)를 붙여도 255바이트를 넘지 않는다. */
+    const val MAX_NAME_BYTES = 240
     private const val EMPTY_TITLE = "제목 없음"
 
     /**
@@ -29,12 +31,25 @@ object MarkdownExport {
      */
     private val FORBIDDEN = Regex("[/\\\\:*?\"<>|\\[\\]#^\\p{Cntrl}]")
 
-    /** 제목 → 확장자 없는 파일 이름. 120자 컷, 빈 값이면 «제목 없음». */
+    /**
+     * 제목 → 확장자 없는 파일 이름. 120자 컷, 빈 값이면 «제목 없음».
+     * 안드로이드 파일 시스템의 이름 한도는 255 **바이트**라 한글(3바이트)·이모지(4바이트)는 120자 안에서도 넘친다 →
+     * UTF-8 [MAX_NAME_BYTES]바이트에서도 코드포인트 경계로 자른다(« (99)»·«.md» 여유). 계획의 «120자 컷»에 더한 규칙.
+     */
     fun sanitize(title: String): String {
         var name = FORBIDDEN.replace(title, "").trim().trim('.').trim()
-        if (name.codePointCount(0, name.length) > MAX_NAME_LENGTH) {
-            name = name.substring(0, name.offsetByCodePoints(0, MAX_NAME_LENGTH)).trim().trimEnd('.').trim()
+        var end = 0
+        var bytes = 0
+        var count = 0
+        while (end < name.length && count < MAX_NAME_LENGTH) {
+            val cp = name.codePointAt(end)
+            val size = String(Character.toChars(cp)).toByteArray(Charsets.UTF_8).size
+            if (bytes + size > MAX_NAME_BYTES) break
+            bytes += size
+            count++
+            end += Character.charCount(cp)
         }
+        if (end < name.length) name = name.substring(0, end).trim().trimEnd('.').trim()
         return name.ifEmpty { EMPTY_TITLE }
     }
 

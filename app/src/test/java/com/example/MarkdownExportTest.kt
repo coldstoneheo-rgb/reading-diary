@@ -30,13 +30,26 @@ class MarkdownExportTest {
   }
 
   @Test
-  fun sanitize_cutsAt120CodePoints() {
-    val long = "가".repeat(130)
-    assertEquals(120, MarkdownExport.sanitize(long).length)
-    // 서로게이트 쌍을 반으로 자르지 않는다.
+  fun sanitize_cutsAt120CodePointsForAscii() {
+    assertEquals(120, MarkdownExport.sanitize("a".repeat(130)).length)
+  }
+
+  /** critic: 한글·이모지는 120자 안에서도 255바이트를 넘는다 → 접미·확장자까지 붙여도 255바이트 이하. */
+  @Test
+  fun fileNames_stayWithin255Utf8BytesWithSuffixAndExtension() {
+    val longKorean = "가".repeat(100) // 300바이트
     val emoji = "😀".repeat(130)
-    val cut = MarkdownExport.sanitize(emoji)
-    assertEquals(120, cut.codePointCount(0, cut.length))
+    val names = MarkdownExport.fileNames(
+      listOf(book(1, longKorean), book(2, longKorean), book(3, emoji), book(4, "a" + "😀".repeat(70)))
+    )
+    for ((_, name) in names) {
+      val full = name + MarkdownExport.EXTENSION
+      assertTrue("${full.toByteArray(Charsets.UTF_8).size} bytes", full.toByteArray(Charsets.UTF_8).size <= 255)
+      // 서로게이트 쌍을 반으로 자르지 않는다.
+      assertFalse(Character.isHighSurrogate(name.last()))
+    }
+    assertEquals(names[1] + " (2)", names[2])
+    assertEquals(80, names[1]!!.length) // 240 / 3
   }
 
   @Test
@@ -118,6 +131,22 @@ class MarkdownExportTest {
     val second = MarkdownExport.plan(books, diaries, emptyList(), first.toCreate.map { it.fileName }.toSet(), "2026-11-12")
     assertTrue(second.toCreate.isEmpty())
     assertEquals(first.toCreate.map { it.fileName }, second.skipped)
+  }
+
+  /** ADR-004 Q7 «덮어쓰기 0»을 소스로 고정한다: 내보내기 코드는 방금 만든 문서 하나에만 스트림을 연다(GeminiKeyPolicyTest와 같은 grep 방식). */
+  @Test
+  fun exportSources_openOnlyTheJustCreatedDocument() {
+    val dir = java.io.File("src/main/java/com/example/data/export")
+    assertTrue(dir.isDirectory)
+    val sources = dir.listFiles { f -> f.extension == "kt" }!!.associate { it.name to it.readText() }
+    for ((name, text) in sources) {
+      for (forbidden in listOf("openFileDescriptor", "openAssetFileDescriptor", "\"wt\"", "\"wa\"", "\"rw\"", "\"rwt\"", "documentfile")) {
+        assertFalse("$name contains $forbidden", text.contains(forbidden))
+      }
+    }
+    val opens = sources.values.sumOf { Regex("openOutputStream\\(").findAll(it).count() }
+    assertEquals(1, opens)
+    assertTrue(sources.getValue("DocumentTree.kt").contains("openOutputStream(created)"))
   }
 
   @Test
