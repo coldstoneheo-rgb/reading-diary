@@ -1,7 +1,11 @@
 package com.example.ui.screens
 
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -37,6 +41,9 @@ import com.example.data.knowledge.GraphHit
 import com.example.data.knowledge.MatchedRecord
 import com.example.data.knowledge.QuoteSource
 import com.example.data.knowledge.SharedWord
+import com.example.data.export.MarkdownExport
+import com.example.data.export.SafDocumentTree
+import com.example.ui.viewmodel.ExportState
 import com.example.ui.viewmodel.ReadingViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -55,13 +62,81 @@ fun KnowledgeDrawerScreen(
     val books by viewModel.books.collectAsState()
     val diaries by viewModel.diaries.collectAsState()
     val sharedWords by viewModel.sharedWords.collectAsState()
+    val exportState by viewModel.exportState.collectAsState()
+    val context = LocalContext.current
+    // 사용자가 고른 폴더(SAF). 이번 한 번만 쓰므로 영구 권한은 잡지 않는다.
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) viewModel.exportMarkdown(SafDocumentTree(context.applicationContext, uri))
+    }
     KnowledgeDrawerContent(
         books = books,
         diaries = diaries,
         sharedWords = sharedWords,
         onBack = { viewModel.navigateBack() },
         modifier = modifier,
-        onOpenPhraseRecall = { q -> viewModel.openPhraseRecall(q) }
+        onOpenPhraseRecall = { q -> viewModel.openPhraseRecall(q) },
+        onExportMarkdown = { folderPicker.launch(null) },
+        exportState = exportState
+    )
+    ExportResultDialog(state = exportState, onDismiss = { viewModel.dismissExportResult() })
+}
+
+/**
+ * 마크다운 내보내기 결과(STAGE2-PLAN ②). Done/Error일 때만 그린다. 상태만 받는 stateless 컴포저블이라 스크린샷 테스트가 그린다.
+ * 건너뛴 파일은 «덮어쓰지 않았다»를 분명히 적는다(ADR-004 Q7).
+ */
+@Composable
+fun ExportResultDialog(state: ExportState, onDismiss: () -> Unit) {
+    if (state !is ExportState.Done && state !is ExportState.Error) return
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.testTag("knowledgedrawer_export_result"),
+        title = {
+            Text(if (state is ExportState.Done) "마크다운 내보내기 결과" else "내보내기를 마치지 못했습니다")
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 360.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                when (state) {
+                    is ExportState.Done -> {
+                        Text(
+                            "만든 파일 ${state.created.size} · 건너뛴 파일 ${state.skipped.size}",
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text("«${MarkdownExport.FOLDER_NAME}» 폴더에 새 파일로만 만들었습니다.")
+                        if (state.skipped.isNotEmpty()) {
+                            Text("이미 같은 이름이 있어 건너뛴 파일(덮어쓰지 않았습니다):", style = MaterialTheme.typography.labelLarge)
+                            state.skipped.forEach { Text("· $it", style = MaterialTheme.typography.bodySmall) }
+                        }
+                        if (state.renamed.isNotEmpty()) {
+                            Text("저장 위치가 다른 이름으로 만든 파일:", style = MaterialTheme.typography.labelLarge)
+                            state.renamed.forEach { (asked, actual) ->
+                                Text("· $asked → $actual", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                        Text(
+                            "옵시디언 등 마크다운 노트 앱에서 이 폴더를 열 수 있습니다.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    is ExportState.Error -> {
+                        Text(
+                            state.failedFile?.let { "«$it» 파일을 만들지 못했습니다." }
+                                ?: "선택한 폴더에 파일을 만들 수 없습니다."
+                        )
+                        if (state.created.isNotEmpty()) {
+                            Text("그 전에 만든 파일 ${state.created.size}개는 폴더에 남아 있습니다. 다시 내보내면 그 파일들은 건너뜁니다.")
+                        }
+                    }
+                    else -> Unit
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("확인") } }
     )
 }
 
@@ -90,7 +165,10 @@ fun KnowledgeDrawerContent(
      * 검색 결과에서 같은 검색어로 «문구 회상»(기간·쪽 필터)으로 간다. null이면 링크를 그리지 않는다 —
      * 스크린샷 테스트는 넘기지 않으므로 기존 기준 이미지가 그대로다.
      */
-    onOpenPhraseRecall: ((String) -> Unit)? = null
+    onOpenPhraseRecall: ((String) -> Unit)? = null,
+    /** 마크다운 내보내기(폴더 고르기 → 새 파일 생성만). null이면 버튼을 그리지 않는다 — 기존 기준 이미지 불변. */
+    onExportMarkdown: (() -> Unit)? = null,
+    exportState: ExportState = ExportState.Idle
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
@@ -134,6 +212,26 @@ fun KnowledgeDrawerContent(
                     }
                 },
                 actions = {
+                    if (onExportMarkdown != null) {
+                        val running = exportState == ExportState.Running
+                        IconButton(
+                            onClick = {
+                                if (books.isEmpty()) {
+                                    Toast.makeText(context, "내보낼 책이 없습니다.", Toast.LENGTH_SHORT).show()
+                                    return@IconButton
+                                }
+                                onExportMarkdown()
+                            },
+                            enabled = !running,
+                            modifier = Modifier.testTag("knowledgedrawer_export_markdown")
+                        ) {
+                            if (running) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            } else {
+                                Icon(imageVector = Icons.Default.SaveAlt, contentDescription = "마크다운 파일로 내보내기", tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
                     IconButton(
                         onClick = {
                             if (diaries.isEmpty()) {
