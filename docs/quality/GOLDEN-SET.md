@@ -62,7 +62,8 @@ golden/
 1. 엔진 출력 글을 `outputs/<엔진>/<id>.<대상>.txt`로 둔다(예: 기기 앱에서 «틀 안 글자 읽기» 결과를 복사 → `outputs/mlkit-2026-11/g01.page.txt`). 대상별 한 파일.
 2. 상자를 쓰는 검출기면 그 엔진의 줄·어절 상자를 `boxes/<출처>/<id>.tsv`로 둔다. 열은 Tesseract `tsv`와 같다(`level … left top width height conf text`, 어절 = level 5, 똑바로 세운 사진 좌표). 다른 엔진은 같은 열로 옮겨 적고 `conf`를 모르면 `-1`.
    - Tesseract(로컬, 무료, 외부 호출 0): 사진을 똑바로 세운 PNG로 바꾼 뒤 `tesseract <사진> <id> -l kor --psm 3 tsv`.
-   - 기기 ML Kit: `Text.TextBlock.lines[].elements[].boundingBox`를 위 열로 덤프(후속 — 아직 덤프 경로 없음).
+   - 기기 ML Kit: 디버그 APK 설정 화면 «개발용 · 글자 상자 덤프»(#55, 기본 꺼짐)를 켜고 인식 → «덤프 공유»로 받은 `ocr-dump-NNN-<시각>.tsv`를 **이름 그대로** `boxes/mlkit-<날짜>/`에 둔다. 머리 `#` 줄에 앱이 세운 각도(`# expects golden rotate:`)·좌표계 크기·EXIF가 있다.
+   - 덤프 거르기(`DumpGuard`): 짝은 덤프 글 ↔ 정답 `[page]`의 글자 겹침(≥ 50%)으로 자동(같은 사진 덤프가 여럿이면 이름순 마지막). 아래 경우는 표에 «⚠제외 … 사유» 행만 남고 수치를 내지 않는다 — `NOT EXACT`(반전·EXIF 미러·원본 크기 모름) · 좌표계 크기 ≠ 사진 · 글 일치 < 50% · 사진을 180° 돌렸을 때 상자가 글줄에 더 잘 맞음(방향 의심). 사진은 덤프 머리의 각도로 세운다(정답 `rotate:`와 다르면 칸에 함께 적는다).
 3. 측정(그래들, 레포 워크트리에서):
 
    ```

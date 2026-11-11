@@ -63,18 +63,46 @@ object GoldenMeasure {
         val details = StringBuilder("# 측정 상세 — 레포·PR·메시지에 옮기지 않는다(본문 조각)\n")
         val sources = File(dir, "boxes").listFiles { f -> f.isDirectory }?.sortedBy { it.name }.orEmpty()
         var spikeRows = 0
+        // 이름이 <id>.tsv가 아닌 기기 덤프(ocr-dump-NNN-…tsv)는 글자 겹침으로 짝을 짓는다(ⓒ, 사람 손 이름 바꾸기 없음).
+        val ids = goldens.map { it.id }.toSet()
+        val autoPairs = sources.associateWith { src ->
+            DumpGuard.pair(goldens, src.listFiles { f -> f.isFile && f.name.endsWith(".tsv") && f.name.removeSuffix(".tsv") !in ids }.orEmpty().sortedBy { it.name })
+        }
         for (g in goldens) {
             val photo = g.photo?.let { File(dir, it) }?.takeIf { it.isFile } ?: continue
-            val boxed = sources.filter { File(it, "${g.id}.tsv").isFile }
+            val boxed = sources.mapNotNull { src ->
+                File(src, "${g.id}.tsv").takeIf { it.isFile }?.let { Triple(src, it, "") }
+                    ?: autoPairs[src]?.get(g.id)?.let { p ->
+                        Triple(src, p.file, " (짝 자동 ${p.file.name} 글 일치 ${pct(p.match)}${if (p.candidates > 1) " · 후보 ${p.candidates}개 중 마지막" else ""})")
+                    }
+            }
             if (boxed.isEmpty()) continue
             val loaded = mutableMapOf<Int, Triple<IntArray, Int, Int>>()
-            for (src in boxed) {
-                val tsv = File(src, "${g.id}.tsv").readText()
+            for ((src, file, pairNote) in boxed) {
+                val tsv = file.readText()
                 // 기기 덤프는 앱이 세운 각도(EXIF + 사용자 회전)를 머리에 적는다 — 있으면 정답 rotate:보다 그 값을 쓴다.
                 val rotate = GoldenSet.dumpRotate(tsv) ?: g.rotate
                 val (gray, w, h) = loaded.getOrPut(rotate) { GoldenSet.loadGray(photo, rotate) }
-                val note = GoldenSet.dumpSize(tsv)?.takeIf { it != (w to h) }?.let { " ⚠크기 ${it.first}x${it.second}≠사진 ${w}x$h" }.orEmpty() +
-                    (if (rotate != g.rotate) " (rotate $rotate)" else "")
+                // 기기 덤프는 조용히 틀린 입력을 표에서 빼고 사유를 적는다(ⓐ 반전·미러 ⓑ 방향 ⓒ 짝 · 크기).
+                val excluded = mutableListOf<String>()
+                if (DumpGuard.isDeviceDump(tsv)) {
+                    if (DumpGuard.notExact(tsv)) excluded += "NOT EXACT(반전·EXIF 미러·원본 크기 모름)"
+                    GoldenSet.dumpSize(tsv)?.takeIf { it != (w to h) }?.let { excluded += "크기 ${it.first}x${it.second}≠사진 ${w}x$h" }
+                    val match = DumpGuard.textMatch(tsv, g)
+                    if (match < DumpGuard.MIN_MATCH) excluded += "짝 의심(글 일치 ${pct(match)})"
+                    val lines = GoldenSet.clusterLines(GoldenSet.readWords(tsv))
+                    val own = DumpGuard.alignment(gray, w, h, lines)
+                    val flippedRotate = (rotate + 180) % 360
+                    val (fg, fw, fh) = loaded.getOrPut(flippedRotate) { GoldenSet.loadGray(photo, flippedRotate) }
+                    val alt = if (fw == w && fh == h) DumpGuard.alignment(fg, fw, fh, lines) else null
+                    if (own != null && alt != null && alt > own) excluded += "방향 의심(rotate $flippedRotate 쪽이 줄에 더 맞음)"
+                }
+                val note = pairNote + (if (rotate != g.rotate) " (rotate $rotate · 정답 ${g.rotate})" else "")
+                if (excluded.isNotEmpty()) {
+                    sb.append("| ${g.id} | ⚠제외 ${src.name}$note — ${excluded.joinToString(" · ")} | — | — | — | — | — | — | — |\n")
+                    spikeRows++
+                    continue
+                }
                 val r = GoldenSet.runSpike(
                     g, gray, w, h, src.name + note, tsv,
                     overlayOut = spikeOut?.let { File(it, "${g.id}.${src.name}.overlay.png") }
