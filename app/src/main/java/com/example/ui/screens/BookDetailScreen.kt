@@ -512,7 +512,7 @@ fun BookDetailScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "책의 영감 깊은 밑줄 구절을 카메라 OCR로 편리하게 추출해 다이어리를 적어 보세요.",
+                            text = "책 페이지를 찍어 구절이 있는 부분을 잘라 내면 글자를 읽어 와 다이어리를 적을 수 있어요.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
                             textAlign = TextAlign.Center
