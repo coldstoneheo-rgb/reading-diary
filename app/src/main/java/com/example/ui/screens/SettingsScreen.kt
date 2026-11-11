@@ -47,7 +47,7 @@ internal const val TERMS_SUMMARY =
 /** 개인정보처리방침 요약 5줄(docs/privacy/privacy-policy.html 1~5항 기준). */
 internal val PRIVACY_SUMMARY_LINES = listOf(
     "1. 책·책장·독서 일기·기록에 남긴 사진·설정은 이 기기에 저장됩니다. 개발자는 기록을 받아 보관하는 서버를 운영하지 않습니다.",
-    "2. 밑줄 구절 인식은 기기 안에서 실행되며, 사진은 기기 밖으로 전송되지 않습니다(4·5번 예외).",
+    "2. 책 페이지 글자 인식은 기기 안에서 실행되며, 사진은 기기 밖으로 전송되지 않습니다(4·5번 예외).",
     "3. 책을 검색하면 입력한 검색어가 카카오 책 검색으로 전송됩니다(키가 없거나, 카카오에서 찾지 못하거나 오류가 나면 Google Books로 전송). 쪽수 정보가 없는 책을 고르면 그 책의 ISBN이 Google Books로 전송됩니다. 책 표지를 화면에 표시할 때는 표지 이미지 서버에 요청이 갑니다.",
     "4. 안드로이드 자동 백업이 켜져 있으면 책·일기·일반 설정이 본인 Google 계정 백업에 포함될 수 있습니다(API 키와 기록에 남긴 사진은 제외). 설정의 «백업 파일 만들기»를 직접 실행하면 기록과 사진이 zip 파일 하나로 내가 고른 위치에 저장됩니다(API 키·설정 제외).",
     "5. 정밀 분석은 본인 Gemini 키 등록, 사진 전송 동의, 사진마다 확인을 모두 거친 경우에만 선택한 페이지 사진을 Google Gemini로 전송합니다."
@@ -402,7 +402,7 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "기본 밑줄 인식은 기기 안에서만 처리되고 사진은 밖으로 나가지 않습니다. 본인의 Google Gemini API 키를 등록하면 " +
+                        text = "기본 글자 인식은 기기 안에서만 처리되고 사진은 밖으로 나가지 않습니다. 본인의 Google Gemini API 키를 등록하면 " +
                             "선택한 페이지 사진을 Google Gemini로 보내 더 정밀하게 분석하는 '정밀 분석' 버튼이 생깁니다. 요금은 키 소유자에게 청구됩니다.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
@@ -651,7 +651,7 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                                     Text("• 실제 동작이 없던 클라우드 백업·복원 버튼 제거, 데이터 저장 위치를 사실대로 안내", style = MaterialTheme.typography.bodySmall)
                                     Text("• 본인 Gemini 키로 쓰는 선택형 '정밀 분석' 추가(사진 전송 동의 필요)", style = MaterialTheme.typography.bodySmall)
                                     Text("• API 키를 클라우드 백업·기기 이전에서 제외", style = MaterialTheme.typography.bodySmall)
-                                    Text("• 책 페이지 사진에서 밑줄 구절을 기기 안에서 인식(한국어)", style = MaterialTheme.typography.bodySmall)
+                                    Text("• 책 페이지 사진에서 자른 영역의 글자를 기기 안에서 인식(한국어)", style = MaterialTheme.typography.bodySmall)
                                     Text("• 도서 검색을 카카오·Google로 교체(네이버 책 검색 API 종료)", style = MaterialTheme.typography.bodySmall)
                                     Text("• 책장 만들기와 도서 검색", style = MaterialTheme.typography.bodySmall)
                                 }

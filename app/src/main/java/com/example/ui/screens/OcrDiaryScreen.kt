@@ -605,7 +605,7 @@ fun OcrDiaryScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            "책의 형광펜 혹은 연필 밑줄 부분을 촬영하거나\n사진 선택 버튼을 눌러 불러온 후 분석을 시작하세요.",
+                            "책 페이지를 촬영하거나 사진을 불러온 뒤,\n밑줄 친 부분만 틀 안에 들어오게 잘라 주세요.\n틀 안의 글자를 모두 읽어 옵니다.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                             textAlign = TextAlign.Center,
@@ -892,7 +892,7 @@ fun OcrDiaryScreen(
                                 Button(
                                     onClick = {
                                         isCroppedReady = true
-                                        Toast.makeText(context, "자르기 적용 완료! 아래 'AI 밑줄 인식 시작'을 눌러 분석해 보정하세요.", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "자르기 적용 완료! 아래 '틀 안 글자 읽기'를 누르세요.", Toast.LENGTH_SHORT).show()
                                     },
                                     modifier = Modifier.weight(1.2f),
                                     shape = RoundedCornerShape(8.dp)
@@ -1011,7 +1011,7 @@ fun OcrDiaryScreen(
                                 ) {
                                     Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null)
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("AI 밑줄 인식 시작", fontWeight = FontWeight.Bold)
+                                    Text("틀 안 글자 읽기", fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -1045,7 +1045,7 @@ fun OcrDiaryScreen(
                             onValueChange = { extractedText = it },
                             placeholder = { 
                                 Text(
-                                    text = "밑줄친 문장이 이곳에 보여지고 편집 할 수 있습니다.",
+                                    text = "읽어 온 글자가 이곳에 보이고, 밑줄 친 부분만 남게 고칠 수 있습니다.",
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                                 ) 
                             },
@@ -1594,7 +1594,7 @@ fun OcrDiaryScreen(
                         return@Button
                     }
                     if (extractedText.isBlank()) {
-                        Toast.makeText(context, "AI 밑줄 인식을 진행해주시거나 발췌된 문장을 적어주세요.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "사진에서 글자를 읽어 오거나 구절을 직접 적어 주세요.", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
 
