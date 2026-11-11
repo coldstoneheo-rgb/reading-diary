@@ -70,36 +70,70 @@ class CropGeometryTest {
     assertEquals(CropGeometry.Frame(0f, 0f, 324f, 320f), image)
   }
 
-  /** 화면 틀이 사진 사각형에서 차지하는 비율 = decodeForOcr가 실제로 잘라 낸 비트맵의 비율(±1px). */
+  /** 픽셀 색에 자기 원본 좌표를 적은 사진(R = x, G = y). 잘린 비트맵의 한 픽셀이 원본 어디서 왔는지 바로 읽힌다. */
+  private fun writeCoordinateImage(width: Int, height: Int, name: String): Uri {
+    require(width <= 256 && height <= 256)
+    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    for (y in 0 until height) for (x in 0 until width) bitmap.setPixel(x, y, Color.rgb(x, y, 0))
+    val file = File(context.cacheDir, name)
+    file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    bitmap.recycle()
+    return Uri.fromFile(file)
+  }
+
+  /**
+   * 화면의 한 점을 미리보기 배치(OcrDiaryScreen: 회전 전 크기로 가운데 → graphicsLayer 좌우 반전 → rotate)를
+   * 거꾸로 따라가 원본 사진 좌표로. CropGeometry 공식을 쓰지 않고 화면 변환만으로 계산한다.
+   */
+  private fun screenToSource(px: Float, py: Float, box: Pair<Float, Float>, image: CropGeometry.Frame,
+                             srcW: Int, srcH: Int, rot: Float, flip: Boolean): Pair<Float, Float> {
+    val cx = box.first / 2f
+    val cy = box.second / 2f
+    // 회전 전 컴포저블 크기(90°/270°면 화면 사각형의 가로세로를 바꿔 잡는다)
+    val quarter = CropGeometry.isQuarterTurn(rot)
+    val cw = if (quarter) image.height else image.width
+    val ch = if (quarter) image.width else image.height
+    // rotate(rot)의 역: -rot (y가 아래로 향하는 좌표에서 시계 방향 양수)
+    val rad = Math.toRadians(-rot.toDouble())
+    val dx = px - cx
+    val dy = py - cy
+    var ux = (dx * Math.cos(rad) - dy * Math.sin(rad)).toFloat()
+    val uy = (dx * Math.sin(rad) + dy * Math.cos(rad)).toFloat()
+    if (flip) ux = -ux
+    val s = cw / srcW
+    assertEquals("fit keeps aspect", s, ch / srcH, 1e-3f)
+    return ((ux + cw / 2f) / s) to ((uy + ch / 2f) / s)
+  }
+
+  /**
+   * 화면 틀의 왼쪽 위 모서리가 가리키는 원본 픽셀 = decodeForOcr가 실제로 잘라 낸 첫 픽셀(±2px).
+   * 수정 전(틀을 상자 비율로 그림)이면 세로 사진에서 띠 폭만큼(≈ 원본 20px) 어긋나 실패한다.
+   */
   @Test
-  fun frameOnScreenMatchesCroppedBitmap() {
+  fun frameCornerOnScreenPointsAtFirstCroppedPixel() {
     data class Case(val w: Int, val h: Int, val rot: Float, val flip: Boolean, val l: Float, val t: Float, val r: Float, val b: Float)
     val cases = listOf(
-      Case(300, 400, 0f, false, 0.1f, 0.1f, 0.9f, 0.9f),
-      Case(300, 400, 90f, false, 0.05f, 0.2f, 0.7f, 0.95f),
-      Case(400, 300, 270f, true, 0.2f, 0f, 1f, 0.6f),
-      Case(400, 300, 180f, false, 0f, 0.3f, 0.5f, 1f)
+      Case(200, 256, 0f, false, 0.1f, 0.1f, 0.9f, 0.9f),
+      Case(200, 256, 90f, false, 0.05f, 0.2f, 0.7f, 0.95f),
+      Case(256, 200, 270f, true, 0.2f, 0.1f, 1f, 0.6f),
+      Case(256, 200, 180f, false, 0.3f, 0.3f, 0.5f, 1f),
+      Case(200, 256, 0f, true, 0.25f, 0.05f, 0.75f, 0.5f)
     )
+    val box = 324f to 320f
     for ((i, c) in cases.withIndex()) {
-      val uri = Uri.fromFile(writeImage(c.w, c.h, "geom$i.png"))
+      val uri = writeCoordinateImage(c.w, c.h, "coord$i.png")
       val size = BitmapDecoding.orientedSize(context, uri)
       assertNotNull(size)
-      val full = BitmapDecoding.decodeForOcr(context, uri, c.rot, c.flip, 0f, 0f, 1f, 1f)!!
-      val cropped = BitmapDecoding.decodeForOcr(context, uri, c.rot, c.flip, c.l, c.t, c.r, c.b)!!
+      val overlay = CropGeometry.overlay(box.first, box.second, size, c.rot, c.l, c.t, c.r, c.b)
 
-      val image = CropGeometry.displayedImageRect(324f, 320f, size!!.first, size.second, c.rot)
-      // 화면 사진 사각형의 모양 = 회전 뒤 비트맵 모양
-      assertEquals("case $i aspect", full.width.toFloat() / full.height, image.width / image.height, 0.01f)
-      val frame = CropGeometry.cropFrame(image, c.l, c.t, c.r, c.b)
-      val leftPx = (frame.left - image.left) / image.width * full.width
-      val widthPx = frame.width / image.width * full.width
-      val topPx = (frame.top - image.top) / image.height * full.height
-      val heightPx = frame.height / image.height * full.height
-      val rect = BitmapDecoding.cropRect(full.width, full.height, c.l, c.t, c.r, c.b)
-      assertEquals("case $i left", rect.left.toFloat(), leftPx, 1f)
-      assertEquals("case $i top", rect.top.toFloat(), topPx, 1f)
-      assertEquals("case $i width", cropped.width.toFloat(), widthPx, 1f)
-      assertEquals("case $i height", cropped.height.toFloat(), heightPx, 1f)
+      val cropped = BitmapDecoding.decodeForOcr(context, uri, c.rot, c.flip, c.l, c.t, c.r, c.b)!!
+      val first = cropped.getPixel(0, 0)
+      val actualX = Color.red(first) + 0.5f
+      val actualY = Color.green(first) + 0.5f
+
+      val (sx, sy) = screenToSource(overlay.crop.left, overlay.crop.top, box, overlay.image, c.w, c.h, c.rot, c.flip)
+      assertEquals("case $i x", actualX, sx, 2f)
+      assertEquals("case $i y", actualY, sy, 2f)
     }
   }
 

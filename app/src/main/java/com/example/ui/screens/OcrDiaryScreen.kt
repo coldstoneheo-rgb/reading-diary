@@ -667,13 +667,16 @@ fun OcrDiaryScreen(
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(Color.Black)
                         ) {
-                            val shownImage = orientedImageSize?.let { (w, h) ->
-                                CropGeometry.displayedImageRect(maxWidth.value, maxHeight.value, w, h, imageRotation)
-                            }
+                            // 사진 배치와 틀을 dp로 한 번만 계산한다(그림·틀이 같은 값을 쓴다).
+                            val overlay = CropGeometry.overlay(
+                                maxWidth.value, maxHeight.value, orientedImageSize, imageRotation,
+                                cropLeft, cropTop, cropRight, cropBottom
+                            )
+                            val shownImage = overlay.image
                             AsyncImage(
                                 model = activeImageUrl,
                                 contentDescription = "Active target image",
-                                modifier = (if (shownImage == null) Modifier.fillMaxSize() else {
+                                modifier = (if (orientedImageSize == null) Modifier.fillMaxSize() else {
                                     // 회전 전 크기로 잡고 돌려서, 돌린 뒤 모양이 shownImage와 정확히 겹치게 한다.
                                     val quarter = CropGeometry.isQuarterTurn(imageRotation)
                                     Modifier
@@ -694,14 +697,10 @@ fun OcrDiaryScreen(
 
                             // Drawn crop overlay indicator or instructions with dimmed boundaries and corner handles
                             Canvas(modifier = Modifier.fillMaxSize()) {
-                                val imageFrame = orientedImageSize?.let { (w, h) ->
-                                    CropGeometry.displayedImageRect(size.width, size.height, w, h, imageRotation)
-                                } ?: CropGeometry.Frame(0f, 0f, size.width, size.height)
-                                val frame = CropGeometry.cropFrame(imageFrame, cropLeft, cropTop, cropRight, cropBottom)
-                                val leftPx = frame.left
-                                val topPx = frame.top
-                                val rightPx = frame.right
-                                val bottomPx = frame.bottom
+                                val leftPx = overlay.crop.left.dp.toPx()
+                                val topPx = overlay.crop.top.dp.toPx()
+                                val rightPx = overlay.crop.right.dp.toPx()
+                                val bottomPx = overlay.crop.bottom.dp.toPx()
 
                                 val stroke = Stroke(
                                     width = 2.dp.toPx(),

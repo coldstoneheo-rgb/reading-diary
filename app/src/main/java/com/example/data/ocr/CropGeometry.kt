@@ -41,6 +41,28 @@ object CropGeometry {
         return Frame((boxWidth - w) / 2f, (boxHeight - h) / 2f, w, h)
     }
 
+    /** 미리보기 한 장의 배치: 사진이 그려지는 사각형과 그 위의 자르기 틀. */
+    data class Overlay(val image: Frame, val crop: Frame)
+
+    /**
+     * 화면이 쓰는 유일한 진입점. 사진 배치와 틀을 한 번에 계산해, 그림과 틀이 서로 다른 좌표계를 쓰지 못하게 한다.
+     * [imageSize]가 null(아직 모름·읽기 실패)이면 상자 전체 = 예전 동작.
+     */
+    fun overlay(
+        boxWidth: Float,
+        boxHeight: Float,
+        imageSize: Pair<Int, Int>?,
+        rotationDegrees: Float,
+        left: Float,
+        top: Float,
+        right: Float,
+        bottom: Float
+    ): Overlay {
+        val image = if (imageSize == null) Frame(0f, 0f, boxWidth, boxHeight)
+            else displayedImageRect(boxWidth, boxHeight, imageSize.first, imageSize.second, rotationDegrees)
+        return Overlay(image, cropFrame(image, left, top, right, bottom))
+    }
+
     /** 자르기 비율(0..1)을 [image] 사각형 안의 화면 좌표로. */
     fun cropFrame(image: Frame, left: Float, top: Float, right: Float, bottom: Float): Frame = Frame(
         image.left + left * image.width,
