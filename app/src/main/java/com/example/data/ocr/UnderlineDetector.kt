@@ -34,7 +34,12 @@ object UnderlineDetector {
         /** 띠 최대 높이(× H). 다음 줄이 없을 때의 아래 한계이기도 하다. */
         val bandMaxRatio: Double = 1.0,
         /** 어절이 밑줄 구간과 이 비율 이상 겹치면 «밑줄 친 어절». */
-        val wordCoverage: Double = 0.5
+        val wordCoverage: Double = 0.5,
+        /**
+         * 줄 글자 획 어둡기(Δ_text = 종이 − 줄 2백분위)가 이보다 작으면 그 줄은 건너뛴다(0..255 회색조 단위).
+         * 글자가 없는 빈 상자·잡티 상자에서 Δ_text가 1 근처가 되면 종이 결까지 «어둡다»가 되어 오검출이 나기 때문.
+         */
+        val minDeltaText: Int = 40
     )
 
     /** [lineIndex]번 줄 아래에서 찾은 밑줄 구간(가로 픽셀 [left, right)). */
@@ -52,7 +57,12 @@ object UnderlineDetector {
             val line = lines[idx]
             val h = line.height
             if (h <= 0 || line.width <= 0) continue
-            val nextTop = order.getOrNull(k + 1)?.let { lines[it].top } ?: Int.MAX_VALUE
+            val x0 = (line.left - h / 2).coerceIn(0, width)
+            val x1 = (line.right + h / 2).coerceIn(0, width)
+            if (x1 - x0 < 2) continue
+            // 띠를 막는 «다음 줄» = 아래에 있으면서 띠의 가로 범위와 겹치는 첫 줄. 옆 단·여백 메모처럼 가로로 비켜 난 줄은 띠를 자르지 않는다.
+            val nextTop = order.drop(k + 1).map { lines[it] }
+                .firstOrNull { it.left < x1 && it.right > x0 }?.top ?: Int.MAX_VALUE
             val y0 = (line.bottom + (params.bandStartRatio * h).toInt()).coerceIn(0, height)
             val y1 = minOf(
                 nextTop.toLong() - (params.bandStartRatio * h).toLong(),
@@ -60,14 +70,12 @@ object UnderlineDetector {
                 height.toLong()
             ).toInt()
             if (y1 - y0 < 6) continue
-            val x0 = (line.left - h / 2).coerceIn(0, width)
-            val x1 = (line.right + h / 2).coerceIn(0, width)
-            if (x1 - x0 < 2) continue
 
             val paper = percentile(sample(gray, width, line.left.coerceIn(0, width), y0, line.right.coerceIn(0, width), y1, 3), 0.5)
             val ink = percentile(sample(gray, width, line.left.coerceIn(0, width), line.top.coerceIn(0, height),
                 line.right.coerceIn(0, width), line.bottom.coerceIn(0, height), 2), 0.02)
-            val deltaText = maxOf(1, paper - ink).toDouble()
+            if (paper - ink < params.minDeltaText) continue
+            val deltaText = (paper - ink).toDouble()
             val maxThick = params.maxThicknessRatio * h
 
             val dark = BooleanArray(x1 - x0)
@@ -120,25 +128,38 @@ object UnderlineDetector {
     /**
      * 형광펜(C): [argb] 사진에서 상자 안 픽셀 가운데 «밝고 채도 높은» 비율이 [minFraction] 이상이면 칠한 것으로 본다.
      * 채도 = (max − min) / max, 밝기 = max. 검은 글자 획(밝기 낮음)과 흰 종이(채도 낮음)는 세지 않는다.
+     * 상자가 사진 밖으로 삐져나가면(엔진 상자가 가장자리를 넘는 일이 있다) 사진 안쪽 부분만 센다. 안쪽이 0이면 false.
+     * 한계: 비율만 보므로 붉은·푸른 컬러 인쇄 글자가 상자의 [minFraction] 이상을 덮으면(굵은 큰 글씨) 형광펜으로 본다.
      */
     fun highlightedWords(
-        argb: IntArray, width: Int, words: List<Box>,
+        argb: IntArray, width: Int, height: Int, words: List<Box>,
         minSaturation: Double = 0.25, minValue: Int = 120, minFraction: Double = 0.4
-    ): BooleanArray = BooleanArray(words.size) { i ->
-        val b = words[i]
+    ): BooleanArray {
+        require(argb.size == width * height) { "argb size" }
+        return BooleanArray(words.size) { i -> highlighted(argb, width, height, words[i], minSaturation, minValue, minFraction) }
+    }
+
+    private fun highlighted(
+        argb: IntArray, width: Int, height: Int, b: Box,
+        minSaturation: Double, minValue: Int, minFraction: Double
+    ): Boolean {
+        val l = b.left.coerceIn(0, width)
+        val r = b.right.coerceIn(0, width)
+        val t = b.top.coerceIn(0, height)
+        val bt = b.bottom.coerceIn(0, height)
         var colored = 0
         var total = 0
-        for (y in b.top until b.bottom) for (x in b.left until b.right) {
+        for (y in t until bt) for (x in l until r) {
             val p = argb[y * width + x]
-            val r = (p shr 16) and 0xFF
+            val red = (p shr 16) and 0xFF
             val g = (p shr 8) and 0xFF
             val bl = p and 0xFF
-            val max = maxOf(r, g, bl)
-            val min = minOf(r, g, bl)
+            val max = maxOf(red, g, bl)
+            val min = minOf(red, g, bl)
             total++
             if (max >= minValue && max > 0 && (max - min).toDouble() / max >= minSaturation) colored++
         }
-        total > 0 && colored.toDouble() / total >= minFraction
+        return total > 0 && colored.toDouble() / total >= minFraction
     }
 
     /** ARGB → 회색조(0..255, ITU-R BT.601 가중치). */

@@ -72,11 +72,36 @@ class UnderlineDetectorTest {
 
   @Test
   fun band_stopsAboveTheNextLine() {
+    // 줄 간격을 좁혀(줄 2 위 = 110) «다음 줄 위 − 0.08H»가 «줄 아래 + 1.0H»(=120)보다 먼저 띠를 막게 한다.
+    // 띠 = 80+3 ~ min(110−3=107, 120). 107~108의 가로선은 띠 밖 → 줄 1의 밑줄이 아니다.
+    val img = canvas()
+    val tightLine2Words = line2Words.map { Box(it.left, 110, it.right, 150) }
+    (line1Words + tightLine2Words).forEach { glyphWord(img, it) }
+    fill(img, Box(50, 107, 390, 109), 40)
+    val tightLine2 = Box(50, 110, 390, 150)
+    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, tightLine2)).none { it.lineIndex == 0 })
+    // 대조: 다음 줄을 주지 않으면 띠가 줄 아래 + 1.0H(=120)까지 열려 무언가(이 선 · 줄 2 윗획)가 잡힌다 — 위 결과가 nextTop 분기 덕임을 보인다.
+    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1)).any { it.lineIndex == 0 })
+  }
+
+  @Test
+  fun lineBesideTheBand_doesNotCutIt() {
+    // 띠 가로 범위(30..410) 밖 오른쪽 여백의 짧은 줄(여백 메모 등)은 «다음 줄»이 아니다 → 띠가 잘리지 않고 밑줄을 잡는다.
     val img = canvas()
     (line1Words + line2Words).forEach { glyphWord(img, it) }
-    // 줄 2 바로 위(띠 끝 137 아래, 138~140)의 가로선은 줄 1의 밑줄이 아니다.
-    fill(img, Box(50, 138, 390, 140), 40)
-    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, line2)).none { it.lineIndex == 0 })
+    val margin = Box(450, 86, 560, 96)
+    glyphWord(img, margin)
+    fill(img, Box(170, 98, 390, 101), 60)
+    val runs = UnderlineDetector.detect(img, w, h, listOf(line1, line2, margin))
+    assertEquals(1, runs.count { it.lineIndex == 0 })
+  }
+
+  @Test
+  fun lineWithoutTextContrast_isSkipped() {
+    // 글자가 없는 빈 상자(Δ_text ≈ 0) 아래의 옅은 얼룩(종이보다 10 어두움)을 밑줄로 잡지 않는다(minDeltaText).
+    val img = canvas()
+    fill(img, Box(50, 92, 390, 95), paper - 10)
+    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1)).isEmpty())
   }
 
   @Test
@@ -101,8 +126,12 @@ class UnderlineDetectorTest {
     assertTrue(runs[0].left <= 52 && runs[0].right >= 388)
   }
 
+  /**
+   * 붉은 인쇄는 «덮인 비율»이 문턱(40%) 아래라서만 통과한다(획 25%). 굵은 붉은 큰 글씨가 상자의 40% 이상을 덮으면
+   * 형광펜으로 잘못 본다 — 실사진(형광펜 0장)에서 아직 재지 못한 한계.
+   */
   @Test
-  fun highlighter_isBrightAndSaturated_redPrintIsNot() {
+  fun highlighter_isBrightAndSaturated_redPrintPassesOnlyByLowCoverage() {
     val argb = IntArray(w * h) { 0xFFF0F0F0.toInt() }
     fun paint(b: Box, c: Int) { for (y in b.top until b.bottom) for (x in b.left until b.right) argb[y * w + x] = c }
     val yellow = 0xFFFFEE55.toInt()
@@ -116,7 +145,20 @@ class UnderlineDetectorTest {
     paint(Box(290, 40, 390, 50), black)
     assertArrayEquals(
       booleanArrayOf(true, false, false),
-      UnderlineDetector.highlightedWords(argb, w, line1Words)
+      UnderlineDetector.highlightedWords(argb, w, h, line1Words)
     )
+  }
+
+  @Test
+  fun highlighter_boxOutsideTheImage_countsOnlyTheInsidePart() {
+    val argb = IntArray(w * h) { 0xFFF0F0F0.toInt() }
+    val yellow = 0xFFFFEE55.toInt()
+    for (y in 300 until h) for (x in 560 until w) argb[y * w + x] = yellow
+    val words = listOf(
+      Box(560, 300, 700, 400), // 오른쪽·아래로 삐져나감 — 안쪽(560..600 × 300..320)은 전부 노랑
+      Box(-50, -20, 20, 10),   // 왼쪽·위로 삐져나감 — 안쪽은 종이
+      Box(700, 400, 800, 500)  // 완전히 밖 — 셀 픽셀 0
+    )
+    assertArrayEquals(booleanArrayOf(true, false, false), UnderlineDetector.highlightedWords(argb, w, h, words))
   }
 }

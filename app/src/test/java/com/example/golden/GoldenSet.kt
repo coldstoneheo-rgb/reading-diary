@@ -46,9 +46,14 @@ object GoldenSet {
         val decoys = mutableListOf<Decoy>()
         var section = ""
         for ((n, raw) in text.removePrefix("﻿").lines().withIndex()) {
-            val line = raw.trimEnd()
-            if (line.isBlank() || line.trimStart().startsWith("#")) continue
-            if (line.startsWith("[") && line.endsWith("]")) { section = line.substring(1, line.length - 1).trim(); continue }
+            val trimmed = raw.trimEnd()
+            // 줄 머리 `\` = 이스케이프: 본문이 `#`·`[`로 시작해도 주석·절 머리로 읽지 않는다(`\` 한 글자만 떼고 그대로).
+            val escaped = trimmed.trimStart().startsWith("\\")
+            val line = if (escaped) trimmed.trimStart().substring(1) else trimmed
+            if (!escaped) {
+                if (line.isBlank() || line.trimStart().startsWith("#")) continue
+                if (line.startsWith("[") && line.endsWith("]")) { section = line.substring(1, line.length - 1).trim(); continue }
+            } else if (line.isBlank()) continue
             fun cols(k: Int) = line.split('\t', limit = k).map { it.trim() }
             when (section) {
                 "" -> {
@@ -178,7 +183,11 @@ object GoldenSet {
         }
     }
 
-    /** 정답 [page] 줄마다 글자 겹침(Dice)이 가장 큰 상자 줄을 순서대로 고른다. 못 찾으면 null. */
+    /**
+     * 정답 [page] 줄마다 글자 겹침(Dice)이 가장 큰 상자 줄을 순서대로 고른다. 못 찾으면 null.
+     * 측정 편향: 앞에서부터 욕심껏(greedy) 고르고 되돌아보지 않는다. 앞 줄이 한 줄 아래 상자를 잘못 가져가면 그 뒤 줄들이
+     * 대응을 잃어 «줄 대응 실패»(상자 출처 탓)로 세어진다 — 상자 출처 비교에서 기운 페이지 쪽이 불리하게 나올 수 있다.
+     */
     fun matchLines(page: List<String>, lines: List<Line>, minDice: Double = 0.5): List<Int?> {
         var from = 0
         return page.map { g ->
@@ -195,7 +204,12 @@ object GoldenSet {
         return if (total == 0) 0.0 else 2.0 * inter / total
     }
 
-    /** 글자 폭 비례로 줄 상자 안 어절의 가로 범위를 나눈다(한글 1 · 공백 0.75 · 문장부호 0.45 · 그 밖 0.6). */
+    /**
+     * 글자 폭 비례로 줄 상자 안 어절의 가로 범위를 나눈다(한글 1 · 공백 0.75 · 문장부호 0.45 · 그 밖 0.6).
+     * 측정 편향: [lineText]는 정답 본문 줄인데 [box]는 엔진 줄 상자다. 엔진이 같은 높이의 여백 메모·쪽번호를 그 줄에 합치면
+     * 상자가 넓어져 어절 범위가 통째로 밀린다(맞은 밑줄이 옆 어절로 배정 → 오검출 1 + 미검출 1). 기기 상자로 갈면 어절 상자를
+     * 직접 쓰는 길(제품화 PR 2)이 이 편향을 없앤다.
+     */
     fun tokenRanges(lineText: String, box: UnderlineDetector.Box): List<IntRange> {
         fun weight(c: Char) = when {
             c.isWhitespace() -> 0.75
@@ -220,7 +234,11 @@ object GoldenSet {
         return out
     }
 
-    /** [marks] 조각을 [page] 줄의 어절 번호로. 조각은 그 줄의 연속 어절이어야 한다. */
+    /**
+     * [marks] 조각을 [page] 줄의 어절 번호로. 조각은 그 줄의 연속 어절이어야 한다.
+     * 측정 편향: 같은 줄에 같은 조각이 두 번 나오면 첫 자리로 본다(뒤 자리에 친 밑줄이면 정답 어절 위치가 틀린다).
+     * 정답 작성 때 그런 줄은 조각을 앞뒤 어절까지 늘려 하나로 좁힌다.
+     */
     fun markedTokens(g: Golden, kind: String? = null): Set<Pair<Int, Int>> {
         val out = mutableSetOf<Pair<Int, Int>>()
         for (m in g.marks.filter { kind == null || it.kind == kind }) {

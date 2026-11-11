@@ -8,6 +8,8 @@ import java.util.Locale
  * - 엔진 출력: `outputs/<엔진>/<id>.<대상>.txt` (대상 = marks · underline · highlight · memo · page) ↔ 정답의 같은 대상.
  * - 밑줄 검출 스파이크: 사진 + `boxes/<출처>/<id>.tsv`가 있으면 출처마다 한 번. 오버레이 PNG는 [spikeOut]에.
  * 자료가 0장이어도 실패하지 않고 «자료 0장»을 적는다.
+ * 결과는 둘로 나눈다: [Report.table] = 수치 표(PR·메시지에 옮겨도 되는 것) · [Report.details] = 오검출·미검출 어절과
+ * OCR 줄 글(사용자 책 본문 조각 — 레포 밖 `_results/details.md`에만, PR·메시지에 옮기지 않는다).
  */
 object GoldenMeasure {
 
@@ -24,12 +26,14 @@ object GoldenMeasure {
 
     private fun pct(v: Double?) = v?.let { String.format(Locale.ROOT, "%.1f%%", it * 100) } ?: "—"
 
-    fun run(dir: File, spikeOut: File? = null): String {
-        val sb = StringBuilder("# 기준 자료 측정 — ${dir.path}\n\n")
+    data class Report(val table: String, val details: String)
+
+    fun run(dir: File, spikeOut: File? = null): Report {
+        val sb = StringBuilder("# 기준 자료 측정 — <기준 자료 폴더>(경로는 싣지 않는다 — 이 표는 PR·메시지에 옮길 수 있다)\n\n")
         val files = dir.listFiles { f -> f.isFile && f.name.endsWith(".golden.txt") }?.sortedBy { it.name }.orEmpty()
         if (files.isEmpty()) {
             sb.append("자료 0장\n")
-            return sb.toString()
+            return Report(sb.toString(), "")
         }
         sb.append("자료 ${files.size}장\n\n")
         for (f in files) {
@@ -56,7 +60,7 @@ object GoldenMeasure {
 
         sb.append("\n## 밑줄 검출 스파이크(어절 단위, 상자 출처별 — 기기 ML Kit 상자와 다를 수 있음)\n\n")
         sb.append("| 자료 | 상자 출처 | 정밀도 | 재현율 | 재현율(대응된 줄만) | 맞음/오검출/미검출(그중 줄 대응 실패) | 본문 줄 대응 | 미끼 줄 오검출 | 본문 밖 오검출 구간 |\n|---|---|---|---|---|---|---|---|---|\n")
-        val details = StringBuilder()
+        val details = StringBuilder("# 측정 상세 — 레포·PR·메시지에 옮기지 않는다(본문 조각)\n")
         val sources = File(dir, "boxes").listFiles { f -> f.isDirectory }?.sortedBy { it.name }.orEmpty()
         var spikeRows = 0
         for (g in goldens) {
@@ -85,7 +89,7 @@ object GoldenMeasure {
             }
         }
         if (spikeRows == 0) sb.append("| — | 사진+상자 0벌 | | | | | | | |\n")
-        sb.append(details)
-        return sb.toString()
+        sb.append("\n어절별 상세 = 같은 폴더 `_results/details.md`(레포 밖에만).\n")
+        return Report(sb.toString(), details.toString())
     }
 }

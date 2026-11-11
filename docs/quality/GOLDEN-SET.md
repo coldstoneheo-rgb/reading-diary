@@ -3,8 +3,8 @@
 목적: 목적지 «독서 지식 베이스»(LC `DEC-2026-1111` ①~⑥)의 추출 품질을 **느낌이 아니라 같은 자료의 일치율**로 잰다.
 엔진(기기 ML Kit · 밑줄 검출기 · 다른 OCR · 이미지를 읽는 LLM)을 바꿔도 같은 자료·같은 수치로 다시 잰다.
 
-**사진·정답은 레포에 넣지 않는다.** 사용자 실제 책 페이지라 레포 밖 로컬 폴더에만 둔다(기본 `D:\사진\reading-diary\golden\`).
-레포에는 이 규격과 측정 코드(`app/src/test/java/com/example/golden/`)만 있다. PR·메시지에는 경로와 수치만 쓴다.
+**사진·정답은 레포에 넣지 않는다.** 사용자 실제 책 페이지라 레포 밖 로컬 폴더에만 둔다(이 문서에서 `<기준 자료 폴더>` — 실제 경로는 작업 기록에만).
+레포에는 이 규격과 측정 코드(`app/src/test/java/com/example/golden/`)만 있다. PR·메시지에는 수치만 쓴다 — `_results/measure.md`의 **표만** 옮기고, 오검출·미검출 어절과 OCR 줄 글이 든 `_results/details.md`는 옮기지 않는다.
 
 ## 1. 폴더 구조
 
@@ -14,14 +14,16 @@ golden/
   <id>.golden.txt             정답(아래 2)
   boxes/<출처>/<id>.tsv        글줄·어절 상자(선택). 출처 = 상자를 만든 엔진 이름, 예: tesseract-5.3.1-kor · mlkit-dump
   outputs/<엔진>/<id>.<대상>.txt  엔진이 낸 글(선택). 대상 = marks · underline · highlight · memo · page
-  _results/measure.md          측정 결과(측정이 덮어쓴다)
+  _results/measure.md          측정 결과 표(측정이 덮어쓴다 — PR·메시지에 옮겨도 되는 것은 이것만)
+  _results/details.md          어절별 상세(오검출·미검출 어절 · OCR 줄 글 = 본문 조각 — 레포·PR·메시지에 옮기지 않는다)
 ```
 
 `<id>`는 영문·숫자·`-`(예: `g01` — 책 제목·촬영 시각이 든 이름은 쓰지 않는다). 실패 사례 오버레이 PNG는 `spike/`(측정 때 `RD_SPIKE_OUT`)에 쓴다.
 
 ## 2. 정답 파일 `<id>.golden.txt` (UTF-8 텍스트 — 메모장으로 고친다)
 
-머리 줄 `이름: 값`(뒤 ` # …`는 주석) 다음에 절 4개. `#`로 시작하는 줄은 주석.
+머리 줄 `이름: 값`(뒤 ` # …`는 주석) 다음에 절 4개. `#`로 시작하는 줄은 주석. 본문 줄이 `#`·`[`로 시작하면 앞에 `\`를 붙인다(`\# …` — 측정 코드가 `\`만 떼고 본문으로 읽는다).
+같은 줄에 같은 조각이 두 번 나오면 `[marks]`는 첫 자리로 읽히므로, 뒤 자리에 친 밑줄은 앞뒤 어절까지 늘려 적는다.
 
 | 머리 | 뜻 |
 |---|---|
@@ -64,11 +66,11 @@ golden/
 3. 측정(그래들, 레포 워크트리에서):
 
    ```
-   RD_GOLDEN_DIR='D:\사진\reading-diary\golden' RD_SPIKE_OUT='D:\사진\reading-diary\spike' \
+   RD_GOLDEN_DIR='<기준 자료 폴더>' RD_SPIKE_OUT='<오버레이 폴더>' \
      gradle :app:testDebugUnitTest --tests com.example.golden.GoldenMeasureTest --rerun
    ```
 
-   폴더가 없거나 비어 있으면 실패하지 않고 «자료 0장». 결과 = 표준 출력 + `golden/_results/measure.md`. 수치는 재기만 하고 테스트를 실패시키지 않는다.
+   폴더가 없거나 비어 있으면 실패하지 않고 «자료 0장». 결과 = 표준 출력(표만) + `_results/measure.md`(표) + `_results/details.md`(상세). 수치는 재기만 하고 테스트를 실패시키지 않는다.
 
 ## 5. 자료를 늘릴 때(사용자 손, 첫 벌 10장 안팎)
 

@@ -46,6 +46,14 @@ class GoldenSetTest {
     assertEquals(listOf(GoldenSet.Decoy("bleed", 2)), g.decoys)
   }
 
+  @Test
+  fun parse_backslashEscapesPageLinesThatLookLikeCommentsOrSections() {
+    // raw 문자열 — 백슬래시가 그대로 파일 글자다.
+    val g = GoldenSet.parse("e", listOf("[page]", """\# 하나 둘""", """\[셋] 넷""", "다섯", "[marks]", "2\tunderline\t넷").joinToString("\n"))
+    assertEquals(listOf("# 하나 둘", "[셋] 넷", "다섯"), g.page)
+    assertEquals(setOf(2 to 1), GoldenSet.markedTokens(g, "underline"))
+  }
+
   @Test(expected = IllegalStateException::class)
   fun parse_rejectsMarkNotOnItsLine() {
     GoldenSet.markedTokens(GoldenSet.parse("x", "[page]\n가 나\n[marks]\n1\tunderline\t다"))
@@ -71,7 +79,7 @@ class GoldenSetTest {
 
   @Test
   fun emptyFolder_isZeroItemsNotAFailure() {
-    assertTrue(GoldenMeasure.run(tmp.newFolder("empty")).contains("자료 0장"))
+    assertTrue(GoldenMeasure.run(tmp.newFolder("empty")).table.contains("자료 0장"))
   }
 
   /** 사진 + Tesseract 꼴 상자 + 엔진 출력이 있는 합성 폴더 한 벌을 끝까지 잰다. */
@@ -109,9 +117,15 @@ class GoldenSetTest {
     File(dir, "outputs/engineA").mkdirs()
     File(dir, "outputs/engineA/s1.underline.txt").writeText("셋 넷 다섯 여섯")
 
-    val report = GoldenMeasure.run(dir, File(dir, "spike"))
+    val r = GoldenMeasure.run(dir, File(dir, "spike"))
+    val report = r.table
     assertTrue(report, report.contains("| s1 | engineA | underline | 75.0% | 100.0% |"))
     assertTrue(report, report.contains("| s1 | synthetic | 100.0% | 100.0% | 100.0% | 3/0/0(0) | 2/2 | bleed 0 | 0 |"))
+    // 본문 어절이 든 상세는 표와 갈라져 details에만 있다.
+    assertTrue(r.details, r.details.contains("### s1 · synthetic"))
+    assertTrue(report, !report.contains("미검출 어절") && !report.contains("###"))
+    // 표는 PR에 옮길 수 있으므로 로컬 폴더 경로를 싣지 않는다.
+    assertTrue(report, !report.contains(dir.path) && !report.contains(dir.name))
     assertTrue(File(dir, "spike/s1.synthetic.overlay.png").isFile)
   }
 }
