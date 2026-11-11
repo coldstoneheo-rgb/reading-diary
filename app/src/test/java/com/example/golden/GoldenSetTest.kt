@@ -54,6 +54,15 @@ class GoldenSetTest {
     assertEquals(setOf(2 to 1), GoldenSet.markedTokens(g, "underline"))
   }
 
+  @Test
+  fun deviceDumpHeader_givesRotateAndSize_andTesseractHasNone() {
+    val dump = listOf("# source: mlkit", "# coords: upright source pixels 3000x4000", "# expects golden rotate: 90", "level\tx").joinToString("\n")
+    assertEquals(90, GoldenSet.dumpRotate(dump))
+    assertEquals(3000 to 4000, GoldenSet.dumpSize(dump))
+    assertEquals(null, GoldenSet.dumpRotate("level\tpage_num\n5\t1"))
+    assertEquals(null, GoldenSet.dumpSize("level\tpage_num\n5\t1"))
+  }
+
   @Test(expected = IllegalStateException::class)
   fun parse_rejectsMarkNotOnItsLine() {
     GoldenSet.markedTokens(GoldenSet.parse("x", "[page]\n가 나\n[marks]\n1\tunderline\t다"))

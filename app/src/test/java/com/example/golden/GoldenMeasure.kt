@@ -67,10 +67,16 @@ object GoldenMeasure {
             val photo = g.photo?.let { File(dir, it) }?.takeIf { it.isFile } ?: continue
             val boxed = sources.filter { File(it, "${g.id}.tsv").isFile }
             if (boxed.isEmpty()) continue
-            val (gray, w, h) = GoldenSet.loadGray(photo, g.rotate)
+            val loaded = mutableMapOf<Int, Triple<IntArray, Int, Int>>()
             for (src in boxed) {
+                val tsv = File(src, "${g.id}.tsv").readText()
+                // 기기 덤프는 앱이 세운 각도(EXIF + 사용자 회전)를 머리에 적는다 — 있으면 정답 rotate:보다 그 값을 쓴다.
+                val rotate = GoldenSet.dumpRotate(tsv) ?: g.rotate
+                val (gray, w, h) = loaded.getOrPut(rotate) { GoldenSet.loadGray(photo, rotate) }
+                val note = GoldenSet.dumpSize(tsv)?.takeIf { it != (w to h) }?.let { " ⚠크기 ${it.first}x${it.second}≠사진 ${w}x$h" }.orEmpty() +
+                    (if (rotate != g.rotate) " (rotate $rotate)" else "")
                 val r = GoldenSet.runSpike(
-                    g, gray, w, h, src.name, File(src, "${g.id}.tsv").readText(),
+                    g, gray, w, h, src.name + note, tsv,
                     overlayOut = spikeOut?.let { File(it, "${g.id}.${src.name}.overlay.png") }
                 )
                 val p = if (r.tp + r.fp == 0) null else r.tp.toDouble() / (r.tp + r.fp)

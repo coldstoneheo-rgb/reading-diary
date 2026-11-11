@@ -142,6 +142,16 @@ object GoldenSet {
         val text: String get() = words.joinToString(" ") { it.text }
     }
 
+    /** 기기 덤프 머리 `# expects golden rotate: N` — 없으면 null(Tesseract 등). */
+    fun dumpRotate(tsv: String): Int? =
+        Regex("^# expects golden rotate: (\\d+)", RegexOption.MULTILINE).find(tsv)?.groupValues?.get(1)?.toIntOrNull()
+
+    /** 기기 덤프 머리 `# coords: upright source pixels WxH` — 좌표계 크기. 없으면 null. */
+    fun dumpSize(tsv: String): Pair<Int, Int>? =
+        Regex("^# coords: upright source pixels (\\d+)x(\\d+)", RegexOption.MULTILINE).find(tsv)?.let {
+            it.groupValues[1].toInt() to it.groupValues[2].toInt()
+        }
+
     /** Tesseract `tsv` 출력(또는 같은 열로 옮긴 다른 엔진의 상자). level 5(어절)만 쓴다. conf < 0은 «신뢰도 없음» = 통과. */
     fun readWords(tsv: String, minConf: Double = 40.0): List<Word> {
         val out = mutableListOf<Word>()
