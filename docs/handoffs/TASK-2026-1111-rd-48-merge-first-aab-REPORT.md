@@ -4,6 +4,8 @@
 
 ## 체크리스트(완료 조건)
 
+> 아래 9 · 12-PR · 10 · 14 줄은 작업 중 기록이다. 결과는 «마감 상태»가 우선한다(#50 `e6790eb` · #51 `9ebc60d` 머지, 10은 새 창으로 이월).
+
 - [x] 1. 로컬 main ff-only `91986a6 → c1e987a` (`git merge --ff-only origin/main`), 미커밋 2파일 보존(`git status`: ` M .claude/settings.json` · ` M CLAUDE.md`)
 - [x] 2. #48 머지: 원격 head `12a98d19…` 확인 → `gh pr merge 48 --squash --match-head-commit 12a98d19d998…` → main **`3ddee89`** (`gh pr view 48` state MERGED)
 - [x] 3. 가지·워크트리 정리 — 아래 «정리 근거»
