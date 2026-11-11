@@ -33,7 +33,9 @@ object GoldenMeasure {
         }
         sb.append("자료 ${files.size}장\n\n")
         for (f in files) {
-            val unsure = Regex(Regex.escape(GoldenSet.UNSURE)).findAll(f.readText()).count()
+            // 주석(#) 줄의 설명 문구는 세지 않는다.
+            val unsure = f.readText().lines().filterNot { it.trimStart().startsWith("#") }
+                .sumOf { Regex(Regex.escape(GoldenSet.UNSURE)).findAll(it).count() }
             sb.append("- ${f.name.removeSuffix(".golden.txt")}: 정답 미확정 글자 ${unsure}개\n")
         }
         sb.append("\n## 엔진 출력 ↔ 정답\n\n")
