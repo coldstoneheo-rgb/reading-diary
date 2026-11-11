@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
+import com.example.ShadowCacheFileProvider
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -18,7 +19,8 @@ import java.io.File
 
 /** 덤프 공유(디버그 전용): 기본 꺼짐 · TSV 사본만 공유 · 지우기가 사본까지. 합성 파일만 쓴다. */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+// Windows Robolectric에서 FileProvider가 경로 구분자로 캐시 폴더를 못 찾는 문제 — CameraProcessDeathTest와 같은 셰도(URI 모양만 같음).
+@Config(sdk = [36], shadows = [ShadowCacheFileProvider::class])
 class OcrBoxDumpShareTest {
 
   private val context: Context get() = ApplicationProvider.getApplicationContext()
