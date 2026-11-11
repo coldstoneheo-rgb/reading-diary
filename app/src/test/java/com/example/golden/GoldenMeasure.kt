@@ -31,7 +31,12 @@ object GoldenMeasure {
             sb.append("자료 0장\n")
             return sb.toString()
         }
-        sb.append("자료 ${files.size}장\n\n## 엔진 출력 ↔ 정답\n\n")
+        sb.append("자료 ${files.size}장\n\n")
+        for (f in files) {
+            val unsure = Regex(Regex.escape(GoldenSet.UNSURE)).findAll(f.readText()).count()
+            sb.append("- ${f.name.removeSuffix(".golden.txt")}: 정답 미확정 글자 ${unsure}개\n")
+        }
+        sb.append("\n## 엔진 출력 ↔ 정답\n\n")
         sb.append("| 자료 | 엔진 | 대상 | 어절 정밀도 | 어절 재현율 | 글자 오류율 | 맞은/낸/정답 어절 |\n|---|---|---|---|---|---|---|\n")
         val goldens = files.map { GoldenSet.parse(it.name.removeSuffix(".golden.txt"), it.readText()) }
         val engines = File(dir, "outputs").listFiles { f -> f.isDirectory }?.sortedBy { it.name }.orEmpty()
