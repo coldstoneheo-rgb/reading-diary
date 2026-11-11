@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.debugtools.OcrBoxDump
 import com.example.data.AppDatabase
 import com.example.data.Book
 import com.example.data.Bookcase
@@ -940,10 +941,16 @@ class ReadingViewModel @JvmOverloads constructor(
             // 디코드 실패는 그 자리에서 오류로 끝낸다. 대체 이미지로 인식을 돌리지 않는다.
             OcrState.Error(DECODE_ERROR_MESSAGE)
         } else {
+            val bitmapWidth = cropped.width
+            val bitmapHeight = cropped.height
+            OcrBoxDump.reset()
             try {
                 extractSafely(cropped, extractor)
             } finally {
                 cropped.recycle()
+            }.also {
+                // 디버그 빌드만: 기준 자료 측정용 상자 TSV를 앱 저장소에(릴리스 = 빈 스텁, 네트워크 0)
+                OcrBoxDump.finish(getApplication(), imageUri, rotationDegrees, flipped, cropLeft, cropTop, cropRight, cropBottom, bitmapWidth, bitmapHeight)
             }
         }
         ensureActive() // 취소됐으면 여기서 끝. 옛 작업의 결과가 새 상태를 덮어쓰지 않는다
