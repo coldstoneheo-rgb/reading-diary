@@ -117,10 +117,10 @@ fun OcrDiaryScreen(
     var imageRotation by rememberSaveable(key = "$formKey/rotation") { mutableStateOf(0f) }
     var isFlipped by rememberSaveable(key = "$formKey/flipped") { mutableStateOf(false) }
     var isCroppedReady by rememberSaveable(key = "$formKey/cropReady") { mutableStateOf(false) }
-    var cropLeft by rememberSaveable(key = "$formKey/cropLeft") { mutableStateOf(0.1f) }
-    var cropRight by rememberSaveable(key = "$formKey/cropRight") { mutableStateOf(0.9f) }
-    var cropTop by rememberSaveable(key = "$formKey/cropTop") { mutableStateOf(0.1f) }
-    var cropBottom by rememberSaveable(key = "$formKey/cropBottom") { mutableStateOf(0.9f) }
+    var cropLeft by rememberSaveable(key = "$formKey/cropLeft") { mutableStateOf(CropGeometry.DEFAULT_LEFT) }
+    var cropRight by rememberSaveable(key = "$formKey/cropRight") { mutableStateOf(CropGeometry.DEFAULT_RIGHT) }
+    var cropTop by rememberSaveable(key = "$formKey/cropTop") { mutableStateOf(CropGeometry.DEFAULT_TOP) }
+    var cropBottom by rememberSaveable(key = "$formKey/cropBottom") { mutableStateOf(CropGeometry.DEFAULT_BOTTOM) }
 
     // Camera/Gallery integration state
     var cameraTempUri by rememberSaveable(key = "$formKey/cameraUri") { mutableStateOf<Uri?>(null) }
@@ -133,10 +133,10 @@ fun OcrDiaryScreen(
         imageRotation = 0f
         isFlipped = false
         selectedMethod = null
-        cropLeft = 0.1f
-        cropRight = 0.9f
-        cropTop = 0.1f
-        cropBottom = 0.9f
+        cropLeft = CropGeometry.DEFAULT_LEFT
+        cropRight = CropGeometry.DEFAULT_RIGHT
+        cropTop = CropGeometry.DEFAULT_TOP
+        cropBottom = CropGeometry.DEFAULT_BOTTOM
     }
 
     fun createCameraTempUri(): Uri {
@@ -888,10 +888,10 @@ fun OcrDiaryScreen(
                                     ) {
                                         TextButton(
                                             onClick = {
-                                                cropLeft = 0.1f
-                                                cropRight = 0.9f
-                                                cropTop = 0.1f
-                                                cropBottom = 0.9f
+                                                cropLeft = CropGeometry.DEFAULT_LEFT
+                                                cropRight = CropGeometry.DEFAULT_RIGHT
+                                                cropTop = CropGeometry.DEFAULT_TOP
+                                                cropBottom = CropGeometry.DEFAULT_BOTTOM
                                                 Toast.makeText(context, "자르기 격자가 초기화되었습니다.", Toast.LENGTH_SHORT).show()
                                             }
                                         ) {
@@ -1226,7 +1226,7 @@ fun OcrDiaryScreen(
                 OutlinedButton(
                     onClick = {
                         if (extractedText.isBlank()) {
-                            Toast.makeText(context, "공유할 문장이 없습니다. 먼저 밑줄 사진을 등록해 문장을 추출해 주세요.", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "공유할 문장이 없습니다. 먼저 책 페이지 사진에서 글자를 읽어 와 주세요.", Toast.LENGTH_SHORT).show()
                         } else {
                             selectedPaletteIndex = autoSelectPalette(extractedText)
                             showShareCardDialog = true

@@ -55,6 +55,24 @@ class CropGeometryTest {
   }
 
   @Test
+  fun defaultFrame_isWholePhoto() {
+    // 기본 틀은 사진 전체 — 화면 틀이 사진 사각형과 같고, 실제로 잘리는 영역도 비트맵 전체다.
+    val overlay = CropGeometry.overlay(
+      324f, 320f, 3000 to 4000, 0f,
+      CropGeometry.DEFAULT_LEFT, CropGeometry.DEFAULT_TOP, CropGeometry.DEFAULT_RIGHT, CropGeometry.DEFAULT_BOTTOM
+    )
+    assertEquals(overlay.image, overlay.crop)
+    val rect = BitmapDecoding.cropRect(
+      3000, 4000,
+      CropGeometry.DEFAULT_LEFT, CropGeometry.DEFAULT_TOP, CropGeometry.DEFAULT_RIGHT, CropGeometry.DEFAULT_BOTTOM
+    )
+    assertEquals(0, rect.left)
+    assertEquals(0, rect.top)
+    assertEquals(3000, rect.right)
+    assertEquals(4000, rect.bottom)
+  }
+
+  @Test
   fun quarterTurnSwapsAspect() {
     // 4:3 가로 사진을 90° 돌리면 3:4 세로로 보인다 — 상자를 넘치지 않는다(예전엔 위아래가 잘려 보였다).
     val image = CropGeometry.displayedImageRect(324f, 320f, 4000, 3000, 90f)
