@@ -7,6 +7,16 @@ package com.example.data.ocr
  * 순수 함수라 JVM에서 테스트한다.
  */
 object CropGeometry {
+    /**
+     * 처음 열 때·초기화할 때의 자르기 틀 = 사진 전체(임시 조치, LC DEC-2026-1111 §4-2).
+     * 예전 기본값(가운데 80%)은 페이지를 꽉 채워 찍으면 줄 머리·끝 글자를 잘라 틀린 글을 만들었다.
+     * 전체 페이지를 요약하는 기능(목적지 ③)이 들어오면 기본 동작과 함께 다시 정한다.
+     */
+    const val DEFAULT_LEFT = 0f
+    const val DEFAULT_TOP = 0f
+    const val DEFAULT_RIGHT = 1f
+    const val DEFAULT_BOTTOM = 1f
+
     data class Frame(val left: Float, val top: Float, val width: Float, val height: Float) {
         val right: Float get() = left + width
         val bottom: Float get() = top + height
