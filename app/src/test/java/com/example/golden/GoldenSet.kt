@@ -242,7 +242,9 @@ object GoldenSet {
         val offBodyRuns: List<String>,
         val decoyFp: Map<String, Int>,
         val falsePositives: List<String>, val falseNegatives: List<String>,
-        val text: String
+        val text: String,
+        /** 미검출 가운데 상자 줄을 못 찾은(정답 줄 ↔ 상자 줄 대응 실패) 줄의 몫 — 검출기가 아니라 상자 출처 탓. */
+        val fnUnmatchedLine: Int = 0
     )
 
     fun loadGray(photo: File, rotate: Int): Triple<IntArray, Int, Int> {
@@ -298,7 +300,8 @@ object GoldenSet {
             match.count { it != null }, g.page.size, offBody, decoyFp,
             fpSet.sortedWith(compareBy({ it.first }, { it.second })).map(::tokenName),
             fnSet.sortedWith(compareBy({ it.first }, { it.second })).map(::tokenName),
-            text
+            text,
+            fnSet.count { match[it.first - 1] == null }
         )
     }
 

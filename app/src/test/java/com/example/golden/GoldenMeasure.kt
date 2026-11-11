@@ -55,7 +55,7 @@ object GoldenMeasure {
         if (rows == 0) sb.append("| — | 엔진 출력 0개 | | | | | |\n")
 
         sb.append("\n## 밑줄 검출 스파이크(어절 단위, 상자 출처별 — 기기 ML Kit 상자와 다를 수 있음)\n\n")
-        sb.append("| 자료 | 상자 출처 | 정밀도 | 재현율 | 맞음/오검출/미검출 | 본문 줄 대응 | 미끼 줄 오검출 | 본문 밖 오검출 구간 |\n|---|---|---|---|---|---|---|---|\n")
+        sb.append("| 자료 | 상자 출처 | 정밀도 | 재현율 | 재현율(대응된 줄만) | 맞음/오검출/미검출(그중 줄 대응 실패) | 본문 줄 대응 | 미끼 줄 오검출 | 본문 밖 오검출 구간 |\n|---|---|---|---|---|---|---|---|---|\n")
         val details = StringBuilder()
         val sources = File(dir, "boxes").listFiles { f -> f.isDirectory }?.sortedBy { it.name }.orEmpty()
         var spikeRows = 0
@@ -72,7 +72,9 @@ object GoldenMeasure {
                 val p = if (r.tp + r.fp == 0) null else r.tp.toDouble() / (r.tp + r.fp)
                 val rc = if (r.tp + r.fn == 0) null else r.tp.toDouble() / (r.tp + r.fn)
                 val decoy = if (r.decoyFp.isEmpty()) "—" else r.decoyFp.entries.joinToString(" · ") { "${it.key} ${it.value}" }
-                sb.append("| ${g.id} | ${r.boxSource} | ${pct(p)} | ${pct(rc)} | ${r.tp}/${r.fp}/${r.fn} | ${r.matchedLines}/${r.pageLines} | $decoy | ${r.offBodyRuns.size} |\n")
+                val inLine = r.tp + r.fn - r.fnUnmatchedLine
+                val rcMatched = if (inLine == 0) null else r.tp.toDouble() / inLine
+                sb.append("| ${g.id} | ${r.boxSource} | ${pct(p)} | ${pct(rc)} | ${pct(rcMatched)} | ${r.tp}/${r.fp}/${r.fn}(${r.fnUnmatchedLine}) | ${r.matchedLines}/${r.pageLines} | $decoy | ${r.offBodyRuns.size} |\n")
                 details.append("\n### ${g.id} · ${r.boxSource}\n\n")
                 details.append("- 오검출 어절: ${r.falsePositives.ifEmpty { listOf("0") }.joinToString(", ")}\n")
                 details.append("- 미검출 어절: ${r.falseNegatives.ifEmpty { listOf("0") }.joinToString(", ")}\n")
@@ -82,7 +84,7 @@ object GoldenMeasure {
                 spikeRows++
             }
         }
-        if (spikeRows == 0) sb.append("| — | 사진+상자 0벌 | | | | | | |\n")
+        if (spikeRows == 0) sb.append("| — | 사진+상자 0벌 | | | | | | | |\n")
         sb.append(details)
         return sb.toString()
     }

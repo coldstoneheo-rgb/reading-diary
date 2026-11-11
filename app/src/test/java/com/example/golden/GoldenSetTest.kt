@@ -111,7 +111,7 @@ class GoldenSetTest {
 
     val report = GoldenMeasure.run(dir, File(dir, "spike"))
     assertTrue(report, report.contains("| s1 | engineA | underline | 75.0% | 100.0% |"))
-    assertTrue(report, report.contains("| s1 | synthetic | 100.0% | 100.0% | 3/0/0 | 2/2 | bleed 0 | 0 |"))
+    assertTrue(report, report.contains("| s1 | synthetic | 100.0% | 100.0% | 100.0% | 3/0/0(0) | 2/2 | bleed 0 | 0 |"))
     assertTrue(File(dir, "spike/s1.synthetic.overlay.png").isFile)
   }
 }
