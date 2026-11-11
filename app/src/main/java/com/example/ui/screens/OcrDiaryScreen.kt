@@ -53,6 +53,8 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.data.Book
+import com.example.data.ocr.BitmapDecoding
+import com.example.data.ocr.CropGeometry
 import com.example.data.photo.CameraTempFiles
 import com.example.data.photo.RecallPhoto
 import com.example.ui.viewmodel.OcrState
@@ -651,19 +653,36 @@ fun OcrDiaryScreen(
                             )
                         }
 
+                        // 자르기 틀은 상자가 아니라 사진이 실제로 그려진 사각형 기준(CropGeometry). 크기를 모르면 상자 전체.
+                        val orientedImageSize by produceState<Pair<Int, Int>?>(initialValue = null, activeImageUrl) {
+                            value = activeImageUrl?.let { url ->
+                                withContext(Dispatchers.IO) { BitmapDecoding.orientedSize(context, Uri.parse(url)) }
+                            }
+                        }
                         // Process Image View beautifully displaying vertical pages at full fit height
-                        Box(
+                        BoxWithConstraints(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(320.dp)
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(Color.Black)
                         ) {
+                            val shownImage = orientedImageSize?.let { (w, h) ->
+                                CropGeometry.displayedImageRect(maxWidth.value, maxHeight.value, w, h, imageRotation)
+                            }
                             AsyncImage(
                                 model = activeImageUrl,
                                 contentDescription = "Active target image",
-                                modifier = Modifier
-                                    .fillMaxSize()
+                                modifier = (if (shownImage == null) Modifier.fillMaxSize() else {
+                                    // 회전 전 크기로 잡고 돌려서, 돌린 뒤 모양이 shownImage와 정확히 겹치게 한다.
+                                    val quarter = CropGeometry.isQuarterTurn(imageRotation)
+                                    Modifier
+                                        .align(Alignment.Center)
+                                        .requiredSize(
+                                            width = (if (quarter) shownImage.height else shownImage.width).dp,
+                                            height = (if (quarter) shownImage.width else shownImage.height).dp
+                                        )
+                                })
                                     .rotate(imageRotation)
                                     .graphicsLayer(
                                         scaleX = if (isFlipped) -1f else 1f,
@@ -675,10 +694,14 @@ fun OcrDiaryScreen(
 
                             // Drawn crop overlay indicator or instructions with dimmed boundaries and corner handles
                             Canvas(modifier = Modifier.fillMaxSize()) {
-                                val leftPx = cropLeft * size.width
-                                val topPx = cropTop * size.height
-                                val rightPx = cropRight * size.width
-                                val bottomPx = cropBottom * size.height
+                                val imageFrame = orientedImageSize?.let { (w, h) ->
+                                    CropGeometry.displayedImageRect(size.width, size.height, w, h, imageRotation)
+                                } ?: CropGeometry.Frame(0f, 0f, size.width, size.height)
+                                val frame = CropGeometry.cropFrame(imageFrame, cropLeft, cropTop, cropRight, cropBottom)
+                                val leftPx = frame.left
+                                val topPx = frame.top
+                                val rightPx = frame.right
+                                val bottomPx = frame.bottom
 
                                 val stroke = Stroke(
                                     width = 2.dp.toPx(),
