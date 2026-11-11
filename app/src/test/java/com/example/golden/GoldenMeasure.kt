@@ -63,41 +63,53 @@ object GoldenMeasure {
         val details = StringBuilder("# 측정 상세 — 레포·PR·메시지에 옮기지 않는다(본문 조각)\n")
         val sources = File(dir, "boxes").listFiles { f -> f.isDirectory }?.sortedBy { it.name }.orEmpty()
         var spikeRows = 0
-        // 이름이 <id>.tsv가 아닌 기기 덤프(ocr-dump-NNN-…tsv)는 글자 겹침으로 짝을 짓는다(ⓒ, 사람 손 이름 바꾸기 없음).
+        // 이름이 <id>.tsv가 아닌 기기 덤프(ocr-dump-NNN-…tsv)는 글 포함률로 짝을 짓는다(ⓒ, 사람 손 이름 바꾸기 없음).
+        // 머리 없는 상자(Tesseract 등)는 자동 짝에 넣지 않는다 — 전처럼 <id>.tsv 이름일 때만 쓴다.
         val ids = goldens.map { it.id }.toSet()
         val autoPairs = sources.associateWith { src ->
-            DumpGuard.pair(goldens, src.listFiles { f -> f.isFile && f.name.endsWith(".tsv") && f.name.removeSuffix(".tsv") !in ids }.orEmpty().sortedBy { it.name })
+            val dumps = src.listFiles { f -> f.isFile && f.name.endsWith(".tsv") && f.name.removeSuffix(".tsv") !in ids }.orEmpty()
+                .filter { DumpGuard.isDeviceDump(it.readText()) }.sortedBy { it.name }
+            DumpGuard.pair(goldens, dumps)
         }
         for (g in goldens) {
             val photo = g.photo?.let { File(dir, it) }?.takeIf { it.isFile } ?: continue
             val boxed = sources.mapNotNull { src ->
                 File(src, "${g.id}.tsv").takeIf { it.isFile }?.let { Triple(src, it, "") }
-                    ?: autoPairs[src]?.get(g.id)?.let { p ->
-                        Triple(src, p.file, " (짝 자동 ${p.file.name} 글 일치 ${pct(p.match)}${if (p.candidates > 1) " · 후보 ${p.candidates}개 중 마지막" else ""})")
+                    ?: autoPairs[src]?.paired?.get(g.id)?.let { p ->
+                        Triple(src, p.file, " (짝 자동 ${p.file.name} 글 일치 ${pct(p.match)}${if (p.dropped.isNotEmpty()) " · 탈락 ${p.dropped.joinToString(", ")}" else ""})")
                     }
             }
             if (boxed.isEmpty()) continue
+            // 사진 한 장의 회색조는 방향별로 이 장 안에서만 들고 있다(장이 바뀌면 버린다).
             val loaded = mutableMapOf<Int, Triple<IntArray, Int, Int>>()
             for ((src, file, pairNote) in boxed) {
                 val tsv = file.readText()
-                // 기기 덤프는 앱이 세운 각도(EXIF + 사용자 회전)를 머리에 적는다 — 있으면 정답 rotate:보다 그 값을 쓴다.
+                // 기기 덤프는 앱이 세운 각도(EXIF + 사용자 회전)를 머리에 적는다.
                 val rotate = GoldenSet.dumpRotate(tsv) ?: g.rotate
                 val (gray, w, h) = loaded.getOrPut(rotate) { GoldenSet.loadGray(photo, rotate) }
                 // 기기 덤프는 조용히 틀린 입력을 표에서 빼고 사유를 적는다(ⓐ 반전·미러 ⓑ 방향 ⓒ 짝 · 크기).
                 val excluded = mutableListOf<String>()
+                var rotateNote = ""
                 if (DumpGuard.isDeviceDump(tsv)) {
                     if (DumpGuard.notExact(tsv)) excluded += "NOT EXACT(반전·EXIF 미러·원본 크기 모름)"
                     GoldenSet.dumpSize(tsv)?.takeIf { it != (w to h) }?.let { excluded += "크기 ${it.first}x${it.second}≠사진 ${w}x$h" }
                     val match = DumpGuard.textMatch(tsv, g)
                     if (match < DumpGuard.MIN_MATCH) excluded += "짝 의심(글 일치 ${pct(match)})"
-                    val lines = GoldenSet.clusterLines(GoldenSet.readWords(tsv))
-                    val own = DumpGuard.alignment(gray, w, h, lines)
-                    val flippedRotate = (rotate + 180) % 360
-                    val (fg, fw, fh) = loaded.getOrPut(flippedRotate) { GoldenSet.loadGray(photo, flippedRotate) }
-                    val alt = if (fw == w && fh == h) DumpGuard.alignment(fg, fw, fh, lines) else null
-                    if (own != null && alt != null && alt > own) excluded += "방향 의심(rotate $flippedRotate 쪽이 줄에 더 맞음)"
+                    // ⓑ 덤프 각도와 정답 rotate:가 같으면 두 출처가 따로 같은 방향을 말하므로 믿는다.
+                    // 다르면(전송 중 EXIF가 빠짐 등) 두 방향에서 상자가 글줄에 얼마나 맞는지 비교해 분명할 때만 쓴다.
+                    if (excluded.isEmpty() && rotate != g.rotate) {
+                        val (og, ow, oh) = loaded.getOrPut(g.rotate) { GoldenSet.loadGray(photo, g.rotate) }
+                        val lines = GoldenSet.clusterLines(GoldenSet.readWords(tsv))
+                        val dumpSide = DumpGuard.alignment(gray, w, h, lines)
+                        val goldenSide = if (ow == w && oh == h) DumpGuard.alignment(og, ow, oh, lines) else null
+                        when (DumpGuard.decide(dumpSide, goldenSide)) {
+                            DumpGuard.Verdict.FIRST -> rotateNote = " (rotate $rotate · 정답 ${g.rotate} — 상자 정렬로 $rotate 확인)"
+                            DumpGuard.Verdict.SECOND -> excluded += "방향 의심(정답 rotate ${g.rotate} 쪽이 글줄에 맞음)"
+                            DumpGuard.Verdict.UNDECIDED -> excluded += "방향 판정 불가(rotate $rotate≠정답 ${g.rotate})"
+                        }
+                    }
                 }
-                val note = pairNote + (if (rotate != g.rotate) " (rotate $rotate · 정답 ${g.rotate})" else "")
+                val note = pairNote + rotateNote
                 if (excluded.isNotEmpty()) {
                     sb.append("| ${g.id} | ⚠제외 ${src.name}$note — ${excluded.joinToString(" · ")} | — | — | — | — | — | — | — |\n")
                     spikeRows++
@@ -122,7 +134,13 @@ object GoldenMeasure {
                 spikeRows++
             }
         }
+        // 짝을 못 지은 덤프도 표에 드러낸다(조용히 사라지지 않게).
+        for ((src, res) in autoPairs) for ((f, why) in res.unpaired) {
+            sb.append("| — | ⚠짝 없음 ${src.name}: ${f.name} — $why | — | — | — | — | — | — | — |\n")
+            spikeRows++
+        }
         if (spikeRows == 0) sb.append("| — | 사진+상자 0벌 | | | | | | | |\n")
+        sb.append("\n«⚠» 행은 수치가 없고 합계에서 빠진다 — 합계 분모는 «⚠» 없는 행의 맞음+오검출 · 맞음+미검출만 더한다(뺀 장 수를 합계 옆에 적는다).\n")
         sb.append("\n어절별 상세 = 같은 폴더 `_results/details.md`(레포 밖에만).\n")
         return Report(sb.toString(), details.toString())
     }
