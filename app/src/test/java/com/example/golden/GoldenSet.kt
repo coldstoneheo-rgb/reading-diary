@@ -146,7 +146,7 @@ object GoldenSet {
             val text = c[11].trim()
             if (text.isEmpty()) continue
             val conf = c[10].toDoubleOrNull() ?: continue
-            if (conf in 0.0..<minConf) continue
+            if (conf >= 0.0 && conf < minConf) continue
             val l = c[6].toInt(); val t = c[7].toInt(); val w = c[8].toInt(); val h = c[9].toInt()
             out += Word(UnderlineDetector.Box(l, t, l + w, t + h), conf, text)
         }
@@ -200,7 +200,7 @@ object GoldenSet {
         fun weight(c: Char) = when {
             c.isWhitespace() -> 0.75
             c in EDGE_PUNCT -> 0.45
-            c in '가'..'힣' -> 1.0
+            c in '가'..'힣' -> 1.0 // 한글 음절
             else -> 0.6
         }
         val t = normalize(lineText).trim().replace(Regex("\\s+"), " ")
