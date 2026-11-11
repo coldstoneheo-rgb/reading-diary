@@ -27,6 +27,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.debugtools.OcrBoxDumpSection
 import com.example.BuildConfig
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -732,6 +733,9 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                     }
                 }
             }
+
+            // 디버그 빌드만: ML Kit 상자 덤프 공유 카드(릴리스 = 빈 스텁)
+            OcrBoxDumpSection()
         }
     }
 }
