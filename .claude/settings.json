@@ -21,7 +21,13 @@
       "Bash(gh pr close *)",
       "PowerShell(gh pr close *)",
       "Bash(gh pr view *)",
-      "PowerShell(gh pr view *)"
+      "PowerShell(gh pr view *)",
+      "Bash(git branch -d *)",
+      "PowerShell(git branch -d *)",
+      "Bash(git ls-remote *)",
+      "PowerShell(git ls-remote *)",
+      "Bash(gh api -X DELETE repos/coldstoneheo-rgb/reading-diary/git/refs/heads/*)",
+      "PowerShell(gh api -X DELETE repos/coldstoneheo-rgb/reading-diary/git/refs/heads/*)"
     ]
   },
   "modelSettings": {
