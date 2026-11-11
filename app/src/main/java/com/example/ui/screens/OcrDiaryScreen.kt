@@ -139,6 +139,14 @@ fun OcrDiaryScreen(
         cropBottom = CropGeometry.DEFAULT_BOTTOM
     }
 
+    /** 새 사진을 띄운다. 앞 사진의 회전·반전·자르기 틀은 새 사진에 맞지 않으므로 기본값(틀 = 사진 전체)으로 되돌린다. */
+    fun showNewPhoto(uri: Uri, method: String) {
+        clearShownPhoto()
+        activeImageUrl = uri.toString()
+        isImageTaken = true
+        selectedMethod = method
+    }
+
     fun createCameraTempUri(): Uri {
         cameraStartedAt = System.currentTimeMillis()
         val storageDir = context.cacheDir
@@ -156,10 +164,7 @@ fun OcrDiaryScreen(
     ) { success ->
         val uri = cameraTempUri
         if (uri != null && (success || CameraTempFiles.hasNewPhoto(context.cacheDir, uri.lastPathSegment, cameraStartedAt))) {
-            activeImageUrl = uri.toString()
-            isImageTaken = true
-            isCroppedReady = false
-            selectedMethod = "CAMERA"
+            showNewPhoto(uri, "CAMERA")
             Toast.makeText(context, "📸 실물 페이지 캡처 성공! 잘라내기 영역을 설정하세요.", Toast.LENGTH_SHORT).show()
         } else if (!success) {
             Toast.makeText(context, "사진 촬영이 취소되었습니다.", Toast.LENGTH_SHORT).show()
@@ -186,10 +191,7 @@ fun OcrDiaryScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            activeImageUrl = it.toString()
-            isImageTaken = true
-            isCroppedReady = false
-            selectedMethod = "GALLERY"
+            showNewPhoto(it, "GALLERY")
             Toast.makeText(context, "🖼️ 사진 선택 성공! 자르기 단계를 거쳐 이미지 상태를 완성해 주세요.", Toast.LENGTH_SHORT).show()
         } ?: run {
             Toast.makeText(context, "사진 선택이 취소되었습니다.", Toast.LENGTH_SHORT).show()
