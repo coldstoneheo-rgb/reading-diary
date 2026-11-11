@@ -65,6 +65,17 @@ class OcrBoxDumpTsvTest {
   }
 
   @Test
+  fun exifMirrorOrUnknownSource_isNotExact_andHeaderNamesTheExpectedGoldenRotate() {
+    // EXIF 6(시계 90°) + 앱에서 90° 더 → 측정 쪽 rotate: 180이어야 맞는다.
+    val tsv = OcrBoxDumpTsv.format(oneWord, Input(3000, 4000, 90f, false, 0f, 0f, 1f, 1f, 2000, 1500, exifOrientation = 6, exifDegrees = 90), "t", "mlkit")
+    assertTrue(tsv.contains("# exif: orientation 6 (deg 90, mirror false)\n"))
+    assertTrue(tsv.contains("# expects golden rotate: 180\n"))
+    assertFalse(tsv.contains("NOT EXACT"))
+    assertFalse(OcrBoxDumpTsv.mapping(Input(4000, 3000, 0f, false, 0f, 0f, 1f, 1f, 2000, 1500, exifOrientation = 2, exifMirrored = true)).exact)
+    assertFalse(OcrBoxDumpTsv.mapping(Input(2000, 1500, 0f, false, 0f, 0f, 1f, 1f, 2000, 1500, sourceKnown = false)).exact)
+  }
+
+  @Test
   fun tabsAndNewlinesInText_doNotBreakColumns() {
     val blocks = listOf(Block(null, listOf(Line("x", null, listOf(Element("가\t나\n다", Rect(0, 0, 10, 10)))))))
     val r = rows(OcrBoxDumpTsv.format(blocks, Input(10, 10, 0f, false, 0f, 0f, 1f, 1f, 10, 10), "t", "mlkit"))

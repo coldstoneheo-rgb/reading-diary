@@ -6,9 +6,10 @@ import kotlin.math.roundToInt
  * 디버그 빌드 전용(src/debug). ML Kit 줄·어절 상자를 기준 자료 측정(docs/quality/GOLDEN-SET.md §4)이 읽는
  * Tesseract `tsv` 열로 옮긴다. 순수 함수 — 안드로이드 의존 0, JVM에서 테스트한다.
  *
- * 좌표는 OCR 입력 비트맵(다운샘플 + 자르기)이 아니라 **똑바로 세운 원본 해상도 사진** 좌표로 되돌려 적는다:
- * 원본(EXIF 반영) → 사용자 회전 → 다운샘플(긴 변 ≤ 2048) → 자르기 를 거꾸로 — 자르기 오프셋을 더하고 배율을 곱한다.
- * 측정 코드는 원본 사진을 정답 머리 `rotate:`로 세워 쓰므로, 앱에서 사진을 돌리지 않았고(또는 같은 각도) 뒤집지 않았으면 좌표가 맞는다.
+ * 좌표는 OCR 입력 비트맵(다운샘플 + 자르기)이 아니라 **앱이 세운 원본 해상도** 좌표로 되돌려 적는다:
+ * 원본 픽셀 → EXIF 회전 → 사용자 회전 → 다운샘플(긴 변 ≤ 2048) → 자르기 를 거꾸로 — 자르기 오프셋을 더하고 배율을 곱한다.
+ * 측정 코드(#54 GoldenSet)는 EXIF를 읽지 않고 원본 픽셀을 정답 머리 `rotate:`만큼 돌린다. 그래서 좌표가 맞는 조건은
+ * `rotate ≡ EXIF 각도 + 사용자 회전 (mod 360)` 이고 EXIF 미러·사용자 반전이 없을 때다. 머리 `# expects golden rotate:`에 그 값을 적는다.
  */
 object OcrBoxDumpTsv {
 
@@ -25,18 +26,23 @@ object OcrBoxDumpTsv {
      * @param rotationDegrees 사용자 회전(시계 방향)
      * @param crop 자르기 비율 l,t,r,b(0..1)
      * @param bitmapWidth/bitmapHeight ML Kit에 넣은 비트맵(자른 뒤) 크기
+     * @param exifOrientation EXIF Orientation 태그 값(1 = 정상). 측정 쪽 `rotate:` 대조용
+     * @param exifDegrees/exifMirrored 그 태그의 회전 각도 · 미러 성분(BitmapDecoding.exifDegrees/exifMirrored)
+     * @param sourceKnown 원본 크기를 읽었나. false면 비트맵 크기로 대신해 좌표가 원본과 어긋난다(NOT EXACT)
      */
     data class Input(
         val sourceWidth: Int, val sourceHeight: Int,
         val rotationDegrees: Float, val flipped: Boolean,
         val cropLeft: Float, val cropTop: Float, val cropRight: Float, val cropBottom: Float,
-        val bitmapWidth: Int, val bitmapHeight: Int
+        val bitmapWidth: Int, val bitmapHeight: Int,
+        val exifOrientation: Int = 1, val exifDegrees: Int = 0, val exifMirrored: Boolean = false,
+        val sourceKnown: Boolean = true
     )
 
     /** 비트맵 좌표 → 원본 좌표 변환(자르기 오프셋 [offsetX]/[offsetY]는 다운샘플 좌표, 배율 [scaleX]/[scaleY]). */
     data class Mapping(
         val offsetX: Int, val offsetY: Int, val scaleX: Double, val scaleY: Double,
-        /** 원본 좌표로 되돌릴 수 있나. 90° 배수가 아닌 회전·뒤집기면 false(좌표는 그래도 적지만 측정과 어긋난다). */
+        /** 원본 좌표로 되돌릴 수 있나. 90° 배수가 아닌 회전 · 반전 · EXIF 미러 · 원본 크기 모름이면 false(좌표는 적지만 측정과 어긋난다). */
         val exact: Boolean,
         val uprightWidth: Int, val uprightHeight: Int
     ) {
@@ -64,10 +70,13 @@ object OcrBoxDumpTsv {
             ox, oy,
             if (tw > 0) uw.toDouble() / tw else 1.0,
             if (th > 0) uh.toDouble() / th else 1.0,
-            exact = rightAngle && !i.flipped,
+            exact = rightAngle && !i.flipped && !i.exifMirrored && i.sourceKnown,
             uprightWidth = uw, uprightHeight = uh
         )
     }
+
+    /** 측정 쪽 정답 머리 `rotate:`가 이 값이어야 좌표가 맞는다(EXIF 각도 + 사용자 회전, 0..359). */
+    fun expectedGoldenRotate(i: Input): Int = ((i.exifDegrees + i.rotationDegrees.roundToInt()) % 360 + 360) % 360
 
     const val COLUMNS = "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext"
 
@@ -80,7 +89,9 @@ object OcrBoxDumpTsv {
         val sb = StringBuilder()
         sb.append("# source: $engine\n")
         sb.append("# created: $createdAt\n")
-        sb.append("# coords: upright source pixels ${m.uprightWidth}x${m.uprightHeight}${if (m.exact) "" else " (NOT EXACT: non-right-angle rotation or flip)"}\n")
+        sb.append("# coords: upright source pixels ${m.uprightWidth}x${m.uprightHeight}${if (m.exact) "" else " (NOT EXACT: non-right-angle rotation, flip, EXIF mirror or unknown source size)"}\n")
+        sb.append("# exif: orientation ${input.exifOrientation} (deg ${input.exifDegrees}, mirror ${input.exifMirrored})\n")
+        sb.append("# expects golden rotate: ${expectedGoldenRotate(input)}\n")
         sb.append("# input: source ${input.sourceWidth}x${input.sourceHeight} rotate ${fmt(input.rotationDegrees)} flip ${input.flipped} ")
         sb.append("crop ${fmt(input.cropLeft)},${fmt(input.cropTop)},${fmt(input.cropRight)},${fmt(input.cropBottom)} ")
         sb.append("bitmap ${input.bitmapWidth}x${input.bitmapHeight}\n")

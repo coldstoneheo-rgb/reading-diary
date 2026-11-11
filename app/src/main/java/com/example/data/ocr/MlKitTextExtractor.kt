@@ -28,7 +28,6 @@ class MlKitTextExtractor : TextExtractor {
             val blocks = suspendCancellableCoroutine<List<OcrBlock>> { cont ->
                 recognizer.process(image)
                     .addOnSuccessListener { text ->
-                        OcrBoxDump.record(text) // 디버그 빌드만 상자를 담아 둔다(릴리스 = 빈 스텁)
                         val mapped = text.textBlocks.map { block ->
                             val box = block.boundingBox
                             OcrBlock(
@@ -37,7 +36,11 @@ class MlKitTextExtractor : TextExtractor {
                                 left = box?.left ?: 0
                             )
                         }
-                        if (cont.isActive) cont.resume(mapped)
+                        if (cont.isActive) {
+                            // 디버그 빌드만 상자를 담아 둔다(릴리스 = 빈 스텁). 취소된 작업의 늦은 콜백은 담지 않는다.
+                            OcrBoxDump.record(text)
+                            cont.resume(mapped)
+                        }
                     }
                     .addOnFailureListener { e ->
                         if (cont.isActive) cont.resumeWith(Result.failure(e))

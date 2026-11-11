@@ -3,6 +3,7 @@ package com.example.debugtools
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
+import android.media.ExifInterface
 import android.net.Uri
 import android.util.Log
 import androidx.core.content.FileProvider
@@ -18,8 +19,9 @@ import java.util.Locale
 /**
  * 디버그 빌드 전용(src/debug) — 기준 자료 측정용 ML Kit 상자 덤프. 릴리스 변형은 src/release의 빈 스텁을 컴파일한다.
  *
+ * - **기본 꺼짐.** 설정 화면 디버그 카드에서 켤 때만 쓴다(켜짐 표시 = `ocr-dump/.enabled` 파일 — 설정값 저장소가 아니라 백업 제외 폴더).
  * - 저장: `noBackupFilesDir/ocr-dump/ocr-dump-NNN-<시각>.tsv` — 앱 전용 · 권한 0 · 자동 백업·기기 이전 제외.
- * - 꺼내기: 사용자가 설정 화면 «덤프 공유»를 누를 때만, TSV 사본을 `cacheDir/ocr-dump-share/`에 두고 기존
+ * - 꺼내기: 사용자가 «덤프 공유»를 누를 때만, TSV 사본을 `cacheDir/ocr-dump-share/`에 두고 기존
  *   FileProvider(`${applicationId}.fileprovider`, cache-path)로 공유 시트에 넘긴다. 사진은 넘기지 않는다(TSV만).
  * - 네트워크 호출 0. 인식 글을 로그에 남기지 않는다.
  *
@@ -29,6 +31,7 @@ object OcrBoxDump {
     private const val TAG = "OcrBoxDump"
     private const val DIR = "ocr-dump"
     private const val SHARE_DIR = "ocr-dump-share"
+    private const val ENABLED_MARK = ".enabled"
 
     @Volatile private var pending: List<OcrBoxDumpTsv.Block>? = null
 
@@ -52,7 +55,10 @@ object OcrBoxDump {
         }
     }
 
-    /** [record]된 결과가 있으면 TSV 1개를 쓰고 비운다. 없으면(다른 추출기·실패) 아무것도 하지 않는다. 실패는 삼킨다(디버그 도구가 인식을 막지 않게). */
+    /**
+     * 켜져 있고 [record]된 결과가 있으면 TSV 1개를 쓰고 비운다. 꺼졌거나 결과가 없으면(다른 추출기·실패) 아무것도 하지 않는다.
+     * 실패는 삼킨다(디버그 도구가 인식을 막지 않게).
+     */
     suspend fun finish(
         context: Context, imageUri: Uri, rotationDegrees: Float, flipped: Boolean,
         cropLeft: Float, cropTop: Float, cropRight: Float, cropBottom: Float,
@@ -62,8 +68,17 @@ object OcrBoxDump {
         pending = null
         withContext(Dispatchers.IO) {
             try {
-                val (sw, sh) = BitmapDecoding.orientedSize(context, imageUri) ?: (bitmapWidth to bitmapHeight)
-                val input = OcrBoxDumpTsv.Input(sw, sh, rotationDegrees, flipped, cropLeft, cropTop, cropRight, cropBottom, bitmapWidth, bitmapHeight)
+                if (!isEnabled(context)) return@withContext
+                val oriented = BitmapDecoding.orientedSize(context, imageUri)
+                val orientation = readOrientation(context, imageUri)
+                val input = OcrBoxDumpTsv.Input(
+                    oriented?.first ?: bitmapWidth, oriented?.second ?: bitmapHeight,
+                    rotationDegrees, flipped, cropLeft, cropTop, cropRight, cropBottom, bitmapWidth, bitmapHeight,
+                    exifOrientation = orientation,
+                    exifDegrees = BitmapDecoding.exifDegrees(orientation).toInt(),
+                    exifMirrored = BitmapDecoding.exifMirrored(orientation),
+                    sourceKnown = oriented != null
+                )
                 val now = Date()
                 val tsv = OcrBoxDumpTsv.format(blocks, input, SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.ROOT).format(now), "mlkit-text-recognition-korean")
                 val dir = dumpDir(context)
@@ -76,14 +91,34 @@ object OcrBoxDump {
         }
     }
 
+    private fun readOrientation(context: Context, uri: Uri): Int = try {
+        context.contentResolver.openInputStream(uri)?.use {
+            ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+        } ?: ExifInterface.ORIENTATION_NORMAL
+    } catch (e: Exception) {
+        ExifInterface.ORIENTATION_NORMAL
+    }
+
     fun dumpDir(context: Context): File = File(context.noBackupFilesDir, DIR).apply { mkdirs() }
+
+    fun isEnabled(context: Context): Boolean = File(dumpDir(context), ENABLED_MARK).exists()
+
+    fun setEnabled(context: Context, on: Boolean) {
+        val mark = File(dumpDir(context), ENABLED_MARK)
+        if (on) mark.createNewFile() else mark.delete()
+    }
 
     fun files(context: Context): List<File> =
         dumpDir(context).listFiles { f -> f.isFile && f.name.endsWith(".tsv") }?.sortedBy { it.name }.orEmpty()
 
-    fun deleteAll(context: Context): Int = files(context).count { it.delete() }
+    /** 덤프와 공유용 사본을 모두 지운다. 지운 덤프 수. */
+    fun deleteAll(context: Context): Int {
+        val n = files(context).count { it.delete() }
+        File(context.cacheDir, SHARE_DIR).deleteRecursively()
+        return n
+    }
 
-    /** 공유 시트 인텐트. 덤프가 0개면 null. 사본만 cacheDir에 두고 원본 폴더는 공유하지 않는다. */
+    /** 공유 시트 인텐트. 덤프가 0개면 null. 사본만 cacheDir에 두고 원본 폴더는 공유하지 않는다. 파일 오류는 호출자가 잡는다. */
     fun shareIntent(context: Context): Intent? {
         val src = files(context)
         if (src.isEmpty()) return null
