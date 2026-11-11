@@ -655,6 +655,7 @@ fun OcrDiaryScreen(
 
                         // 자르기 틀은 상자가 아니라 사진이 실제로 그려진 사각형 기준(CropGeometry). 크기를 모르면 상자 전체.
                         val orientedImageSize by produceState<Pair<Int, Int>?>(initialValue = null, activeImageUrl) {
+                            value = null // 사진이 바뀌면 새 크기를 읽기 전까지 이전 사진 비율로 그리지 않는다
                             value = activeImageUrl?.let { url ->
                                 withContext(Dispatchers.IO) { BitmapDecoding.orientedSize(context, Uri.parse(url)) }
                             }
