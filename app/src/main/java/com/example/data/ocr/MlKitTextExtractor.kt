@@ -2,6 +2,7 @@ package com.example.data.ocr
 
 import android.graphics.Bitmap
 import android.util.Log
+import com.example.debugtools.OcrBoxDump
 import com.google.mlkit.common.MlKitException
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -27,6 +28,7 @@ class MlKitTextExtractor : TextExtractor {
             val blocks = suspendCancellableCoroutine<List<OcrBlock>> { cont ->
                 recognizer.process(image)
                     .addOnSuccessListener { text ->
+                        OcrBoxDump.record(text) // 디버그 빌드만 상자를 담아 둔다(릴리스 = 빈 스텁)
                         val mapped = text.textBlocks.map { block ->
                             val box = block.boundingBox
                             OcrBlock(
