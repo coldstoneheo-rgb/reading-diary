@@ -45,5 +45,8 @@ class PolicyCopyTest {
     assertTrue(TERMS_SUMMARY.contains("자동 백업"))
     assertTrue(TERMS_SUMMARY.contains("ML Kit"))
     assertTrue(TERMS_SUMMARY.contains("진단"))
+    // P5: 사용자가 실행하는 백업 파일은 사진이 기기 밖(고른 위치)으로 나가는 경로다 — 약관·요약에서 빼지 않는다
+    assertTrue(TERMS_SUMMARY.contains("백업 파일 만들기"))
+    assertTrue(privacySummaryText(url = "").contains("백업 파일 만들기"))
   }
 }
