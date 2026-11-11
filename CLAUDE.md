@@ -18,6 +18,7 @@ app/src/main/java/com/example/
   data/ocr/MlKitTextExtractor.kt # 기본 엔진. ML Kit 한국어(언번들: Play 서비스가 첫 사용 시 모델 다운로드)
   data/ocr/OcrTextAssembler.kt  # 블록 top→left 정렬, 줄은 공백, 블록은 빈 줄 (순수 함수, JVM 테스트)
   data/ocr/BitmapDecoding.kt    # OCR 입력 다운샘플링(긴 변 2048) — 원본 12MP를 그대로 올리면 OOM
+  data/ocr/CropGeometry.kt      # 미리보기 자르기 틀 = 사진이 그려진 사각형 기준(상자 기준이면 세로 사진에서 줄 머리·끝이 잘림). 순수 함수
   data/photo/DiaryPhotoStore.kt # 일기 사진 보관(noBackupFilesDir/diary_photos/UUID.jpg, 긴 변 ≤2048 JPEG 85) + 촬영 임시 파일 정리. 화면·DB 연결은 P3·P4
   data/ocr/GeminiTextExtractor.kt # "정밀 분석" 어댑터. ReadingViewModel.processPreciseAnalysis에서만 사용(키 등록+사진 전송 동의+사진마다 확인)
   data/api/GeminiApiClient.kt   # 사용자 Gemini 키(SecureKeyManager)로 generativelanguage.googleapis.com 호출(x-goog-api-key 헤더).

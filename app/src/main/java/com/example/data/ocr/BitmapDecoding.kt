@@ -61,6 +61,32 @@ object BitmapDecoding {
         if (d != 0f) postRotate(d)
     }
 
+    /**
+     * 픽셀을 읽지 않고(경계만) EXIF 회전을 반영한 원본 크기(가로, 세로). [decodeDownsampled]와 같은 좌표계라
+     * 미리보기 자르기 틀을 실제 잘리는 영역에 맞추는 데 쓴다([CropGeometry]). 실패하면 null.
+     */
+    fun orientedSize(context: Context, uri: Uri): Pair<Int, Int>? = try {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+            null
+        } else {
+            val d = exifDegrees(readOrientation(context, uri))
+            if (d == 90f || d == 270f) bounds.outHeight to bounds.outWidth else bounds.outWidth to bounds.outHeight
+        }
+    } catch (e: Exception) {
+        null
+    }
+
+    /** EXIF Orientation 태그. 미리보기 틀([orientedSize])과 OCR 디코드([decodeDownsampled])가 같은 해석을 쓰도록 한 곳에 둔다. */
+    private fun readOrientation(context: Context, uri: Uri): Int = try {
+        context.contentResolver.openInputStream(uri)?.use {
+            ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+        } ?: ExifInterface.ORIENTATION_NORMAL
+    } catch (e: Exception) {
+        ExifInterface.ORIENTATION_NORMAL
+    }
+
     /** 반환 null = 디코드 실패(파일 없음·손상·메모리 부족). 호출자는 이를 오류로 처리하고 대체 이미지를 쓰지 않는다. */
     fun decodeDownsampled(context: Context, uri: Uri, maxSide: Int = MAX_SIDE): Bitmap? = try {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -76,14 +102,7 @@ object BitmapDecoding {
             if (decoded == null) {
                 null
             } else {
-                val orientation = try {
-                    context.contentResolver.openInputStream(uri)?.use {
-                        ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
-                    } ?: ExifInterface.ORIENTATION_NORMAL
-                } catch (e: Exception) {
-                    ExifInterface.ORIENTATION_NORMAL
-                }
-                val exif = exifMatrix(orientation)
+                val exif = exifMatrix(readOrientation(context, uri))
                 if (exif.isIdentity) {
                     decoded
                 } else {

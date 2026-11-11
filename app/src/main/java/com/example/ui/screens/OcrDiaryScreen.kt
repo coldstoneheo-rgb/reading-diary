@@ -53,6 +53,8 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.data.Book
+import com.example.data.ocr.BitmapDecoding
+import com.example.data.ocr.CropGeometry
 import com.example.data.photo.CameraTempFiles
 import com.example.data.photo.RecallPhoto
 import com.example.ui.viewmodel.OcrState
@@ -651,19 +653,40 @@ fun OcrDiaryScreen(
                             )
                         }
 
+                        // 자르기 틀은 상자가 아니라 사진이 실제로 그려진 사각형 기준(CropGeometry). 크기를 모르면 상자 전체.
+                        val orientedImageSize by produceState<Pair<Int, Int>?>(initialValue = null, activeImageUrl) {
+                            value = null // 사진이 바뀌면 새 크기를 읽기 전까지 이전 사진 비율로 그리지 않는다
+                            value = activeImageUrl?.let { url ->
+                                withContext(Dispatchers.IO) { BitmapDecoding.orientedSize(context, Uri.parse(url)) }
+                            }
+                        }
                         // Process Image View beautifully displaying vertical pages at full fit height
-                        Box(
+                        BoxWithConstraints(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(320.dp)
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(Color.Black)
                         ) {
+                            // 사진 배치와 틀을 dp로 한 번만 계산한다(그림·틀이 같은 값을 쓴다).
+                            val overlay = CropGeometry.overlay(
+                                maxWidth.value, maxHeight.value, orientedImageSize, imageRotation,
+                                cropLeft, cropTop, cropRight, cropBottom
+                            )
+                            val shownImage = overlay.image
                             AsyncImage(
                                 model = activeImageUrl,
                                 contentDescription = "Active target image",
-                                modifier = Modifier
-                                    .fillMaxSize()
+                                modifier = (if (orientedImageSize == null) Modifier.fillMaxSize() else {
+                                    // 회전 전 크기로 잡고 돌려서, 돌린 뒤 모양이 shownImage와 정확히 겹치게 한다.
+                                    val quarter = CropGeometry.isQuarterTurn(imageRotation)
+                                    Modifier
+                                        .align(Alignment.Center)
+                                        .requiredSize(
+                                            width = (if (quarter) shownImage.height else shownImage.width).dp,
+                                            height = (if (quarter) shownImage.width else shownImage.height).dp
+                                        )
+                                })
                                     .rotate(imageRotation)
                                     .graphicsLayer(
                                         scaleX = if (isFlipped) -1f else 1f,
@@ -675,10 +698,10 @@ fun OcrDiaryScreen(
 
                             // Drawn crop overlay indicator or instructions with dimmed boundaries and corner handles
                             Canvas(modifier = Modifier.fillMaxSize()) {
-                                val leftPx = cropLeft * size.width
-                                val topPx = cropTop * size.height
-                                val rightPx = cropRight * size.width
-                                val bottomPx = cropBottom * size.height
+                                val leftPx = overlay.crop.left.dp.toPx()
+                                val topPx = overlay.crop.top.dp.toPx()
+                                val rightPx = overlay.crop.right.dp.toPx()
+                                val bottomPx = overlay.crop.bottom.dp.toPx()
 
                                 val stroke = Stroke(
                                     width = 2.dp.toPx(),
