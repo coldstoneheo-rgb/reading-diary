@@ -33,7 +33,7 @@
 
 - main **`9e58138`**(#52 `21771cc` · #53). 메인 체크아웃 = main, 미추적 = 이 REPORT 1개.
 - **PR #54**(`feat/underline-spike-golden`, 워크트리 `.claude/worktrees/underline-spike`, head `42ec678`) — **critic 6/10 NEEDS_REVISION**, [GATE-REQ] 안 보냄.
-  - 🔴 **이력 노출(사용자 결정):** #54의 이전 커밋 이력에 책 이름이 든 id · 쪽 표기 · 본문 조각 1개가 남아 있다(최종 diff는 0). 길: (가) 깨끗한 단일 커밋으로 force-push — 발주서 멈출 곳 (f) 금지라 사용자 결정 (나) #54 닫고 새 가지·새 PR — 닫힌 PR의 `refs/pull/54/head`로 옛 커밋은 계속 보이므로 완전 삭제는 GitHub 지원 요청(사용자). 에이전트 실행 0.
+  - 🔴 **이력 노출(사용자 결정):** #54의 이전 커밋 이력에 책 이름이 든 id · 쪽 표기 · 본문 조각 1개가 남아 있다(최종 diff는 0). 길: (가) 깨끗한 단일 커밋으로 force-push — 발주서 멈출 곳 (f) 금지라 사용자 결정 (나) #54 닫고 새 가지·새 PR — 닫힌 PR의 `refs/pull/54/head`로 옛 커밋은 계속 보이므로 완전 삭제는 GitHub 지원 요청(사용자). 에이전트 실행 0. → **2026-11-12 닫힘: «고쳐서 앞으로»**(이력은 그대로 · head에서 지움 · 사용자 보고 1줄).
   - 수정 목록(새 창): ① `highlightedWords` 경계 자르기 + `height` 인자 + 가장자리 상자 테스트 ② `band_stopsAboveTheNextLine`이 nextTop 분기를 실제로 타게(줄 2를 바짝 붙이거나 `bandMaxRatio` 키움) + 주석 숫자 ③ Δ_text 하한(예: 40 미만 줄 건너뜀) ④ 다음 줄을 x 범위가 겹치는 줄로 ⑤ 측정 상세(본문 어절·OCR 줄 글)를 `_results/details.md`로 분리하고 «PR에는 표만» 명시 ⑥ RESEARCH 문서 ⓑⓒ를 별도 docs PR로 나누거나 함께 두는 이유 ⑦ 전체 `testDebugUnitTest` 1줄 + «UI 변경 0이라 Roborazzi 대상 없음» ⑧ 로컬 경로·기종 자리표시자 ⑨ 붉은 인쇄 테스트 이름에 «덮인 비율로 통과» 한계 ⑩ 측정 편향(줄 상자에 여백 메모가 합쳐져 어절 범위가 밀림 · 같은 어절 두 번 · greedy 매칭 · `#`/`[`로 시작하는 본문 줄) 주석 또는 수정.
 - 레포 밖: `<기준 자료 폴더>\` g01~g11(정답 초안 · Tesseract 상자 · 엔진 출력 · `ID-MAP.txt` · `_results/measure.md`) · `<오버레이 폴더>\` 오버레이 11장.
 

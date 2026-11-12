@@ -95,7 +95,7 @@ LC 게이트 실측: «나만의 서재» `app/src/main` 0 · «일체» 0 · �
 
 ## LC·사용자에게 필요한 것
 
-- 사용자 (a) #28 검증 — Claude Code 입력창에서 `!` 모드 1줄(Git Bash 터미널에 직접 붙일 때는 앞의 `! `를 뺀다 — bash에서 `!`는 결과를 뒤집어 gradle이 실행되지 않는다): `! cd /c/Users/colds/reading-diary/.claude/worktrees/samples && ANDROID_HOME='C:\Users\colds\AppData\Local\Android\Sdk' /c/Users/colds/.gradle/wrapper/dists/gradle-9.4.1-bin/arn2x92ynaizyzdaamcbpbhtj/gradle-9.4.1/bin/gradle :app:verifyRoborazziDebug` → 0 fail이면 critic 재채점 → LC 게이트 → 머지
+- 사용자 (a) #28 검증 — Claude Code 입력창에서 `!` 모드 1줄(Git Bash 터미널에 직접 붙일 때는 앞의 `! `를 뺀다 — bash에서 `!`는 결과를 뒤집어 gradle이 실행되지 않는다): `! cd <레포>/.claude/worktrees/samples && ANDROID_HOME='<Android SDK 경로>' ~/.gradle/wrapper/dists/gradle-9.4.1-bin/arn2x92ynaizyzdaamcbpbhtj/gradle-9.4.1/bin/gradle :app:verifyRoborazziDebug` → 0 fail이면 critic 재채점 → LC 게이트 → 머지
 
 - 사용자: `debug.keystore`가 있는 체크아웃에서 `gradle :app:assembleDebug` 1회 + 패키지명 `com.woodpeckerai.readingdiary` 확인, 신규 설치 실기기 확인(책 0 → 예시 2권 → 기억 서랍 연결). 기존 `com.example` 앱은 지우지 말 것(기록이 이어지지 않음).
 - 사용자 손 U1~U8(INTERNAL-TEST-2026-11) · 스토어 부제 [ASK].
