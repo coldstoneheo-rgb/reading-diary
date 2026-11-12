@@ -9,28 +9,28 @@ LC 수용(03:1x): 덤프 꺼내는 길 = 디버그 전용 «덤프 공유»(공�
 
 - [x] 1. #54 → main **`16789183`** (head `661edb4`). 1차 수정 10건 + 2차 후속 4건 = `333817f` · 덤프 머리 읽기(dumpRotate/dumpSize) = `661edb4`. critic 2차 8/10 PASS · 전체 56클래스 382건 실패 0 · head 2클래스 18건 실패 0 · LC 게이트 PASS-관찰 → 머지 · 원격 DELETE · 워크트리 제거 · 로컬 -D
 - [x] 2. 덤프 PR **#55** → main **`f796e1e`** (head `a114e40`). critic 1차 7/10 PASS → 반영(a94201e · a114e40) → 2차 8/10 PASS · 테스트 23건(1차 실패 1 = Windows FileProvider → 셰도) · compileReleaseKotlin · 스크린샷 21건 · LC PASS-관찰 → 머지 · 원격 DELETE · 워크트리 제거 · 로컬 -D
-- [x] 3. APK = `D:\사진\reading-diary\reading-diary-debug-20261112-59e2677.apk`(21,669,894 B, main `59e2677` = #54·#55·#56, assembleDebug 05:15~05:20). BuildConfig 실측(값 출력 0): `KAKAO_REST_API_KEY` 길이 32 · `ENV_KAKAO_REST_API_KEY` 0 · NAVER·GEMINI 필드 없음 · 셸 NAVER/KAKAO 환경변수 미설정. #57은 테스트 소스만이라 APK 무관(LC 판정). 사용자 손 한 벌 = 아래 4단계 약 15분
+- [x] 3. APK = `<작업 폴더>\reading-diary-debug-20261112-59e2677.apk`(21,669,894 B, main `59e2677` = #54·#55·#56, assembleDebug 05:15~05:20). BuildConfig 실측(값 출력 0): `KAKAO_REST_API_KEY` 길이 32 · `ENV_KAKAO_REST_API_KEY` 0 · NAVER·GEMINI 필드 없음 · 셸 NAVER/KAKAO 환경변수 미설정. #57은 테스트 소스만이라 APK 무관(LC 판정). 사용자 손 한 벌 = 아래 4단계 약 15분
 - [x] 4. 측정 명령 1줄 = 아래 «측정 명령». 덤프가 이 창에 들어오지 않음(새벽 무인) → 11장 재측정은 아침 덤프 뒤
 - [x] 5. 새 사진에서 틀·회전 초기화 **#56** → main **`59e2677`** (head `b7053bd`, main merge 2회 포함). critic 8/10 PASS · OcrNewPhotoResetTest 1 · OcrDiaryPhotoScreenTest 10 · 스크린샷 21건 verify · main 합친 뒤 22건(#54 2클래스 포함) 실패 0 · LC PASS-관찰 → 머지 · 정리
 - [x] 4+. (LC 보강) **#57** → main **`544a5f9`** (head `d4807b6`). critic 1차 5/10 → 실측 재설계 → 2차 6/10(실행 증거만) → 3차 7/10 PASS · DumpGuardTest 5 · GoldenSetTest 8 · 11장 회귀 diff 0 · LC PASS-관찰 → 머지 · 정리
-- [x] 6. 미확정 글자 5개 위치 — `D:\사진\reading-diary\golden\g04.golden.txt` 37번째 줄 2개 · 38번째 줄 1개, `g10.golden.txt` 33번째 줄 2개(모두 `[memo]` 절, 메모장 Ctrl+G로 줄 이동 → `{?}`를 사진 보고 고침). 각 파일 3번째 줄의 `{?}`는 설명 주석이라 세지 않음
+- [x] 6. 미확정 글자 5개 위치 — `<기준 자료 폴더>\g04.golden.txt` 37번째 줄 2개 · 38번째 줄 1개, `g10.golden.txt` 33번째 줄 2개(모두 `[memo]` 절, 메모장 Ctrl+G로 줄 이동 → `{?}`를 사진 보고 고침). 각 파일 3번째 줄의 `{?}`는 설명 주석이라 세지 않음
 - [x] 7. REPORT(이 파일)
 
 ## 아침 사용자 손 한 벌 · 4단계 · 약 15분
 
-APK = `D:\사진\reading-diary\reading-diary-debug-20261112-59e2677.apk`(main `59e2677`).
+APK = `<작업 폴더>\reading-diary-debug-20261112-59e2677.apk`(main `59e2677`).
 
 1. **덮어 설치(약 3분)** — APK를 폰으로 옮겨(USB 복사 또는 드라이브) 설치. 서명이 같아 기존 기록이 유지된다. «업데이트할 수 없음/충돌»이 뜨면 **앱을 지우지 말고 멈춘다**(지우면 기록이 사라짐).
 2. **기준 사진 1번 쪽 재촬영·틀 확인(약 3분)** — 책 한 권 기록 → «사진 촬영» → 틀이 사진 전체로 열리는지 → 자르기 확정 → 인식 → 화면 2장 캡처(틀 화면 · 결과 화면). 이어서 «사진 선택»으로 다른 사진을 고르면 회전·반전·틀이 처음 상태로 돌아오는지 한 번 본다.
 3. **상자 덤프 11장(약 7분)** — 설정 → 맨 아래 «개발용 · 글자 상자 덤프» → «모두 지우기» → 스위치 켜기. 기록 화면에서 기준 사진 **1번부터 11번까지 순서대로** «사진 선택» → (회전·반전 누르지 않음) → 자르기 확정(기본 = 전체) → 인식(장당 약 30초). 1번 원본이 폰에 없으면 PC의 사본을 폰으로 먼저 복사.
-4. **덤프 옮기기(약 2분)** — 설정 → «덤프 공유»(11개) → 퀵 셰어/드라이브 등으로 PC → `D:\사진\reading-diary\golden\boxes\mlkit-20261112\`에 이름 그대로 둔다. 끝나면 스위치 끄기 → **«모두 지우기»**(공유 사본에도 인식된 본문이 남으므로). 짝짓기 규칙: 이름을 바꾸지 않는다 — 측정이 글자 겹침으로 기준 사진과 자동으로 짝짓는다(같은 사진을 다시 인식했으면 나중 덤프를 쓴다).
+4. **덤프 옮기기(약 2분)** — 설정 → «덤프 공유»(11개) → 퀵 셰어/드라이브 등으로 PC → `<기준 자료 폴더>\boxes\mlkit-20261112\`에 이름 그대로 둔다. 끝나면 스위치 끄기 → **«모두 지우기»**(공유 사본에도 인식된 본문이 남으므로). 짝짓기 규칙: 이름을 바꾸지 않는다 — 측정이 글자 겹침으로 기준 사진과 자동으로 짝짓는다(같은 사진을 다시 인식했으면 나중 덤프를 쓴다).
 
 ## 측정 명령(덤프가 들어오면 — 워커가 실행)
 
 사전 대조(03:5x): 정답 머리 `rotate:` = 9장 90 · 2장(5번 · 9번) 0. 레포 밖 사진 사본에서는 EXIF를 읽지 못함(사본에 태그 없음 추정) → 덤프 머리 `# expects golden rotate:`·세운 크기로 장마다 확인한다.
 #57 머지 뒤: 이름 바꾸기 · NOT EXACT 수작업 거르기 **없음** — 측정이 덤프를 글 포함률로 g01~g11에 자동으로 짝짓고, NOT EXACT · 크기 불일치 · 글 일치 < 40% · 방향 의심/판정 불가 · 짝 없음을 «⚠» 행(사유 포함)으로만 낸다. 합산 때 «⚠» 행은 빼고 뺀 장 수를 적는다. (#57 머지 전이면 `ocr-dump-0NN` → `gNN.tsv` 수동 짝 + `NOT EXACT` grep.)
 측정 1줄(`JAVA_HOME`=Android Studio JBR, main에서):
-   `ANDROID_HOME='<Android SDK 경로>' RD_GOLDEN_DIR='D:\사진\reading-diary\golden' RD_SPIKE_OUT='D:\사진\reading-diary\spike' gradle :app:testDebugUnitTest --tests com.example.golden.GoldenMeasureTest --rerun --no-daemon --offline --max-workers=1 -Dorg.gradle.jvmargs=-Xmx2g`
+   `ANDROID_HOME='<Android SDK 경로>' RD_GOLDEN_DIR='<기준 자료 폴더>' RD_SPIKE_OUT='<오버레이 폴더>' gradle :app:testDebugUnitTest --tests com.example.golden.GoldenMeasureTest --rerun --no-daemon --offline --max-workers=1 -Dorg.gradle.jvmargs=-Xmx2g`
    → 표의 g01~g11 행(수치 행 + «⚠» 행)이 11개인지 센다 — 모자라면 그 장은 덤프가 없거나 짝을 못 지은 것(«⚠짝 없음» 행 확인).
    → `golden\_results\measure.md` 스파이크 표에 상자 출처 `mlkit-20261112` 행이 `tesseract-5.3.1-kor` 행과 나란히 생긴다(줄 대응 수 · 정밀도 · 재현율).
 
@@ -72,7 +72,7 @@ APK = `D:\사진\reading-diary\reading-diary-debug-20261112-59e2677.apk`(main `5
 - main **`544a5f9`** = #54 `1678918` · #55 `f796e1e` · #56 `59e2677` · #57 `544a5f9`. 원격 가지 = main 1개. 워크트리 = 메인 1개. 메인 체크아웃 미추적 = REPORT 2개.
 - critic 기록: #54 1차 6/10 → 2차 8/10 · #55 1차 7/10 → 2차 8/10 · #56 8/10 · #57 1차 5/10 → 2차 6/10 → **3차 7/10 PASS**(PR 본문엔 2차까지 — 여기가 정본).
 - 아침 사용자 손: 위 4단계(약 15분) + 미확정 글자 5개(완료 조건 6 줄) + #54 이력 메모(큐 7, 보고만).
-- 아침 워커 손: 덤프가 `goldenoxes\mlkit-20261112\`에 들어오면(경로 = `D:\사진\reading-diary\golden\boxes\mlkit-20261112\`) 측정 1줄 → 11행 세기 → Tesseract 행과 나란히(줄 대응 수 · 정밀도 · 재현율) → SPIKE 문서 §1에 mlkit 행.
+- 아침 워커 손: 덤프가 `<기준 자료 폴더>\boxes\mlkit-20261112\`에 들어오면 측정 1줄 → 11행 세기 → Tesseract 행과 나란히(줄 대응 수 · 정밀도 · 재현율) → SPIKE 문서 §1에 mlkit 행.
 
 ## 효과 수준(effort)
 

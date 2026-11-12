@@ -11,7 +11,7 @@
 - [x] 4. 기준 사진 1번 정답 초안 — golden 폴더 `g01.golden.txt`(+ 사진 사본 · Tesseract 상자 · Tesseract 본문 출력)
 - [x] 5. 측정 진입점 `GoldenMeasureTest`(`RD_GOLDEN_DIR`) — 빈 폴더 «자료 0장» 테스트 포함, 11장 실측 통과
 - [x] 6. 스파이크 `UnderlineDetector.kt` — 합성 13건 실패 0 · 11장 실측(상자 = Tesseract): 정밀도 96.1% · 재현율 46.3% · 상자 줄이 대응된 줄만 73.4% · 비침·장식 오검출 0 → **PR #54**
-- [x] 7. 판정 재료 1쪽 = `docs/quality/SPIKE-UNDERLINE-2026-11.md`(수치 · 실패 유형 · 원인 분리 · D 전제 허용 의견 · ML Kit 덤프 길 · 제품화 PR 4개) · 캡처 `D:\사진\reading-diary\spike\g01~g11.*.overlay.png`
+- [x] 7. 판정 재료 1쪽 = `docs/quality/SPIKE-UNDERLINE-2026-11.md`(수치 · 실패 유형 · 원인 분리 · D 전제 허용 의견 · ML Kit 덤프 길 · 제품화 PR 4개) · 캡처 `<오버레이 폴더>\g01~g11.*.overlay.png`
 - [ ] 8. 확인용 APK — LC 결정: ML Kit 상자 덤프 PR(14) 머지 뒤 1번만 빌드 → **새 창 몫**(15)
 - [x] 10. 새 사진 10장 정답 초안 — 서브에이전트 2개가 사진을 직접 읽어 작성(golden `g02~g11`, 같은 책 한 권, 연필 밑줄만 · 형광펜 0). 미확정 글자 {?} 5개(4번 3 · 10번 2). 11장 형식 검사 OK. id 대응표는 레포 밖 `golden/ID-MAP.txt`
 - [x] 11. 11장 측정 — 사진별 표 · 실패 유형별 개수는 SPIKE 문서 §1
@@ -33,16 +33,16 @@
 
 - main **`9e58138`**(#52 `21771cc` · #53). 메인 체크아웃 = main, 미추적 = 이 REPORT 1개.
 - **PR #54**(`feat/underline-spike-golden`, 워크트리 `.claude/worktrees/underline-spike`, head `42ec678`) — **critic 6/10 NEEDS_REVISION**, [GATE-REQ] 안 보냄.
-  - 🔴 **이력 노출(사용자 결정):** 이미 push된 앞 커밋(첫 push `2214739`의 조상 `07f436e` · `3de3ea6` 등)에 책 이름이 든 id · 쪽 표기 · 본문 조각 1개가 있다(`git log -p origin/main..origin/feat/underline-spike-golden` grep으로 확인, 최종 diff는 0). 길: (가) 깨끗한 단일 커밋으로 force-push — 발주서 멈출 곳 (f) 금지라 사용자 결정 (나) #54 닫고 새 가지·새 PR — 닫힌 PR의 `refs/pull/54/head`로 옛 커밋은 계속 보이므로 완전 삭제는 GitHub 지원 요청(사용자). 에이전트 실행 0.
+  - 🔴 **이력 노출(사용자 결정):** #54의 이전 커밋 이력에 책 이름이 든 id · 쪽 표기 · 본문 조각 1개가 남아 있다(최종 diff는 0). 길: (가) 깨끗한 단일 커밋으로 force-push — 발주서 멈출 곳 (f) 금지라 사용자 결정 (나) #54 닫고 새 가지·새 PR — 닫힌 PR의 `refs/pull/54/head`로 옛 커밋은 계속 보이므로 완전 삭제는 GitHub 지원 요청(사용자). 에이전트 실행 0.
   - 수정 목록(새 창): ① `highlightedWords` 경계 자르기 + `height` 인자 + 가장자리 상자 테스트 ② `band_stopsAboveTheNextLine`이 nextTop 분기를 실제로 타게(줄 2를 바짝 붙이거나 `bandMaxRatio` 키움) + 주석 숫자 ③ Δ_text 하한(예: 40 미만 줄 건너뜀) ④ 다음 줄을 x 범위가 겹치는 줄로 ⑤ 측정 상세(본문 어절·OCR 줄 글)를 `_results/details.md`로 분리하고 «PR에는 표만» 명시 ⑥ RESEARCH 문서 ⓑⓒ를 별도 docs PR로 나누거나 함께 두는 이유 ⑦ 전체 `testDebugUnitTest` 1줄 + «UI 변경 0이라 Roborazzi 대상 없음» ⑧ 로컬 경로·기종 자리표시자 ⑨ 붉은 인쇄 테스트 이름에 «덮인 비율로 통과» 한계 ⑩ 측정 편향(줄 상자에 여백 메모가 합쳐져 어절 범위가 밀림 · 같은 어절 두 번 · greedy 매칭 · `#`/`[`로 시작하는 본문 줄) 주석 또는 수정.
-- 레포 밖: `D:\사진\reading-diary\golden\` g01~g11(정답 초안 · Tesseract 상자 · 엔진 출력 · `ID-MAP.txt` · `_results/measure.md`) · `D:\사진\reading-diary\spike\` 오버레이 11장.
+- 레포 밖: `<기준 자료 폴더>\` g01~g11(정답 초안 · Tesseract 상자 · 엔진 출력 · `ID-MAP.txt` · `_results/measure.md`) · `<오버레이 폴더>\` 오버레이 11장.
 
 ### 새 창에 넘김(14 · 15 · 16)
 
 - **14 덤프 PR:** 설계 = SPIKE 문서 §1-1. LC 조건: 디버그 전용(릴리스 변형 컴파일 또는 소스셋 분리로 증명) · 줄·어절 상자 + 인식 글 TSV(Tesseract 열, 머리에 OCR 입력 비트맵 크기·자르기·회전) · 앱 전용 저장소 · **adb 없이 꺼내는 길을 기본**(디버그 전용 «덤프 공유» → 공유 시트) · 네트워크 0 · 처리방침·데이터 안전 폼 무관 1줄 · critic → [GATE-REQ]. 그래들 전 [ASK].
-- **15 APK:** 14 머지 뒤 **메인 체크아웃**에서 `assembleDebug`(키스토어·`.env`는 메인에만 — 워크트리로 복사하는 `cp`는 이 세션 deny) → `D:\사진\reading-diary\`에 날짜·SHA 이름으로. 카카오 키 실측 = `app/build/generated/source/buildConfig/debug/com/example/BuildConfig.java`의 `KAKAO_REST_API_KEY` **길이만**(11-05 빌드 = 32 · `ENV_KAKAO_REST_API_KEY` = 0). 사용자 손 한 벌(약 15분): ① 덮어 설치(서명 같음 — 거부되면 앱을 지우지 말고 멈춤) ② 기준 사진 1번 쪽 재촬영 → 틀이 사진 전체로 열리는지 → 인식 → 화면 2장 캡처 ③ 기준 사진 11장 각각 갤러리에서 고름 → 자르기 확정(기본 전체) → 인식(장당 약 30초) ④ «덤프 공유» → PC `D:\사진\reading-diary\golden\boxes\mlkit-<날짜>\`.
+- **15 APK:** 14 머지 뒤 **메인 체크아웃**에서 `assembleDebug`(키스토어·`.env`는 메인에만 — 워크트리로 복사하는 `cp`는 이 세션 deny) → `<작업 폴더>\`에 날짜·SHA 이름으로. 카카오 키 실측 = `app/build/generated/source/buildConfig/debug/com/example/BuildConfig.java`의 `KAKAO_REST_API_KEY` **길이만**(11-05 빌드 = 32 · `ENV_KAKAO_REST_API_KEY` = 0). 사용자 손 한 벌(약 15분): ① 덮어 설치(서명 같음 — 거부되면 앱을 지우지 말고 멈춤) ② 기준 사진 1번 쪽 재촬영 → 틀이 사진 전체로 열리는지 → 인식 → 화면 2장 캡처 ③ 기준 사진 11장 각각 갤러리에서 고름 → 자르기 확정(기본 전체) → 인식(장당 약 30초) ④ «덤프 공유» → PC `<기준 자료 폴더>\boxes\mlkit-<날짜>\`.
 - **16 측정 1줄**(덤프 파일 이름을 `g01.tsv`~`g11.tsv`로 맞춘 뒤, #54가 들어간 워크트리에서; 셸에 `JAVA_HOME`=Android Studio JBR):
-  `ANDROID_HOME='<Android SDK 경로>' RD_GOLDEN_DIR='D:\사진\reading-diary\golden' RD_SPIKE_OUT='D:\사진\reading-diary\spike' gradle :app:testDebugUnitTest --tests com.example.golden.GoldenMeasureTest --rerun --no-daemon --offline --max-workers=1 -Dorg.gradle.jvmargs=-Xmx2g`
+  `ANDROID_HOME='<Android SDK 경로>' RD_GOLDEN_DIR='<기준 자료 폴더>' RD_SPIKE_OUT='<오버레이 폴더>' gradle :app:testDebugUnitTest --tests com.example.golden.GoldenMeasureTest --rerun --no-daemon --offline --max-workers=1 -Dorg.gradle.jvmargs=-Xmx2g`
   → `golden\_results\measure.md`에 상자 출처 `mlkit-…` 행이 더해진다.
 
 ### 후속 큐(막지 않음)
