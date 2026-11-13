@@ -8,6 +8,8 @@ package com.example.data.ocr
  * 그런 열이 글자 1.2개 폭 이상 이어지면 밑줄 구간으로 본다. 문턱은 같은 줄 글자 획의 어둡기(Δ_text)에 대한 비율이라
  * 사진마다 밝기가 달라도 같은 값을 쓴다. 뒷장 비침은 연필·볼펜 밑줄보다 옅어 이 비율에서 걸러진다(기준 사진 1번 실측 0건).
  * 글자(다음 줄 글자 윗부분 등)는 세로로 두꺼워 «가는 획» 조건에서 빠진다.
+ * 기운 줄은 호출하는 쪽이 줄마다 [lineSlope](어절 상자 아래 끝의 직선 맞춤)를 넘겨 띠를 기울여 읽는다 — 기본 띠 값(K1a)은
+ * 기울기를 넘긴다는 전제로 고른 값이다.
  *
  * C(형광펜): 어절 상자 안에서 채도가 높고 밝은 픽셀의 비율.
  */
@@ -21,8 +23,12 @@ object UnderlineDetector {
 
     /** 문턱은 모두 그 줄의 글자 높이(H) 또는 글자 획 어둡기(Δ_text)에 대한 비율. */
     data class Params(
-        /** 띠의 열이 «어둡다» = (종이 − 그 열 최솟값) ≥ darkRatio × Δ_text. */
-        val darkRatio: Double = 0.3,
+        /**
+         * 띠의 열이 «어둡다» = (종이 − 그 열 최솟값) ≥ darkRatio × Δ_text.
+         * 0.28 = 기준 사진 11장 재측정(2026-11-14)에서 «정밀도 ≥ 95% · 비침 오검출 ≤ 2 · 본문 밖 오검출 구간 ≤ 10»을 지키는
+         * 가장 낮은 단계(0.27은 본문 밖 14).
+         */
+        val darkRatio: Double = 0.28,
         /** 띠 안에서 어두운 행이 이보다 많으면(× H) 글자 획으로 보고 버린다. */
         val maxThicknessRatio: Double = 0.25,
         /** 어두운 열 사이 이만큼(× H)까지의 빈틈은 이어 붙인다(흐린 연필·물결선). */
@@ -40,10 +46,17 @@ object UnderlineDetector {
          * 글자가 없는 빈 상자·잡티 상자에서 Δ_text가 1 근처가 되면 종이 결까지 «어둡다»가 되어 오검출이 나기 때문.
          */
         val minDeltaText: Int = 40,
-        /** 띠 시작 = 줄 아래 + 이 비율 × H. null이면 [bandStartRatio](음수 = 줄 상자 아래 끝보다 위에서 시작). */
-        val bandTopRatio: Double? = null,
-        /** 띠 끝 = 다음 줄 위 − 이 비율 × H. null이면 [bandStartRatio](음수 = 다음 줄 위 끝을 조금 넘어간다). */
-        val nextLinePadRatio: Double? = null
+        /**
+         * 띠 시작 = 줄 아래 + 이 비율 × H. null이면 [bandStartRatio](음수 = 줄 상자 아래 끝보다 위에서 시작).
+         * 기본 −0.02 = 기기 ML Kit 줄 상자 아래 끝이 글자 잉크 아래 끝보다 아래에 있어서(같은 장 실측 — K1a, SPIKE §1-0-1).
+         */
+        val bandTopRatio: Double? = -0.02,
+        /**
+         * 띠 끝 = 다음 줄 위 − 이 비율 × H. null이면 [bandStartRatio](음수 = 다음 줄 위 끝을 조금 넘어간다).
+         * 기본 −0.025 = 기기 ML Kit 줄 상자 위 끝이 잉크보다 위에 있어서(K1a). 기울기([detect]의 slopes)와 함께 쓴다 —
+         * 기울기 없이 띠만 넓히면 기운 줄에서 다음 줄 윗획을 밑줄로 잡는다(11장 정밀도 90%).
+         */
+        val nextLinePadRatio: Double? = -0.025
     )
 
     /** [lineIndex]번 줄 아래에서 찾은 밑줄 구간(가로 픽셀 [left, right)). */

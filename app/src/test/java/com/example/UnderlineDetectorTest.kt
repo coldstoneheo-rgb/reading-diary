@@ -14,6 +14,9 @@ class UnderlineDetectorTest {
   private val h = 320
   private val paper = 200
 
+  /** 보정 전 띠·문턱(0.08H 여유 · 0.3Δ) — 띠 경계 규칙 자체를 고정하는 테스트용. 기본값은 K1a(아래 bandEdges 테스트). */
+  private val legacy = UnderlineDetector.Params(darkRatio = 0.3, bandTopRatio = null, nextLinePadRatio = null)
+
   private fun canvas() = IntArray(w * h) { paper }
 
   private fun fill(img: IntArray, b: Box, v: Int) {
@@ -79,9 +82,9 @@ class UnderlineDetectorTest {
     (line1Words + tightLine2Words).forEach { glyphWord(img, it) }
     fill(img, Box(50, 107, 390, 109), 40)
     val tightLine2 = Box(50, 110, 390, 150)
-    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, tightLine2)).none { it.lineIndex == 0 })
+    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, tightLine2), legacy).none { it.lineIndex == 0 })
     // 대조: 다음 줄을 주지 않으면 띠가 줄 아래 + 1.0H(=120)까지 열려 무언가(이 선 · 줄 2 윗획)가 잡힌다 — 위 결과가 nextTop 분기 덕임을 보인다.
-    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1)).any { it.lineIndex == 0 })
+    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1), legacy).any { it.lineIndex == 0 })
   }
 
   @Test
@@ -90,9 +93,11 @@ class UnderlineDetectorTest {
     val img = canvas()
     (line1Words + line2Words).forEach { glyphWord(img, it) }
     fill(img, Box(170, 81, 390, 84), 60)
-    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, line2)).none { it.lineIndex == 0 })
-    val top0 = UnderlineDetector.Params(bandTopRatio = 0.0)
+    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, line2), legacy).none { it.lineIndex == 0 })
+    val top0 = legacy.copy(bandTopRatio = 0.0)
     assertEquals(1, UnderlineDetector.detect(img, w, h, listOf(line1, line2), top0).count { it.lineIndex == 0 })
+    // 기본값(K1a: −0.02H — H=40이면 0px)도 잡는다.
+    assertEquals(1, UnderlineDetector.detect(img, w, h, listOf(line1, line2)).count { it.lineIndex == 0 })
 
     // 다음 줄 바로 위(107~108행) 밑줄: 기본 띠 끝(110−3)에는 안 들고, 띠 끝을 다음 줄 위 끝(−0H)까지 늘리면 든다.
     val img2 = canvas()
@@ -100,9 +105,11 @@ class UnderlineDetectorTest {
     (line1Words + tightLine2Words).forEach { glyphWord(img2, it) }
     fill(img2, Box(50, 107, 390, 109), 40)
     val tightLine2 = Box(50, 110, 390, 150)
-    assertTrue(UnderlineDetector.detect(img2, w, h, listOf(line1, tightLine2)).none { it.lineIndex == 0 })
-    val pad0 = UnderlineDetector.Params(nextLinePadRatio = 0.0)
+    assertTrue(UnderlineDetector.detect(img2, w, h, listOf(line1, tightLine2), legacy).none { it.lineIndex == 0 })
+    val pad0 = legacy.copy(nextLinePadRatio = 0.0)
     assertEquals(1, UnderlineDetector.detect(img2, w, h, listOf(line1, tightLine2), pad0).count { it.lineIndex == 0 })
+    // 기본값(K1a: 다음 줄 위 +0.025H — H=40이면 +1px)도 잡는다.
+    assertEquals(1, UnderlineDetector.detect(img2, w, h, listOf(line1, tightLine2)).count { it.lineIndex == 0 })
   }
 
   @Test
@@ -111,9 +118,9 @@ class UnderlineDetectorTest {
     val img = canvas()
     (line1Words + line2Words).forEach { glyphWord(img, it) }
     for (x in 50 until 390) { val y = 95 + (x - 50) / 10; for (t in 0 until 3) img[(y + t) * w + x] = 60 }
-    val flat = UnderlineDetector.detect(img, w, h, listOf(line1, line2)).filter { it.lineIndex == 0 }
+    val flat = UnderlineDetector.detect(img, w, h, listOf(line1, line2), legacy).filter { it.lineIndex == 0 }
     assertTrue("flat=$flat", flat.none { it.right >= 380 })
-    val tilted = UnderlineDetector.detect(img, w, h, listOf(line1, line2), slopes = doubleArrayOf(0.1, 0.0))
+    val tilted = UnderlineDetector.detect(img, w, h, listOf(line1, line2), legacy, doubleArrayOf(0.1, 0.0))
       .filter { it.lineIndex == 0 }
     assertTrue("tilted=$tilted", tilted.any { it.left <= 60 && it.right >= 380 })
   }
