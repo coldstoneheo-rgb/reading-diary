@@ -83,7 +83,8 @@ object GoldenMeasure {
         val sources = File(dir, "boxes").listFiles { f -> f.isDirectory }?.sortedBy { it.name }.orEmpty()
         var spikeRows = 0
         val tallies = VARIANTS.associateWith { Tally() }
-        val excludedFromVariants = mutableListOf<String>()
+        val excludedFromVariants = sortedSetOf<String>()
+        val variantIds = sortedSetOf<String>()
         // 이름이 <id>.tsv가 아닌 기기 덤프(ocr-dump-NNN-…tsv)는 글 포함률로 짝을 짓는다(ⓒ, 사람 손 이름 바꾸기 없음).
         // 머리 없는 상자(Tesseract 등)는 자동 짝에 넣지 않는다 — 전처럼 <id>.tsv 이름일 때만 쓴다.
         val ids = goldens.map { it.id }.toSet()
@@ -147,6 +148,7 @@ object GoldenMeasure {
                 val inLine = r.tp + r.fn - r.fnUnmatchedLine
                 val rcMatched = if (inLine == 0) null else r.tp.toDouble() / inLine
                 sb.append("| ${g.id} | ${r.boxSource} | ${pct(p)} | ${pct(rc)} | ${pct(rcMatched)} | ${r.tp}/${r.fp}/${r.fn}(${r.fnUnmatchedLine}) | ${r.matchedLines}/${r.pageLines} | $decoy | ${r.offBodyRuns.size} |\n")
+                if (DumpGuard.isDeviceDump(tsv)) variantIds += g.id
                 if (DumpGuard.isDeviceDump(tsv)) for (v in VARIANTS) {
                     val vr = if (v.params == UnderlineDetector.Params() && v.useSlope) r
                     else GoldenSet.runSpike(g, gray, w, h, src.name, tsv, v.params, useSlope = v.useSlope)
@@ -170,10 +172,12 @@ object GoldenMeasure {
             spikeRows++
         }
         if (spikeRows == 0) sb.append("| — | 사진+상자 0벌 | | | | | | | |\n")
-        val measured = tallies.values.first().per.size
-        if (measured > 0) {
+        val pairs = tallies.values.first().per.size
+        if (pairs > 0) {
             val skipped = if (excludedFromVariants.isEmpty()) "" else " · «⚠» 제외 ${excludedFromVariants.joinToString(", ")}"
-            sb.append("\n## 검출기 설정 비교(기기 덤프 상자 · ${measured}장 합계$skipped)\n\n")
+            // 한 장에 기기 덤프 출처가 둘 이상이면 «장 × 출처» 벌이 장 수보다 많다 — 둘을 따로 적는다.
+            val unit = if (pairs == variantIds.size) "${pairs}장 합계" else "${variantIds.size}장 · ${pairs}벌(장 × 출처) 합계"
+            sb.append("\n## 검출기 설정 비교(기기 덤프 상자 · $unit$skipped)\n\n")
             sb.append("| 설정 | 정밀도 | 재현율 | 맞음/오검출/미검출 | 비침 오검출 | 본문 밖 오검출 구간 | 장별 맞음/오검출/미검출 |\n|---|---|---|---|---|---|---|\n")
             for ((v, t) in tallies) {
                 val p = if (t.tp + t.fp == 0) null else t.tp.toDouble() / (t.tp + t.fp)
