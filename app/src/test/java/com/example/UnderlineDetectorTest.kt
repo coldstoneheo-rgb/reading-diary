@@ -119,6 +119,18 @@ class UnderlineDetectorTest {
   }
 
   @Test
+  fun slopeMovingTheBandOutsideThePhoto_readsPaperNotOtherRows() {
+    // 사진 위 가장자리에 붙은 줄(위 0, 아래 10) + 큰 음의 기울기: 띠 오른쪽 끝이 사진 위로 나간다(y < 1).
+    // 나간 행은 종이(255)로 보아 예외 없이 끝나고, 사진 안 다른 행(맨 아래 행 등)을 감아 읽어 «밑줄»을 만들지 않는다.
+    val img = canvas()
+    val top = Box(50, 0, 390, 10)
+    fill(img, Box(50, 0, 70, 10), 30) // 글자 잉크(Δ_text 확보용) — 줄 왼쪽 끝에만, 띠가 기울어도 닿지 않게
+    fill(img, Box(0, h - 3, w, h), 30) // 사진 맨 아래 3행을 검게 — 인덱스가 감기면 여기를 읽는다
+    val runs = UnderlineDetector.detect(img, w, h, listOf(top), slopes = doubleArrayOf(-0.14))
+    assertTrue("runs=$runs", runs.isEmpty())
+  }
+
+  @Test
   fun lineSlope_fitsWordBottoms() {
     val words = listOf(Box(50, 40, 150, 80), Box(150, 45, 250, 85), Box(250, 50, 350, 90))
     assertEquals(0.05, UnderlineDetector.lineSlope(words), 1e-9)
