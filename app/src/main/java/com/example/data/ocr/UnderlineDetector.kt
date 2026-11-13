@@ -66,7 +66,8 @@ object UnderlineDetector {
      * [gray]는 0..255 회색조, 행 우선([width]×[height]). [lines]는 글줄 상자(순서 무관 — 위→아래로 정렬해 쓴다).
      * 돌려주는 [Run.lineIndex]는 [lines]의 원래 순번.
      * [slopes]가 있으면 [lines]와 같은 순번으로 줄 기울기(dy/dx, [lineSlope])를 받아 띠를 그 기울기로 따라 읽는다
-     * (줄 가로 가운데 기준, 0이면 수평). null이면 모든 줄을 수평으로 읽는다.
+     * (줄 가로 가운데 기준, 0이면 수평). null이면 모든 줄을 수평으로 읽는다 — 기본 띠(K1a)와 null을 함께 쓰면
+     * 기준 사진 11장에서 정밀도 90.5% · 비침 오검출 4로 떨어진다. 앱에서 부를 때는 반드시 기울기를 넘긴다.
      */
     fun detect(
         gray: IntArray, width: Int, height: Int, lines: List<Box>, params: Params = Params(), slopes: DoubleArray? = null

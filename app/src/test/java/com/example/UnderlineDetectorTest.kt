@@ -58,7 +58,7 @@ class UnderlineDetectorTest {
   fun bleedThrough_isTooFaintToCount() {
     val img = canvas()
     (line1Words + line2Words).forEach { glyphWord(img, it) }
-    // 뒷장 비침: 종이보다 25 어두운 선(글자 획 Δ=170의 0.15배) — 문턱 0.3 아래.
+    // 뒷장 비침: 종이보다 25 어두운 선(글자 획 Δ=170의 0.15배) — 문턱(기본 0.28) 아래.
     for (x in 50 until 390) for (t in 0 until 4) img[(95 + t) * w + x] = paper - 25
     assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, line2)).isEmpty())
   }
@@ -108,8 +108,32 @@ class UnderlineDetectorTest {
     assertTrue(UnderlineDetector.detect(img2, w, h, listOf(line1, tightLine2), legacy).none { it.lineIndex == 0 })
     val pad0 = legacy.copy(nextLinePadRatio = 0.0)
     assertEquals(1, UnderlineDetector.detect(img2, w, h, listOf(line1, tightLine2), pad0).count { it.lineIndex == 0 })
-    // 기본값(K1a: 다음 줄 위 +0.025H — H=40이면 +1px)도 잡는다.
+    // 기본값(K1a: 다음 줄 위 +0.025H — H=40이면 +1px)도 잡는다. 주의: 이 띠는 다음 줄 윗획(110행)까지 읽어
+    // 밑줄이 없어도 어절마다 짧은 구간이 생긴다(아래 nextLineTopStroke 테스트) — 여기서 1개인 것은 밑줄이 그 사이를 이어 붙였기 때문.
     assertEquals(1, UnderlineDetector.detect(img2, w, h, listOf(line1, tightLine2)).count { it.lineIndex == 0 })
+  }
+
+  @Test
+  fun nextLineTopStroke_isReadByTheDefaultBandWhenBoxesHugTheInk() {
+    // K1a 기본 띠의 알려진 한계: 상자가 잉크에 딱 붙은 촘촘한 줄이면 띠 끝(다음 줄 위 +1px)이 다음 줄 윗획을 읽어
+    // 밑줄이 없어도 구간이 생긴다. 기기 ML Kit 상자는 잉크보다 위아래로 여유가 있어 실측에선 기울기와 함께 정밀도 96.5%.
+    val img = canvas()
+    val tightLine2Words = line2Words.map { Box(it.left, 110, it.right, 150) }
+    (line1Words + tightLine2Words).forEach { glyphWord(img, it) }
+    val tightLine2 = Box(50, 110, 390, 150)
+    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, tightLine2), legacy).none { it.lineIndex == 0 })
+    assertEquals(3, UnderlineDetector.detect(img, w, h, listOf(line1, tightLine2)).count { it.lineIndex == 0 })
+  }
+
+  @Test
+  fun faintLine_isCaughtAtTheDefaultThresholdOnly() {
+    // 종이보다 49 어두운 선 = 글자 획 Δ(170)의 0.288배: 기본 문턱 0.28은 잡고 보정 전 0.3은 놓친다(같은 K1a 띠).
+    val img = canvas()
+    (line1Words + line2Words).forEach { glyphWord(img, it) }
+    fill(img, Box(170, 94, 390, 97), paper - 49)
+    assertEquals(1, UnderlineDetector.detect(img, w, h, listOf(line1, line2)).count { it.lineIndex == 0 })
+    val k1a03 = UnderlineDetector.Params(darkRatio = 0.3)
+    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, line2), k1a03).none { it.lineIndex == 0 })
   }
 
   @Test
