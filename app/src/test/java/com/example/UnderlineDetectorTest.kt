@@ -153,6 +153,61 @@ class UnderlineDetectorTest {
   }
 
   @Test
+  fun bandEdges_canBeMovedOnlyWhenAsked() {
+    // 줄 상자 아래 끝 바로 밑(81~83행) 밑줄: 기본 띠(83행부터)에는 안 들고, 띠 시작을 줄 아래 끝(+0H)으로 당기면 든다.
+    val img = canvas()
+    (line1Words + line2Words).forEach { glyphWord(img, it) }
+    fill(img, Box(170, 81, 390, 84), 60)
+    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, line2)).none { it.lineIndex == 0 })
+    val top0 = UnderlineDetector.Params(bandTopRatio = 0.0)
+    assertEquals(1, UnderlineDetector.detect(img, w, h, listOf(line1, line2), top0).count { it.lineIndex == 0 })
+
+    // 다음 줄 바로 위(107~108행) 밑줄: 기본 띠 끝(110−3)에는 안 들고, 띠 끝을 다음 줄 위 끝(−0H)까지 늘리면 든다.
+    val img2 = canvas()
+    val tightLine2Words = line2Words.map { Box(it.left, 110, it.right, 150) }
+    (line1Words + tightLine2Words).forEach { glyphWord(img2, it) }
+    fill(img2, Box(50, 107, 390, 109), 40)
+    val tightLine2 = Box(50, 110, 390, 150)
+    assertTrue(UnderlineDetector.detect(img2, w, h, listOf(line1, tightLine2)).none { it.lineIndex == 0 })
+    val pad0 = UnderlineDetector.Params(nextLinePadRatio = 0.0)
+    assertEquals(1, UnderlineDetector.detect(img2, w, h, listOf(line1, tightLine2), pad0).count { it.lineIndex == 0 })
+  }
+
+  @Test
+  fun tiltedUnderline_isFollowedOnlyWithSlope() {
+    // 기운 밑줄: x=50에서 95행 → x=390에서 129행(기울기 0.1). 수평 띠(84~119행)는 x≥300에서 선을 놓친다.
+    val img = canvas()
+    (line1Words + line2Words).forEach { glyphWord(img, it) }
+    for (x in 50 until 390) { val y = 95 + (x - 50) / 10; for (t in 0 until 3) img[(y + t) * w + x] = 60 }
+    val flat = UnderlineDetector.detect(img, w, h, listOf(line1, line2)).filter { it.lineIndex == 0 }
+    assertTrue("flat=$flat", flat.none { it.right >= 380 })
+    val tilted = UnderlineDetector.detect(img, w, h, listOf(line1, line2), slopes = doubleArrayOf(0.1, 0.0))
+      .filter { it.lineIndex == 0 }
+    assertTrue("tilted=$tilted", tilted.any { it.left <= 60 && it.right >= 380 })
+  }
+
+  @Test
+  fun slopeMovingTheBandOutsideThePhoto_readsPaperNotOtherRows() {
+    // 사진 위 가장자리에 붙은 줄(위 0, 아래 10) + 큰 음의 기울기: 띠 오른쪽 끝이 사진 위로 나간다(y < 1).
+    // 나간 행은 종이(255)로 보아 예외 없이 끝나고, 사진 안 다른 행(맨 아래 행 등)을 감아 읽어 «밑줄»을 만들지 않는다.
+    val img = canvas()
+    val top = Box(50, 0, 390, 10)
+    fill(img, Box(50, 0, 70, 10), 30) // 글자 잉크(Δ_text 확보용) — 줄 왼쪽 끝에만, 띠가 기울어도 닿지 않게
+    fill(img, Box(0, h - 3, w, h), 30) // 사진 맨 아래 3행을 검게 — 인덱스가 감기면 여기를 읽는다
+    val runs = UnderlineDetector.detect(img, w, h, listOf(top), slopes = doubleArrayOf(-0.14))
+    assertTrue("runs=$runs", runs.isEmpty())
+  }
+
+  @Test
+  fun lineSlope_fitsWordBottoms() {
+    val words = listOf(Box(50, 40, 150, 80), Box(150, 45, 250, 85), Box(250, 50, 350, 90))
+    assertEquals(0.05, UnderlineDetector.lineSlope(words), 1e-9)
+    assertEquals(0.0, UnderlineDetector.lineSlope(words.take(2)), 0.0) // 어절 3개 미만
+    val steep = listOf(Box(0, 0, 10, 10), Box(10, 20, 20, 30), Box(20, 40, 30, 50)) // 기울기 2 — 줄 묶기 실수로 본다
+    assertEquals(0.0, UnderlineDetector.lineSlope(steep), 0.0)
+  }
+
+  @Test
   fun lineBesideTheBand_doesNotCutIt() {
     // 띠 가로 범위(30..410) 밖 오른쪽 여백의 짧은 줄(여백 메모 등)은 «다음 줄»이 아니다 → 띠가 잘리지 않고 밑줄을 잡는다.
     val img = canvas()
