@@ -14,6 +14,9 @@ class UnderlineDetectorTest {
   private val h = 320
   private val paper = 200
 
+  /** 보정 전 띠·문턱(0.08H 여유 · 0.3Δ) — 띠 경계 규칙 자체를 고정하는 테스트용. 기본값은 K1a(아래 bandEdges 테스트). */
+  private val legacy = UnderlineDetector.Params(darkRatio = 0.3, bandTopRatio = null, nextLinePadRatio = null)
+
   private fun canvas() = IntArray(w * h) { paper }
 
   private fun fill(img: IntArray, b: Box, v: Int) {
@@ -55,7 +58,7 @@ class UnderlineDetectorTest {
   fun bleedThrough_isTooFaintToCount() {
     val img = canvas()
     (line1Words + line2Words).forEach { glyphWord(img, it) }
-    // 뒷장 비침: 종이보다 25 어두운 선(글자 획 Δ=170의 0.15배) — 문턱 0.3 아래.
+    // 뒷장 비침: 종이보다 25 어두운 선(글자 획 Δ=170의 0.15배) — 문턱(기본 0.28) 아래.
     for (x in 50 until 390) for (t in 0 until 4) img[(95 + t) * w + x] = paper - 25
     assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, line2)).isEmpty())
   }
@@ -79,9 +82,9 @@ class UnderlineDetectorTest {
     (line1Words + tightLine2Words).forEach { glyphWord(img, it) }
     fill(img, Box(50, 107, 390, 109), 40)
     val tightLine2 = Box(50, 110, 390, 150)
-    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, tightLine2)).none { it.lineIndex == 0 })
+    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, tightLine2), legacy).none { it.lineIndex == 0 })
     // 대조: 다음 줄을 주지 않으면 띠가 줄 아래 + 1.0H(=120)까지 열려 무언가(이 선 · 줄 2 윗획)가 잡힌다 — 위 결과가 nextTop 분기 덕임을 보인다.
-    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1)).any { it.lineIndex == 0 })
+    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1), legacy).any { it.lineIndex == 0 })
   }
 
   @Test
@@ -90,9 +93,11 @@ class UnderlineDetectorTest {
     val img = canvas()
     (line1Words + line2Words).forEach { glyphWord(img, it) }
     fill(img, Box(170, 81, 390, 84), 60)
-    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, line2)).none { it.lineIndex == 0 })
-    val top0 = UnderlineDetector.Params(bandTopRatio = 0.0)
+    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, line2), legacy).none { it.lineIndex == 0 })
+    val top0 = legacy.copy(bandTopRatio = 0.0)
     assertEquals(1, UnderlineDetector.detect(img, w, h, listOf(line1, line2), top0).count { it.lineIndex == 0 })
+    // 기본값(K1a: −0.02H — H=40이면 0px)도 잡는다.
+    assertEquals(1, UnderlineDetector.detect(img, w, h, listOf(line1, line2)).count { it.lineIndex == 0 })
 
     // 다음 줄 바로 위(107~108행) 밑줄: 기본 띠 끝(110−3)에는 안 들고, 띠 끝을 다음 줄 위 끝(−0H)까지 늘리면 든다.
     val img2 = canvas()
@@ -100,9 +105,35 @@ class UnderlineDetectorTest {
     (line1Words + tightLine2Words).forEach { glyphWord(img2, it) }
     fill(img2, Box(50, 107, 390, 109), 40)
     val tightLine2 = Box(50, 110, 390, 150)
-    assertTrue(UnderlineDetector.detect(img2, w, h, listOf(line1, tightLine2)).none { it.lineIndex == 0 })
-    val pad0 = UnderlineDetector.Params(nextLinePadRatio = 0.0)
+    assertTrue(UnderlineDetector.detect(img2, w, h, listOf(line1, tightLine2), legacy).none { it.lineIndex == 0 })
+    val pad0 = legacy.copy(nextLinePadRatio = 0.0)
     assertEquals(1, UnderlineDetector.detect(img2, w, h, listOf(line1, tightLine2), pad0).count { it.lineIndex == 0 })
+    // 기본값(K1a: 다음 줄 위 +0.025H — H=40이면 +1px)도 잡는다. 주의: 이 띠는 다음 줄 윗획(110행)까지 읽어
+    // 밑줄이 없어도 어절마다 짧은 구간이 생긴다(아래 nextLineTopStroke 테스트) — 여기서 1개인 것은 밑줄이 그 사이를 이어 붙였기 때문.
+    assertEquals(1, UnderlineDetector.detect(img2, w, h, listOf(line1, tightLine2)).count { it.lineIndex == 0 })
+  }
+
+  @Test
+  fun nextLineTopStroke_isReadByTheDefaultBandWhenBoxesHugTheInk() {
+    // K1a 기본 띠의 알려진 한계: 상자가 잉크에 딱 붙은 촘촘한 줄이면 띠 끝(다음 줄 위 +1px)이 다음 줄 윗획을 읽어
+    // 밑줄이 없어도 구간이 생긴다. 기기 ML Kit 상자는 잉크보다 위아래로 여유가 있어 실측에선 기울기와 함께 정밀도 96.5%.
+    val img = canvas()
+    val tightLine2Words = line2Words.map { Box(it.left, 110, it.right, 150) }
+    (line1Words + tightLine2Words).forEach { glyphWord(img, it) }
+    val tightLine2 = Box(50, 110, 390, 150)
+    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, tightLine2), legacy).none { it.lineIndex == 0 })
+    assertEquals(3, UnderlineDetector.detect(img, w, h, listOf(line1, tightLine2)).count { it.lineIndex == 0 })
+  }
+
+  @Test
+  fun faintLine_isCaughtAtTheDefaultThresholdOnly() {
+    // 종이보다 49 어두운 선 = 글자 획 Δ(170)의 0.288배: 기본 문턱 0.28은 잡고 보정 전 0.3은 놓친다(같은 K1a 띠).
+    val img = canvas()
+    (line1Words + line2Words).forEach { glyphWord(img, it) }
+    fill(img, Box(170, 94, 390, 97), paper - 49)
+    assertEquals(1, UnderlineDetector.detect(img, w, h, listOf(line1, line2)).count { it.lineIndex == 0 })
+    val k1a03 = UnderlineDetector.Params(darkRatio = 0.3)
+    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, line2), k1a03).none { it.lineIndex == 0 })
   }
 
   @Test
@@ -111,9 +142,9 @@ class UnderlineDetectorTest {
     val img = canvas()
     (line1Words + line2Words).forEach { glyphWord(img, it) }
     for (x in 50 until 390) { val y = 95 + (x - 50) / 10; for (t in 0 until 3) img[(y + t) * w + x] = 60 }
-    val flat = UnderlineDetector.detect(img, w, h, listOf(line1, line2)).filter { it.lineIndex == 0 }
+    val flat = UnderlineDetector.detect(img, w, h, listOf(line1, line2), legacy).filter { it.lineIndex == 0 }
     assertTrue("flat=$flat", flat.none { it.right >= 380 })
-    val tilted = UnderlineDetector.detect(img, w, h, listOf(line1, line2), slopes = doubleArrayOf(0.1, 0.0))
+    val tilted = UnderlineDetector.detect(img, w, h, listOf(line1, line2), legacy, doubleArrayOf(0.1, 0.0))
       .filter { it.lineIndex == 0 }
     assertTrue("tilted=$tilted", tilted.any { it.left <= 60 && it.right >= 380 })
   }
@@ -121,13 +152,19 @@ class UnderlineDetectorTest {
   @Test
   fun slopeMovingTheBandOutsideThePhoto_readsPaperNotOtherRows() {
     // 사진 위 가장자리에 붙은 줄(위 0, 아래 10) + 큰 음의 기울기: 띠 오른쪽 끝이 사진 위로 나간다(y < 1).
-    // 나간 행은 종이(255)로 보아 예외 없이 끝나고, 사진 안 다른 행(맨 아래 행 등)을 감아 읽어 «밑줄»을 만들지 않는다.
+    // 나간 행은 종이(255)로 보아 예외 없이 끝나고 «밑줄»을 만들지 않는다(가드가 없으면 음수 인덱스로 예외).
     val img = canvas()
     val top = Box(50, 0, 390, 10)
     fill(img, Box(50, 0, 70, 10), 30) // 글자 잉크(Δ_text 확보용) — 줄 왼쪽 끝에만, 띠가 기울어도 닿지 않게
-    fill(img, Box(0, h - 3, w, h), 30) // 사진 맨 아래 3행을 검게 — 인덱스가 감기면 여기를 읽는다
     val runs = UnderlineDetector.detect(img, w, h, listOf(top), slopes = doubleArrayOf(-0.14))
     assertTrue("runs=$runs", runs.isEmpty())
+
+    // 대칭: 사진 아래 가장자리 가까운 줄 + 큰 양의 기울기 → 띠 오른쪽 끝이 사진 아래로 나간다(y > 높이 − 2).
+    val img2 = canvas()
+    val bottom = Box(50, h - 30, 390, h - 20)
+    fill(img2, Box(50, h - 30, 70, h - 20), 30)
+    val runs2 = UnderlineDetector.detect(img2, w, h, listOf(bottom), slopes = doubleArrayOf(0.14))
+    assertTrue("runs2=$runs2", runs2.isEmpty())
   }
 
   @Test
