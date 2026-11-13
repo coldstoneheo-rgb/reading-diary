@@ -39,7 +39,11 @@ object UnderlineDetector {
          * 줄 글자 획 어둡기(Δ_text = 종이 − 줄 2백분위)가 이보다 작으면 그 줄은 건너뛴다(0..255 회색조 단위).
          * 글자가 없는 빈 상자·잡티 상자에서 Δ_text가 1 근처가 되면 종이 결까지 «어둡다»가 되어 오검출이 나기 때문.
          */
-        val minDeltaText: Int = 40
+        val minDeltaText: Int = 40,
+        /** 띠 시작 = 줄 아래 + 이 비율 × H. null이면 [bandStartRatio](음수 = 줄 상자 아래 끝보다 위에서 시작). */
+        val bandTopRatio: Double? = null,
+        /** 띠 끝 = 다음 줄 위 − 이 비율 × H. null이면 [bandStartRatio](음수 = 다음 줄 위 끝을 조금 넘어간다). */
+        val nextLinePadRatio: Double? = null
     )
 
     /** [lineIndex]번 줄 아래에서 찾은 밑줄 구간(가로 픽셀 [left, right)). */
@@ -48,9 +52,14 @@ object UnderlineDetector {
     /**
      * [gray]는 0..255 회색조, 행 우선([width]×[height]). [lines]는 글줄 상자(순서 무관 — 위→아래로 정렬해 쓴다).
      * 돌려주는 [Run.lineIndex]는 [lines]의 원래 순번.
+     * [slopes]가 있으면 [lines]와 같은 순번으로 줄 기울기(dy/dx, [lineSlope])를 받아 띠를 그 기울기로 따라 읽는다
+     * (줄 가로 가운데 기준, 0이면 수평). null이면 모든 줄을 수평으로 읽는다.
      */
-    fun detect(gray: IntArray, width: Int, height: Int, lines: List<Box>, params: Params = Params()): List<Run> {
+    fun detect(
+        gray: IntArray, width: Int, height: Int, lines: List<Box>, params: Params = Params(), slopes: DoubleArray? = null
+    ): List<Run> {
         require(gray.size == width * height) { "gray size" }
+        require(slopes == null || slopes.size == lines.size) { "slopes size" }
         val order = lines.indices.sortedBy { lines[it].top }
         val runs = mutableListOf<Run>()
         for ((k, idx) in order.withIndex()) {
@@ -63,9 +72,9 @@ object UnderlineDetector {
             // 띠를 막는 «다음 줄» = 아래에 있으면서 띠의 가로 범위와 겹치는 첫 줄. 옆 단·여백 메모처럼 가로로 비켜 난 줄은 띠를 자르지 않는다.
             val nextTop = order.drop(k + 1).map { lines[it] }
                 .firstOrNull { it.left < x1 && it.right > x0 }?.top ?: Int.MAX_VALUE
-            val y0 = (line.bottom + (params.bandStartRatio * h).toInt()).coerceIn(0, height)
+            val y0 = (line.bottom + ((params.bandTopRatio ?: params.bandStartRatio) * h).toInt()).coerceIn(0, height)
             val y1 = minOf(
-                nextTop.toLong() - (params.bandStartRatio * h).toLong(),
+                nextTop.toLong() - ((params.nextLinePadRatio ?: params.bandStartRatio) * h).toLong(),
                 line.bottom.toLong() + (params.bandMaxRatio * h).toLong(),
                 height.toLong()
             ).toInt()
@@ -78,13 +87,19 @@ object UnderlineDetector {
             val deltaText = (paper - ink).toDouble()
             val maxThick = params.maxThicknessRatio * h
 
+            val slope = slopes?.get(idx) ?: 0.0
+            val cx = (line.left + line.right) / 2.0
             val dark = BooleanArray(x1 - x0)
             for (x in x0 until x1) {
                 var min = Double.MAX_VALUE
                 var thick = 0
+                // 기운 줄: 띠를 줄 가운데에서 벗어난 만큼 위아래로 옮겨 읽는다(반올림은 짝수 쪽 — 측정 포트와 같은 값).
+                val off = if (slope == 0.0) 0 else Math.rint((x - cx) * slope).toInt()
                 for (y in (y0 + 1) until (y1 - 1)) {
-                    // 세로 3픽셀 평균 — 종이 결·잡티 한 점을 획으로 잡지 않는다.
-                    val v = (gray[(y - 1) * width + x] + gray[y * width + x] + gray[(y + 1) * width + x]) / 3.0
+                    val yy = y + off
+                    // 세로 3픽셀 평균 — 종이 결·잡티 한 점을 획으로 잡지 않는다. 사진 밖으로 옮겨지면 종이(255)로 본다.
+                    val v = if (yy < 1 || yy > height - 2) 255.0
+                    else (gray[(yy - 1) * width + x] + gray[yy * width + x] + gray[(yy + 1) * width + x]) / 3.0
                     if (v < min) min = v
                     if ((paper - v) / deltaText >= params.darkRatio) thick++
                 }
@@ -109,6 +124,24 @@ object UnderlineDetector {
             flush()
         }
         return runs
+    }
+
+    /**
+     * 줄 기울기(dy/dx): 같은 줄 어절 상자 아래 끝을 어절 가로 가운데에 대해 최소제곱 직선으로 맞춘 기울기.
+     * 어절이 3개 미만이거나 |기울기| ≥ [maxAbs]이면(줄 묶기 실수로 보고) 0.
+     */
+    fun lineSlope(words: List<Box>, maxAbs: Double = 0.15): Double {
+        if (words.size < 3) return 0.0
+        val xs = words.map { (it.left + it.right) / 2.0 }
+        val ys = words.map { it.bottom.toDouble() }
+        val mx = xs.average()
+        val my = ys.average()
+        var sxy = 0.0
+        var sxx = 0.0
+        for (i in xs.indices) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) * (xs[i] - mx) }
+        if (sxx == 0.0) return 0.0
+        val s = sxy / sxx
+        return if (kotlin.math.abs(s) < maxAbs) s else 0.0
     }
 
     /** [words]의 각 상자가 같은 줄([wordLine])의 밑줄 구간과 [Params.wordCoverage] 이상 겹치는지. */

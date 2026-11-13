@@ -1,5 +1,6 @@
 package com.example.golden
 
+import com.example.data.ocr.UnderlineDetector
 import java.io.File
 import java.util.Locale
 
@@ -23,6 +24,25 @@ object GoldenMeasure {
         "page" -> g.pageText()
         else -> error(target)
     }
+
+    /** 검출기 설정 하나(설정 비교 표의 한 행). */
+    data class Variant(val name: String, val params: UnderlineDetector.Params, val useSlope: Boolean)
+
+    /** K1a = 띠를 기기 ML Kit 줄 상자 모양에 맞춘다(띠 시작 −0.02H · 다음 줄 위 +0.025H까지). K2 = 줄 기울기. */
+    private val K1A = UnderlineDetector.Params(bandTopRatio = -0.02, nextLinePadRatio = -0.025)
+
+    /**
+     * 설정 비교 표(기기 덤프 상자만, 장 합계). 첫 행은 지금 검출기 기본값 그대로 — 위 장별 표의 기기 덤프 행 합과 같다.
+     * 문턱(darkRatio)은 단계로 바꾼다(SPIKE §1-0-1 보정 후보 · 2026-11-13 확인지 회수 뒤 재측정).
+     */
+    val VARIANTS: List<Variant> = listOf(
+        Variant("지금 검출기(기본값)", UnderlineDetector.Params(), false),
+        Variant("K1a+K2", K1A, true)
+    ) + listOf(0.29, 0.28, 0.27, 0.26, 0.25, 0.22, 0.2).map { d ->
+        Variant("K1a+K2 · 문턱 $d", K1A.copy(darkRatio = d), true)
+    }
+
+    private class Tally { var tp = 0; var fp = 0; var fn = 0; var bleed = 0; var off = 0; val per = mutableListOf<String>() }
 
     private fun pct(v: Double?) = v?.let { String.format(Locale.ROOT, "%.1f%%", it * 100) } ?: "—"
 
@@ -63,6 +83,9 @@ object GoldenMeasure {
         val details = StringBuilder("# 측정 상세 — 레포·PR·메시지에 옮기지 않는다(본문 조각)\n")
         val sources = File(dir, "boxes").listFiles { f -> f.isDirectory }?.sortedBy { it.name }.orEmpty()
         var spikeRows = 0
+        val tallies = VARIANTS.associateWith { Tally() }
+        val excludedFromVariants = sortedSetOf<String>()
+        val variantIds = sortedSetOf<String>()
         // 이름이 <id>.tsv가 아닌 기기 덤프(ocr-dump-NNN-…tsv)는 글 포함률로 짝을 짓는다(ⓒ, 사람 손 이름 바꾸기 없음).
         // 머리 없는 상자(Tesseract 등)는 자동 짝에 넣지 않는다 — 전처럼 <id>.tsv 이름일 때만 쓴다.
         val ids = goldens.map { it.id }.toSet()
@@ -111,6 +134,7 @@ object GoldenMeasure {
                 }
                 val note = pairNote + rotateNote
                 if (excluded.isNotEmpty()) {
+                    if (DumpGuard.isDeviceDump(tsv)) excludedFromVariants += g.id
                     sb.append("| ${g.id} | ⚠제외 ${src.name}$note — ${excluded.joinToString(" · ")} | — | — | — | — | — | — | — |\n")
                     spikeRows++
                     continue
@@ -125,6 +149,15 @@ object GoldenMeasure {
                 val inLine = r.tp + r.fn - r.fnUnmatchedLine
                 val rcMatched = if (inLine == 0) null else r.tp.toDouble() / inLine
                 sb.append("| ${g.id} | ${r.boxSource} | ${pct(p)} | ${pct(rc)} | ${pct(rcMatched)} | ${r.tp}/${r.fp}/${r.fn}(${r.fnUnmatchedLine}) | ${r.matchedLines}/${r.pageLines} | $decoy | ${r.offBodyRuns.size} |\n")
+                if (DumpGuard.isDeviceDump(tsv)) variantIds += g.id
+                if (DumpGuard.isDeviceDump(tsv)) for (v in VARIANTS) {
+                    val vr = if (v.params == UnderlineDetector.Params() && !v.useSlope) r
+                    else GoldenSet.runSpike(g, gray, w, h, src.name, tsv, v.params, useSlope = v.useSlope)
+                    tallies.getValue(v).apply {
+                        tp += vr.tp; fp += vr.fp; fn += vr.fn; bleed += vr.decoyFp["bleed"] ?: 0; off += vr.offBodyRuns.size
+                        per += "${g.id.removePrefix("g")}:${vr.tp}/${vr.fp}/${vr.fn}"
+                    }
+                }
                 details.append("\n### ${g.id} · ${r.boxSource}\n\n")
                 details.append("- 오검출 어절: ${r.falsePositives.ifEmpty { listOf("0") }.joinToString(", ")}\n")
                 details.append("- 미검출 어절: ${r.falseNegatives.ifEmpty { listOf("0") }.joinToString(", ")}\n")
@@ -140,6 +173,19 @@ object GoldenMeasure {
             spikeRows++
         }
         if (spikeRows == 0) sb.append("| — | 사진+상자 0벌 | | | | | | | |\n")
+        val pairs = tallies.values.first().per.size
+        if (pairs > 0) {
+            val skipped = if (excludedFromVariants.isEmpty()) "" else " · «⚠» 제외 ${excludedFromVariants.joinToString(", ")}"
+            // 한 장에 기기 덤프 출처가 둘 이상이면 «장 × 출처» 벌이 장 수보다 많다 — 둘을 따로 적는다.
+            val unit = if (pairs == variantIds.size) "${pairs}장 합계" else "${variantIds.size}장 · ${pairs}벌(장 × 출처) 합계"
+            sb.append("\n## 검출기 설정 비교(기기 덤프 상자 · $unit$skipped)\n\n")
+            sb.append("| 설정 | 정밀도 | 재현율 | 맞음/오검출/미검출 | 비침 오검출 | 본문 밖 오검출 구간 | 장별 맞음/오검출/미검출 |\n|---|---|---|---|---|---|---|\n")
+            for ((v, t) in tallies) {
+                val p = if (t.tp + t.fp == 0) null else t.tp.toDouble() / (t.tp + t.fp)
+                val rc = if (t.tp + t.fn == 0) null else t.tp.toDouble() / (t.tp + t.fn)
+                sb.append("| ${v.name} | ${pct(p)} | ${pct(rc)} | ${t.tp}/${t.fp}/${t.fn} | ${t.bleed} | ${t.off} | ${t.per.joinToString(" ")} |\n")
+            }
+        }
         sb.append("\n«⚠» 행은 수치가 없고 합계에서 빠진다 — 합계 분모는 «⚠» 없는 행의 맞음+오검출 · 맞음+미검출만 더한다(뺀 장 수를 합계 옆에 적는다).\n")
         sb.append("\n어절별 상세 = 같은 폴더 `_results/details.md`(레포 밖에만).\n")
         return Report(sb.toString(), details.toString())
