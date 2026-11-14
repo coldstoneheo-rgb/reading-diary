@@ -166,7 +166,6 @@ object GoldenMeasure {
                         tp += vr.tp; fp += vr.fp; fn += vr.fn; bleed += vr.decoyFp["bleed"] ?: 0; off += vr.offBodyRuns.size
                         per += "${g.id.removePrefix("g")}:${vr.tp}/${vr.fp}/${vr.fn}"
                     }
-                    appOff += "${v.name}: ${vr.offBodyRuns.size}${if (vr.offBodyRuns.isEmpty()) "" else " — " + vr.offBodyRuns.joinToString("; ")}"
                 }
                 // 앱 해상도 행의 본문 밖 구간(앱 비트맵 좌표 · 상세 파일에만) — 줄 높이 보정 전/후로 어디가 늘었나 보려고.
                 val appOff = mutableListOf<String>()
