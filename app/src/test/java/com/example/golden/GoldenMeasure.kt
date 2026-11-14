@@ -53,6 +53,19 @@ object GoldenMeasure {
 
     private class Tally { var tp = 0; var fp = 0; var fn = 0; var bleed = 0; var off = 0; val per = mutableListOf<String>() }
 
+    private class WordTally {
+        var tp = 0; var fp = 0; var fn = 0; var bleed = 0; var offRuns = 0; var offSel = 0; var inBody = 0; var unmatchedLines = 0
+        val per = mutableListOf<String>(); val offPer = mutableListOf<String>()
+        fun add(id: String, r: AppWordMeasure.Result) {
+            tp += r.tp; fp += r.fp; fn += r.fn; bleed += r.decoyFp["bleed"] ?: 0; offRuns += r.offBodyRuns; offSel += r.offBodySelected
+            inBody += r.inBodyUnmatchedSelected; unmatchedLines += r.unmatchedPageLines
+            per += "$id:${r.tp}/${r.fp}/${r.fn}"; offPer += "$id:${r.offBodySelected}"
+        }
+    }
+
+    /** a / (a + b) — 정밀도(b = 오검출) · 재현율(b = 놓침). 분모 0이면 null. */
+    private fun prec(a: Int, b: Int): Double? = if (a + b == 0) null else a.toDouble() / (a + b)
+
     private fun pct(v: Double?) = v?.let { String.format(Locale.ROOT, "%.1f%%", it * 100) } ?: "—"
 
     data class Report(val table: String, val details: String)
@@ -93,6 +106,8 @@ object GoldenMeasure {
         val sources = File(dir, "boxes").listFiles { f -> f.isDirectory }?.sortedBy { it.name }.orEmpty()
         var spikeRows = 0
         val tallies = (VARIANTS + APP_RES).associateWith { Tally() }
+        val wordTallies = linkedMapOf<String, WordTally>()
+        val sideBySide = mutableListOf<String>()
         val excludedFromVariants = sortedSetOf<String>()
         val variantIds = sortedSetOf<String>()
         // 이름이 <id>.tsv가 아닌 기기 덤프(ocr-dump-NNN-…tsv)는 글 포함률로 짝을 짓는다(ⓒ, 사람 손 이름 바꾸기 없음).
@@ -169,6 +184,7 @@ object GoldenMeasure {
                 }
                 // 앱 해상도 행의 본문 밖 구간(앱 비트맵 좌표 · 상세 파일에만) — 줄 높이 보정 전/후로 어디가 늘었나 보려고.
                 val appOff = mutableListOf<String>()
+                var appCur: GoldenSet.SpikeResult? = null
                 if (DumpGuard.isDeviceDump(tsv)) for (v in APP_RES) {
                     val f = GoldenSet.dumpScale(tsv)
                     val (sg, sw, sh) = GoldenSet.shrink(gray, w, h, f)
@@ -178,12 +194,34 @@ object GoldenMeasure {
                         per += "${g.id.removePrefix("g")}:${vr.tp}/${vr.fp}/${vr.fn}"
                     }
                     appOff += "${v.name}: ${vr.offBodyRuns.size}${if (vr.offBodyRuns.isEmpty()) "" else " — " + vr.offBodyRuns.joinToString("; ")}"
+                    if (v == APP_RES.first()) appCur = vr
+                }
+                // 앱 방식 어절 판정(엔진 어절 상자 + UnderlinePreselect.select의 selected) — 원본 해상도 1행 + 앱 해상도 × 줄 제외 후보.
+                val appWordOff = mutableListOf<String>()
+                if (DumpGuard.isDeviceDump(tsv)) {
+                    val id = g.id.removePrefix("g")
+                    val ow = AppWordMeasure.run(g, gray, w, h, tsv)
+                    wordTallies.getOrPut("원본 해상도(참고) · 제외 없음") { WordTally() }.add(id, ow)
+                    val f = GoldenSet.dumpScale(tsv)
+                    val (sg, sw, sh) = GoldenSet.shrink(gray, w, h, f)
+                    val stsv = GoldenSet.scaleBoxes(tsv, f)
+                    for (flt in AppWordMeasure.FILTERS) {
+                        val aw = AppWordMeasure.run(g, sg, sw, sh, stsv, filter = flt)
+                        wordTallies.getOrPut("앱 해상도(근사) · ${flt.name}") { WordTally() }.add(id, aw)
+                        if (flt == AppWordMeasure.FILTERS.first()) {
+                            val c = appCur
+                            sideBySide += "| ${g.id} | ${c?.let { "${it.tp}/${it.fp}/${it.fn}" } ?: "—"} | ${aw.tp}/${aw.fp}/${aw.fn} | " +
+                                "${pct(prec(aw.tp, aw.fp))} | ${pct(prec(aw.tp, aw.fn))} | ${aw.decoyFp["bleed"] ?: 0} | ${c?.offBodyRuns?.size ?: "—"} | ${aw.offBodyRuns} | ${aw.offBodySelected} | ${aw.inBodyUnmatchedSelected} | ${aw.unmatchedPageLines} |\n"
+                            appWordOff += aw.offBodyWhere
+                        }
+                    }
                 }
                 details.append("\n### ${g.id} · ${r.boxSource}\n\n")
                 details.append("- 오검출 어절: ${r.falsePositives.ifEmpty { listOf("0") }.joinToString(", ")}\n")
                 details.append("- 미검출 어절: ${r.falseNegatives.ifEmpty { listOf("0") }.joinToString(", ")}\n")
                 details.append("- 본문 밖 구간: ${r.offBodyRuns.ifEmpty { listOf("0") }.joinToString("; ")}\n")
                 for (line in appOff) details.append("- 본문 밖 구간(앱 해상도 · $line)\n")
+                for (line in appWordOff) details.append("- 본문 밖 미리 선택(앱 해상도 · 앱 어절 판정): $line\n")
                 val us = GoldenSet.score(r.text, g.marksText("underline"))
                 details.append("- 고른 어절을 글로 이으면(정답 글자 기준): 어절 정밀도 ${pct(us.precision)} · 재현율 ${pct(us.recall)} · 글자 오류율 ${pct(us.cer)}\n")
                 spikeRows++
@@ -207,6 +245,18 @@ object GoldenMeasure {
                 val rc = if (t.tp + t.fn == 0) null else t.tp.toDouble() / (t.tp + t.fn)
                 sb.append("| ${v.name} | ${pct(p)} | ${pct(rc)} | ${t.tp}/${t.fp}/${t.fn} | ${t.bleed} | ${t.off} | ${t.per.joinToString(" ")} |\n")
             }
+        }
+        if (wordTallies.isNotEmpty()) {
+            sb.append("\n## 앱 어절 판정(엔진 어절 상자 · `UnderlinePreselect.select`의 미리 선택 값 그대로) — 제품 기준 수치\n\n")
+            sb.append("엔진 어절 ↔ 정답 어절은 글자 맞춤(편집 거리)으로 잇는다. 정답 어절은 맞춰진 글자의 절반 이상이 미리 선택된 엔진 어절이면 선택으로 센다. ")
+            sb.append("«본문 밖 미리 선택» = 정답 줄에 대응되지 않은 엔진 줄에서 미리 선택된 엔진 어절 수(사용자 화면에 선택됨으로 뜰 어절). «본문 줄 안 정답 밖 미리 선택» = 본문 줄에 묶였지만 정답 글자와 하나도 맞춰지지 않은 미리 선택 엔진 어절(같은 높이 여백 메모 · 자필 등 — 화면엔 선택됨). 앱 해상도는 2×2 칸 평균 · 상자 정수 나눗셈의 근사. 줄 제외 후보는 측정 전용이다(앱에 없음).\n\n")
+            sb.append("| 해상도 · 줄 제외 | 정밀도 | 재현율 | 맞음/오검출/놓침 | 비침 오검출 | 본문 밖 구간 | 본문 밖 미리 선택 어절 | 본문 줄 안 정답 밖 미리 선택 어절 | 대응 실패 정답 줄 | 장별 맞음/오검출/놓침 | 장별 본문 밖 미리 선택 |\n|---|---|---|---|---|---|---|---|---|---|---|\n")
+            for ((name, t) in wordTallies) {
+                sb.append("| $name | ${pct(prec(t.tp, t.fp))} | ${pct(prec(t.tp, t.fn))} | ${t.tp}/${t.fp}/${t.fn} | ${t.bleed} | ${t.offRuns} | ${t.offSel} | ${t.inBody} | ${t.unmatchedLines} | ${t.per.joinToString(" ")} | ${t.offPer.joinToString(" ")} |\n")
+            }
+            sb.append("\n### 장별 나란히(앱 해상도 · 줄 제외 없음): 글자 폭 비례 판정(위 «앱 해상도» 행) ↔ 앱 어절 판정\n\n")
+            sb.append("| 자료 | 글자 폭 판정 맞음/오검출/놓침 | 앱 어절 판정 맞음/오검출/놓침 | 정밀도 | 재현율 | 비침 | 글자 폭 판정 본문 밖 구간 | 앱 판정 본문 밖 구간 | 본문 밖 미리 선택 어절 | 본문 줄 안 정답 밖 미리 선택 | 대응 실패 정답 줄 |\n|---|---|---|---|---|---|---|---|---|---|---|\n")
+            for (row in sideBySide) sb.append(row)
         }
         sb.append("\n«⚠» 행은 수치가 없고 합계에서 빠진다 — 합계 분모는 «⚠» 없는 행의 맞음+오검출 · 맞음+미검출만 더한다(뺀 장 수를 합계 옆에 적는다).\n")
         sb.append("\n어절별 상세 = 같은 폴더 `_results/details.md`(레포 밖에만).\n")
