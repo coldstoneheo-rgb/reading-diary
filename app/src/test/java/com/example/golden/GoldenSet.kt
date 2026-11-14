@@ -292,8 +292,8 @@ object GoldenSet {
     fun runSpike(
         g: Golden, gray: IntArray, w: Int, h: Int, boxSource: String, tsv: String,
         params: UnderlineDetector.Params = UnderlineDetector.Params(), overlayOut: File? = null,
-        /** true면 줄마다 어절 상자로 맞춘 기울기([UnderlineDetector.lineSlope])를 검출기에 넣는다. false = 수평(기존 경로). */
-        useSlope: Boolean = false
+        /** true(기본)면 줄마다 어절 상자로 맞춘 기울기([UnderlineDetector.lineSlope])를 검출기에 넣는다. false = 수평. */
+        useSlope: Boolean = true
     ): SpikeResult {
         val lines = clusterLines(readWords(tsv))
         val slopes = if (useSlope) DoubleArray(lines.size) { UnderlineDetector.lineSlope(lines[it].words.map { wd -> wd.box }) } else null
