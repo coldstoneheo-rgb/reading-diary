@@ -162,7 +162,10 @@ object BitmapDecoding {
         val row = IntArray(w)
         for (y in 0 until h) {
             bitmap.getPixels(row, 0, w, 0, y, w, 1)
-            UnderlineDetector.toGray(row).copyInto(out, y * w)
+            for (x in 0 until w) {
+                val p = row[x]
+                out[y * w + x] = (((p shr 16) and 0xFF) * 299 + ((p shr 8) and 0xFF) * 587 + (p and 0xFF) * 114) / 1000
+            }
         }
         return out
     }

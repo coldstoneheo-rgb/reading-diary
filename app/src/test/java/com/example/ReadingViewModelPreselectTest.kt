@@ -46,8 +46,16 @@ class ReadingViewModelPreselectTest {
     override suspend fun extract(bitmap: Bitmap): OcrOutcome { seen = bitmap.width to bitmap.height; return outcome }
   }
 
-  private fun viewModel(extractor: TextExtractor): ReadingViewModel =
-    ReadingViewModel(ApplicationProvider.getApplicationContext<Application>(), extractor, extractor) { false }
+  private fun viewModel(extractor: TextExtractor, precise: TextExtractor = extractor, keyPresent: Boolean = false): ReadingViewModel =
+    ReadingViewModel(ApplicationProvider.getApplicationContext<Application>(), extractor, precise) { keyPresent }
+
+  /** 화면이 실제로 쓰는 URI 경로용: 같은 쪽 그림을 PNG(무손실)로 저장. */
+  private fun pageUri(name: String): android.net.Uri {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val file = java.io.File(app.cacheDir, name)
+    file.outputStream().use { pageBitmap().compress(Bitmap.CompressFormat.PNG, 100, it) }
+    return android.net.Uri.fromFile(file)
+  }
 
   private fun pageBitmap(): Bitmap {
     val gray = UnderlinePreselectTest.page()
@@ -84,6 +92,50 @@ class ReadingViewModelPreselectTest {
     assertEquals(listOf(false, true, true, false, false, false), words.map { it.selected })
 
     vm.resetOcrState()
+    assertNull(vm.underlinePreselect.value)
+  }
+
+  @Test
+  fun uriPath_usedByTheScreen_fillsPreselectBeforeTheBitmapIsRecycled() = runTest(dispatcher) {
+    // 화면(OcrDiaryScreen)이 부르는 경로: 디코드 → 인식 → 결과 → 미리 선택 → 회수. 회수 뒤에 읽으면 예외가 삼켜져 null이 된다.
+    val fake = FakeExtractor(OcrOutcome.Text("가 나 다\n라 마 바", lines))
+    val vm = viewModel(fake)
+    vm.processUnderlineOcr(pageUri("preselect-uri.png"), 0f, false, 0f, 0f, 1f, 1f)
+    awaitUntil { vm.underlinePreselect.value != null }
+
+    assertEquals(OcrState.Success("가 나 다\n라 마 바"), vm.ocrState.value)
+    assertEquals(UnderlinePreselectTest.W to UnderlinePreselectTest.H, fake.seen)
+    assertEquals(listOf(false, true, true, false, false, false), vm.underlinePreselect.value!!.map { it.selected })
+  }
+
+  @Test
+  fun preciseAnalysis_neverFillsPreselect() = runTest(dispatcher) {
+    val precise = FakeExtractor(OcrOutcome.Text("precise", lines))
+    val vm = viewModel(FakeExtractor(OcrOutcome.Text("on-device")), precise, keyPresent = true)
+    awaitUntil { vm.geminiKeyRegistered.value }
+    vm.setGeminiPhotoConsent(true)
+    awaitUntil { vm.preciseAnalysisAvailable.value }
+    vm.processPreciseAnalysis(pageUri("preselect-precise.png"), 0f, false, 0f, 0f, 1f, 1f)
+    awaitUntil { vm.preciseOcrState.value is OcrState.Success }
+
+    assertEquals(OcrState.Success("precise"), vm.preciseOcrState.value)
+    assertNull(vm.underlinePreselect.value) // 상자를 돌려줘도 정밀 분석 경로는 미리 선택을 하지 않는다
+  }
+
+  @Test
+  fun cancelledRecognition_leavesNoPreselect() = runTest(dispatcher) {
+    val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+    val gated = object : TextExtractor {
+      override suspend fun extract(bitmap: Bitmap): OcrOutcome { gate.await(); return OcrOutcome.Text("늦은 결과", lines) }
+    }
+    val vm = viewModel(gated)
+    vm.processUnderlineOcr(pageUri("preselect-cancel.png"), 0f, false, 0f, 0f, 1f, 1f)
+    awaitUntil { vm.ocrState.value == OcrState.Processing }
+    vm.resetOcrState() // 인식 도중 화면 이탈
+    gate.complete(Unit)
+    repeat(20) { dispatcher.scheduler.advanceUntilIdle(); Thread.sleep(5) }
+
+    assertEquals(OcrState.Idle, vm.ocrState.value)
     assertNull(vm.underlinePreselect.value)
   }
 

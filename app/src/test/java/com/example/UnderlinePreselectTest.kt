@@ -96,14 +96,18 @@ class UnderlinePreselectTest {
       val types = m.parameterTypes.toList()
       assertTrue("select($types)", types.none { it == DoubleArray::class.java || it == java.lang.Boolean.TYPE || it == java.lang.Double.TYPE })
     }
-    // ② 앱 코드(src/main)에서 검출기 detect를 직접 부르는 파일은 UnderlinePreselect.kt 하나뿐이고, 거기서는 slopes를 넘긴다.
+    // ② 앱 코드(src/main)에서 검출기 detect를 부르는(또는 함수 참조로 넘기는) 파일은 UnderlinePreselect.kt 하나뿐이고,
+    // 거기서는 slopes를 넘긴다. UnderlineDetector.kt 안에서는 정의 말고 detect 호출이 없어야 한다(우회 도우미 금지).
     // 테스트 작업 디렉터리 = app 모듈 루트(GeminiKeyPolicyTest와 같은 관례).
     val mainSrc = File("src/main/java")
     assertTrue("expected app/src/main/java to exist", mainSrc.isDirectory)
+    val ref = Regex("""UnderlineDetector\s*\.\s*detect\s*\(|UnderlineDetector\s*::\s*detect\b""")
     val callers = mainSrc.walkTopDown().filter { it.isFile && it.extension == "kt" }
-      .filter { f -> Regex("""\bdetect\s*\(""").containsMatchIn(f.readText()) && !f.name.equals("UnderlineDetector.kt") }
-      .map { it.name }.toList()
+      .filter { ref.containsMatchIn(it.readText()) }.map { it.name }.toList()
     assertEquals(listOf("UnderlinePreselect.kt"), callers)
+    val detectorSrc = File(mainSrc, "com/example/data/ocr/UnderlineDetector.kt").readText()
+    val inner = Regex("""(?<!fun )\bdetect\s*\(|::\s*detect\b""").findAll(detectorSrc).count()
+    assertEquals("UnderlineDetector.kt 안의 detect 호출", 0, inner)
     val src = File(mainSrc, "com/example/data/ocr/UnderlinePreselect.kt").readText()
     val calls = Regex("""UnderlineDetector\.detect\(([^)]*)\)""").findAll(src).map { it.groupValues[1] }.toList()
     assertEquals(1, calls.size)
