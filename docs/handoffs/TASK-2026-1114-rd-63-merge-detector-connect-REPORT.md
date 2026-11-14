@@ -10,7 +10,7 @@
 - [x] 3. 같은 비트맵으로 미리 선택 값(결과 글 · 화면 그대로)
 - [x] 4. 기울기 없이 부를 수 없음(코드 + 테스트)
 - [x] 5. 앱 함수로 11장 표(192/7/80 같음 · 장별 하락 0)
-- [x] 6. 전체 단위 테스트 실패 0 · ≥ 407 · assembleDebug 캐시 없이 0 — PR head bb0319f 417 · 실패 0 · 건너뜀 1 · 종료 0
+- [x] 6. 전체 단위 테스트 실패 0 · ≥ 407 · assembleDebug 캐시 없이 0 — 재게이트 코드 head 1a3e3f5: 419 · 실패 0 · 건너뜀 1 · 종료 0 · assemble 38/38 종료 0
 - [x] 7. LC 관찰 4건 처분
 - [x] 8. critic 회차 · 점수
 - [x] 9. 기기에서 달라지는 것 없음 + 근거
@@ -51,6 +51,7 @@ LC 11-15 판정에 따라 앱 해상도(덤프 배율 2 → 사진 1/2, 2×2 칸
 - 연결 head `995281f`: `:app:clean` → `assembleDebug --no-build-cache` = 종료 0 · **38 작업 전부 실행**(up-to-date 0) · 전체 `testDebugUnitTest` 414 · 실패 0 · 건너뜀 1.
 - 연결 head `fa3d7e5`(critic 1차 반영): `:app:clean` → `assembleDebug --no-build-cache` = 종료 0 · 38/38 실행. 바뀐 범위 테스트 32개(UnderlinePreselect 5 · ViewModelPreselect 5 · ViewModelOcr 12 · GeminiKeyPolicy 5 · BitmapDecoding 5) 실패 0. 첫 전체 `testDebugUnitTest`는 시스템 메모리 부족으로 하네스가 중단시켰다 → LC «가» 뒤 재실행(시작 전 여유 3,085MB · GradleDaemon 1개 = 이 레포 것).
 - **PR head `bb0319f`: 전체 `testDebugUnitTest --rerun` = 종료 0 · 63개 클래스 · 417 · 실패 0 · 오류 0 · 건너뜀 1**(7분 45초, 끝난 뒤 여유 4,014MB).
+- **재게이트 코드 head `1a3e3f5`(LC 보정 5): 전체 `testDebugUnitTest --rerun` = 종료 0 · 63개 클래스 · 419 · 실패 0 · 오류 0 · 건너뜀 1**(시작 전 여유 3,806MB · GradleDaemon 1) · `:app:clean` → `assembleDebug --no-build-cache` = 종료 0 · 38/38 실행.
 
 ## 7. LC 관찰 4건 처분
 
