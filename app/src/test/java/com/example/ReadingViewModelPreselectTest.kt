@@ -123,9 +123,52 @@ class ReadingViewModelPreselectTest {
   }
 
   @Test
+  fun whilePreselectRuns_afterTheResult_preciseAnalysisAndNewRecognitionAreAccepted() = runTest(dispatcher) {
+    // 동작 변화 0: 결과 글이 나온 뒤에는 main처럼 정밀 분석 · 새 인식 요청을 받는다(미리 선택이 막지 않는다).
+    val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+    val onDevice = FakeExtractor(OcrOutcome.Text("가 나 다\n라 마 바", lines))
+    val precise = FakeExtractor(OcrOutcome.Text("precise"))
+    val vm = viewModel(onDevice, precise, keyPresent = true)
+    var started = 0
+    vm.preselectRunner = { _, _ -> started++; gate.await(); emptyList() }
+    awaitUntil { vm.geminiKeyRegistered.value }
+    vm.setGeminiPhotoConsent(true)
+    awaitUntil { vm.preciseAnalysisAvailable.value }
+
+    vm.processUnderlineOcr(pageUri("preselect-busy.png"), 0f, false, 0f, 0f, 1f, 1f)
+    awaitUntil { vm.ocrState.value is OcrState.Success && started == 1 }
+    // 미리 선택이 막혀 있는 동안 정밀 분석 요청 → 실행된다.
+    vm.processPreciseAnalysis(pageUri("preselect-busy-precise.png"), 0f, false, 0f, 0f, 1f, 1f)
+    awaitUntil { vm.preciseOcrState.value is OcrState.Success }
+    assertEquals(OcrState.Success("precise"), vm.preciseOcrState.value)
+    assertNull(vm.underlinePreselect.value) // 정밀 분석을 시작하면 앞선 미리 선택은 비운다
+
+    // 새 인식 요청도 받는다(두 번째 미리 선택이 시작된다).
+    vm.processUnderlineOcr(pageUri("preselect-busy-2.png"), 0f, false, 0f, 0f, 1f, 1f)
+    awaitUntil { started == 2 }
+    assertEquals(2, started)
+    gate.complete(Unit)
+    awaitUntil { vm.underlinePreselect.value != null }
+    assertEquals(emptyList<Any>(), vm.underlinePreselect.value)
+  }
+
+  @Test
+  fun resetWhilePreselectRuns_leavesNoPreselect() = runTest(dispatcher) {
+    val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+    val vm = viewModel(FakeExtractor(OcrOutcome.Text("가 나 다\n라 마 바", lines)))
+    var started = 0
+    vm.preselectRunner = { _, _ -> started++; gate.await(); emptyList() }
+    vm.processUnderlineOcr(pageUri("preselect-reset.png"), 0f, false, 0f, 0f, 1f, 1f)
+    awaitUntil { started == 1 }
+    vm.resetOcrState() // 결과는 나왔고 미리 선택 도중 화면 이탈
+    gate.complete(Unit)
+    repeat(20) { dispatcher.scheduler.advanceUntilIdle(); Thread.sleep(5) }
+    assertNull(vm.underlinePreselect.value)
+  }
+
+  @Test
   fun cancelledRecognition_leavesNoPreselect() = runTest(dispatcher) {
-    // 범위: 인식(추출) 도중 취소만 본다. 결과를 낸 뒤 미리 선택이 도는 사이의 취소는 회색조 계산을 멈춰 둘 수단이 없어
-    // 여기서 시험하지 않는다(preselectAfter의 ensureActive가 지킨다 — 회색조 공급자를 주입할 수 있게 되면 보강).
+    // 인식(추출) 도중 취소. 미리 선택 도중 취소는 resetWhilePreselectRuns_leavesNoPreselect.
     val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
     val gated = object : TextExtractor {
       override suspend fun extract(bitmap: Bitmap): OcrOutcome { gate.await(); return OcrOutcome.Text("늦은 결과", lines) }

@@ -68,9 +68,11 @@ object UnderlineDetector {
      * [slopes]가 있으면 [lines]와 같은 순번으로 줄 기울기(dy/dx, [lineSlope])를 받아 띠를 그 기울기로 따라 읽는다
      * (줄 가로 가운데 기준, 0이면 수평). null이면 모든 줄을 수평으로 읽는다 — 기본 띠(K1a)와 null을 함께 쓰면
      * 기준 사진 11장에서 정밀도 90.5% · 비침 오검출 4로 떨어진다. 앱에서 부를 때는 반드시 기울기를 넘긴다.
+     * [slopes]는 기본값이 없다 — 기울기를 «빠뜨리는» 호출은 컴파일되지 않고, 수평으로 읽으려면 `null`을 적어야 한다(측정 · 테스트만).
+     * 앱 경로는 [UnderlinePreselect.select]만 이 함수를 부른다.
      */
     fun detect(
-        gray: IntArray, width: Int, height: Int, lines: List<Box>, params: Params = Params(), slopes: DoubleArray? = null
+        gray: IntArray, width: Int, height: Int, lines: List<Box>, params: Params = Params(), slopes: DoubleArray?
     ): List<Run> {
         require(gray.size == width * height) { "gray size" }
         require(slopes == null || slopes.size == lines.size) { "slopes size" }

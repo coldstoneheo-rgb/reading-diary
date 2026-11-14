@@ -101,14 +101,19 @@ class UnderlinePreselectTest {
     // 테스트 작업 디렉터리 = app 모듈 루트(GeminiKeyPolicyTest와 같은 관례).
     val mainSrc = File("src/main/java")
     assertTrue("expected app/src/main/java to exist", mainSrc.isDirectory)
-    val ref = Regex("""UnderlineDetector\s*\.\s*detect\s*\(|UnderlineDetector\s*::\s*detect\b""")
-    val callers = mainSrc.walkTopDown().filter { it.isFile && it.extension == "kt" }
-      .filter { ref.containsMatchIn(it.readText()) }.map { it.name }.toList()
+    // 이름 «detect»가 코드에 나오는 파일 자체를 센다(주석 제외) — import 뒤 맨 이름 호출 · with(UnderlineDetector) · import 별칭도 걸린다.
+    val ref = Regex("""\bdetect\b""")
+    fun code(f: File) = f.readText().replace(Regex("""/\*[\s\S]*?\*/"""), "").replace(Regex("""//[^\n]*"""), "")
+    val callers = mainSrc.walkTopDown().filter { it.isFile && it.extension == "kt" && it.name != "UnderlineDetector.kt" }
+      .filter { ref.containsMatchIn(code(it)) }.map { it.name }.toList()
     assertEquals(listOf("UnderlinePreselect.kt"), callers)
+    // detect의 slopes에는 기본값이 없다(생략 = 컴파일 오류). 앱 경로의 호출은 null을 넘기지 않는다(아래 ③).
     val detectorSrc = File(mainSrc, "com/example/data/ocr/UnderlineDetector.kt").readText()
     val inner = Regex("""(?<!fun )\bdetect\s*\(|::\s*detect\b""").findAll(detectorSrc).count()
     assertEquals("UnderlineDetector.kt 안의 detect 호출", 0, inner)
-    val src = File(mainSrc, "com/example/data/ocr/UnderlinePreselect.kt").readText()
+    // ③ UnderlinePreselect.kt 코드 안 «detect»는 그 한 번의 호출뿐이고, 마지막 인자는 slopes(null 리터럴 0).
+    val src = code(File(mainSrc, "com/example/data/ocr/UnderlinePreselect.kt"))
+    assertEquals(1, ref.findAll(src).count())
     val calls = Regex("""UnderlineDetector\.detect\(([^)]*)\)""").findAll(src).map { it.groupValues[1] }.toList()
     assertEquals(1, calls.size)
     assertTrue("call=${calls.single()}", calls.single().trim().endsWith("slopes") && !calls.single().contains("null"))
