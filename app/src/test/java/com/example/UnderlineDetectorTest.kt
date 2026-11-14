@@ -15,7 +15,7 @@ class UnderlineDetectorTest {
   private val paper = 200
 
   /** 보정 전 띠·문턱(0.08H 여유 · 0.3Δ) — 띠 경계 규칙 자체를 고정하는 테스트용. 기본값은 K1a(아래 bandEdges 테스트). */
-  private val legacy = UnderlineDetector.Params(darkRatio = 0.3, bandTopRatio = null, nextLinePadRatio = null)
+  private val legacy = UnderlineDetector.Params(darkRatio = 0.3, bandTopRatio = null, nextLinePadRatio = null, smoothMinHeight = 0)
 
   private fun canvas() = IntArray(w * h) { paper }
 
@@ -114,15 +114,20 @@ class UnderlineDetectorTest {
   }
 
   @Test
-  fun nextLineTopStroke_isReadByTheDefaultBandWhenBoxesHugTheInk() {
+  fun nextLineTopStroke_isReachedByTheAveragingWindowWhenBoxesHugTheInk() {
     // K1a 기본 띠의 알려진 한계: 상자가 잉크에 딱 붙은 촘촘한 줄이면 띠 끝(다음 줄 위 +1px)이 다음 줄 윗획을 읽어
-    // 밑줄이 없어도 구간이 생긴다. 기기 ML Kit 상자는 잉크보다 위아래로 여유가 있어 실측에선 기울기와 함께 정밀도 96.5%.
+    // 밑줄이 없어도 구간이 생긴다(세로 3픽셀 평균을 쓰는 줄에서). 기기 ML Kit 상자는 잉크보다 위아래로 여유가 있어 실측에선 기울기와 함께 정밀도 96.5%.
     val img = canvas()
     val tightLine2Words = line2Words.map { Box(it.left, 110, it.right, 150) }
     (line1Words + tightLine2Words).forEach { glyphWord(img, it) }
     val tightLine2 = Box(50, 110, 390, 150)
     assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, tightLine2), legacy, slopes = null).none { it.lineIndex == 0 })
-    assertEquals(3, UnderlineDetector.detect(img, w, h, listOf(line1, tightLine2), slopes = null).count { it.lineIndex == 0 })
+    // 띠 [y0, y1) 안의 마지막 행(y1 − 1 = 다음 줄 윗획)은 루프가 직접 읽지 않고 그 위 행의 3픽셀 평균 창으로만 닿는다 —
+    // 평균을 쓰는 줄(H ≥ smoothMinHeight)에서 남는 한계. 1픽셀 모드에서도 다음 줄 잉크가 상자 위 끝보다 1px 위에서 시작하면 읽힌다(사라진 게 아니라 1px 옮겨짐).
+    val alwaysSmooth = UnderlineDetector.Params(smoothMinHeight = 0)
+    assertEquals(3, UnderlineDetector.detect(img, w, h, listOf(line1, tightLine2), alwaysSmooth, slopes = null).count { it.lineIndex == 0 })
+    // 기본값: 이 줄(H = 40 < 60)은 1픽셀로 읽어 마지막 행에 닿지 않는다.
+    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, tightLine2), slopes = null).none { it.lineIndex == 0 })
   }
 
   @Test
@@ -142,6 +147,39 @@ class UnderlineDetectorTest {
     assertTrue(UnderlineDetector.detect(img2, w, h, listOf(line1, line2), slopes = null).none { it.lineIndex == 0 })
     val k1a025 = UnderlineDetector.Params(darkRatio = 0.25)
     assertEquals(1, UnderlineDetector.detect(img2, w, h, listOf(line1, line2), k1a025, slopes = null).count { it.lineIndex == 0 })
+  }
+
+  @Test
+  fun onePixelLine_onShortLines_isReadWithoutVerticalAveraging() {
+    // 앱 해상도(1/2)에서 연필 선은 1픽셀 남짓. 줄 높이 40 < 60(smoothMinHeight)이면 1픽셀을 그대로 읽어 잡고,
+    // 늘 3픽셀 평균(smoothMinHeight = 0)이면 (200 + 60 + 200) / 3 = 153 → 종이와 차 47 < 0.28 × 170으로 놓친다.
+    val img = canvas()
+    (line1Words + line2Words).forEach { glyphWord(img, it) }
+    fill(img, Box(170, 95, 390, 96), 60)
+    assertEquals(1, UnderlineDetector.detect(img, w, h, listOf(line1, line2), slopes = null).count { it.lineIndex == 0 })
+    val alwaysSmooth = UnderlineDetector.Params(smoothMinHeight = 0)
+    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, line2), alwaysSmooth, slopes = null).none { it.lineIndex == 0 })
+  }
+
+  @Test
+  fun smoothMinHeight_boundary_59ReadsOnePixel_60Averages() {
+    // 기본값(60)과 비교식(≥)을 함께 고정: 1픽셀 연필 선은 H 59 줄에서는 잡고(1픽셀 읽기), H 60 줄에서는 놓친다(3픽셀 평균).
+    fun runsFor(lineH: Int): Int {
+      val img = canvas()
+      val words = listOf(Box(50, 40, 150, 40 + lineH), Box(170, 40, 270, 40 + lineH), Box(290, 40, 390, 40 + lineH))
+      // 아래 획 없는 글자 모양(위 · 가운데 가로획 + 세로획) — 띠 첫 행의 평균이 글자 아래 획을 끌어오지 않게.
+      for (b in words) {
+        for (yy in listOf(b.top, b.top + b.height / 2)) fill(img, Box(b.left, yy, b.right, yy + 4), 30)
+        fill(img, Box(b.left + b.width / 2, b.top, b.left + b.width / 2 + 5, b.bottom), 30)
+      }
+      val y = 40 + lineH + 12
+      fill(img, Box(170, y, 390, y + 1), 60)
+      val line = Box(50, 40, 390, 40 + lineH)
+      val next = Box(50, 270, 390, 310)
+      return UnderlineDetector.detect(img, w, h, listOf(line, next), slopes = null).count { it.lineIndex == 0 }
+    }
+    assertEquals(1, runsFor(59))
+    assertEquals(0, runsFor(60))
   }
 
   @Test
