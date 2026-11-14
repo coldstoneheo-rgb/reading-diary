@@ -124,6 +124,8 @@ class ReadingViewModelPreselectTest {
 
   @Test
   fun cancelledRecognition_leavesNoPreselect() = runTest(dispatcher) {
+    // 범위: 인식(추출) 도중 취소만 본다. 결과를 낸 뒤 미리 선택이 도는 사이의 취소는 회색조 계산을 멈춰 둘 수단이 없어
+    // 여기서 시험하지 않는다(preselectAfter의 ensureActive가 지킨다 — 회색조 공급자를 주입할 수 있게 되면 보강).
     val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
     val gated = object : TextExtractor {
       override suspend fun extract(bitmap: Bitmap): OcrOutcome { gate.await(); return OcrOutcome.Text("늦은 결과", lines) }
