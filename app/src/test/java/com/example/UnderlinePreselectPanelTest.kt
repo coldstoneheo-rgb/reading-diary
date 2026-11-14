@@ -42,6 +42,8 @@ import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.github.takahirom.roborazzi.captureRoboImage
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import com.example.data.Diary
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -76,12 +78,21 @@ class UnderlinePreselectPanelTest {
   )
 
   private var bookId = 0
+  /** 기록 시각이 고정된 기존 기록(스크린샷이 실행 시각에 흔들리지 않게). 글 = 사용자가 이미 쓴 글. */
+  private var diaryId = 0
+  private lateinit var savedTimeZone: java.util.TimeZone
 
   @Before
   fun setUp() = runBlocking {
     val caseId = db.bookcaseDao().insert(Bookcase(name = "화면 테스트")).toInt()
     bookId = db.bookDao().insert(Book(title = "화면 테스트 책", author = "", totalPages = 100, bookcaseId = caseId, status = "READING")).toInt()
+    diaryId = db.diaryDao().insert(Diary(bookId = bookId, page = 12, selectedText = "내가 쓴 글", notes = "", createdAt = 1_700_000_000_000L)).toInt()
+    savedTimeZone = java.util.TimeZone.getDefault()
+    java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("UTC"))
   }
+
+  @After
+  fun tearDown() { java.util.TimeZone.setDefault(savedTimeZone) }
 
   @Test
   fun noPreselect_drawsNothing() {
@@ -107,10 +118,12 @@ class UnderlinePreselectPanelTest {
     assertEquals("", preselectedText(sample, sample.map { false }))
   }
 
+  /** 기존 기록 편집 화면(시각 고정). 편집창에 그 기록의 글이 들어온 뒤 돌려준다. */
   private fun screen(vm: ReadingViewModel) {
-    composeTestRule.setContent { MyApplicationTheme { OcrDiaryScreen(viewModel = vm, bookId = bookId, diaryId = null) } }
+    composeTestRule.setContent { MyApplicationTheme { OcrDiaryScreen(viewModel = vm, bookId = bookId, diaryId = diaryId) } }
     composeTestRule.waitUntil(10_000) {
-      composeTestRule.onAllNodesWithTag("save_diary_submit_button").fetchSemanticsNodes().isNotEmpty()
+      composeTestRule.onAllNodesWithTag("diary_extracted_text_input").fetchSemanticsNodes()
+        .any { androidx.compose.ui.semantics.SemanticsProperties.EditableText in it.config && it.config[androidx.compose.ui.semantics.SemanticsProperties.EditableText].text == "내가 쓴 글" }
     }
   }
 
@@ -119,9 +132,10 @@ class UnderlinePreselectPanelTest {
     val vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, FakeDiaryPhotoStore()) { false }
     screen(vm)
     val input = composeTestRule.onNodeWithTag("diary_extracted_text_input")
-    input.performScrollTo().performTextReplacement("내가 쓴 글")
+    input.performScrollTo()
     composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/preselect_before_none.png")
-    fun saveButtonBounds() = composeTestRule.onNodeWithTag("save_diary_submit_button").fetchSemanticsNode().boundsInRoot
+    // 편집창 아래 요소의 위치가 그대로인지로 «아무것도 더해지지 않음»을 본다.
+    fun saveButtonBounds() = composeTestRule.onNodeWithTag("sns_share_card_button").fetchSemanticsNode().boundsInRoot
     val before = saveButtonBounds()
     // 미리 선택이 와도 고른 어절이 0개면 화면에 아무것도 더해지지 않는다(패널 노드 0 · 아래 요소 위치 그대로).
     vm.underlinePreselect.value = sample.map { it.copy(selected = false) }
@@ -129,24 +143,28 @@ class UnderlinePreselectPanelTest {
     composeTestRule.onAllNodesWithTag("underline_preselect_panel").assertCountEquals(0)
     assertEquals(before, saveButtonBounds())
     input.assertTextEquals("내가 쓴 글", includeEditableText = true)
-    // 판별력: 하나라도 선택되면 아래 요소가 밀린다.
+    // 판별력: 하나라도 선택되면 패널이 생긴다.
     vm.underlinePreselect.value = sample
     composeTestRule.waitForIdle()
-    assertTrue(saveButtonBounds().top > before.top)
+    composeTestRule.onAllNodesWithTag("underline_preselect_panel").assertCountEquals(1)
   }
 
   @Test
-  fun screen_chipEditsSurviveRecreation() {
+  fun screen_recreation_dropsThePanelWithTheRecognitionResult_andKeepsTheText() {
+    // 화면 재생성(회전 등)은 기존처럼 인식 상태를 비운다(DisposableEffect → resetOcrState → 미리 선택 null).
+    // 패널은 사라지고, 편집창 글(rememberSaveable)은 남는다 — 낡은 칩이 새 화면에 남지 않는다.
     val vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, FakeDiaryPhotoStore()) { false }
-    vm.underlinePreselect.value = sample
     val restorer = StateRestorationTester(composeTestRule)
     restorer.setContent { MyApplicationTheme { OcrDiaryScreen(viewModel = vm, bookId = bookId, diaryId = null) } }
-    composeTestRule.waitUntil(10_000) { composeTestRule.onAllNodesWithTag("preselect_word_0").fetchSemanticsNodes().isNotEmpty() }
-    composeTestRule.onNodeWithTag("preselect_word_0").performScrollTo().performClick()
-    composeTestRule.onNodeWithTag("preselect_word_9").performScrollTo().performClick()
+    composeTestRule.waitUntil(10_000) { composeTestRule.onAllNodesWithTag("save_diary_submit_button").fetchSemanticsNodes().isNotEmpty() }
+    vm.underlinePreselect.value = sample
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag("preselect_apply_button").performScrollTo().performClick()
+    composeTestRule.onNodeWithTag("diary_extracted_text_input").assertTextEquals("아침마다 창가에 소리를", includeEditableText = true)
     restorer.emulateSavedInstanceStateRestore()
-    composeTestRule.onNodeWithTag("preselect_word_0").performScrollTo().assertIsSelected()
-    composeTestRule.onNodeWithTag("preselect_word_9").assertIsNotSelected()
+    composeTestRule.waitForIdle()
+    composeTestRule.onAllNodesWithTag("underline_preselect_panel").assertCountEquals(0)
+    composeTestRule.onNodeWithTag("diary_extracted_text_input").assertTextEquals("아침마다 창가에 소리를", includeEditableText = true)
   }
 
   @Test
@@ -178,7 +196,7 @@ class UnderlinePreselectPanelTest {
     val vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, FakeDiaryPhotoStore()) { false }
     screen(vm)
     val input = composeTestRule.onNodeWithTag("diary_extracted_text_input")
-    input.performScrollTo().performTextReplacement("내가 쓴 글")
+    input.performScrollTo()
 
     vm.underlinePreselect.value = sample
     composeTestRule.waitForIdle()
