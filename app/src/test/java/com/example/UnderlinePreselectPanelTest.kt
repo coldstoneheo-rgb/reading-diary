@@ -2,7 +2,10 @@ package com.example
 
 import android.app.Application
 import android.graphics.Bitmap
-import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
@@ -72,12 +75,20 @@ class UnderlinePreselectPanelTest {
 
   @Test
   fun noPreselect_drawsNothing() {
-    for (words in listOf(null, emptyList(), sample.map { it.copy(selected = false) })) {
-      composeTestRule.setContent {
-        MyApplicationTheme { UnderlinePreselectPanel(words, words?.map { false } ?: emptyList(), {}, {}) }
-      }
+    // setContent는 테스트마다 한 번 — 값만 바꿔 가며 본다.
+    var words by mutableStateOf<List<Word>?>(null)
+    composeTestRule.setContent {
+      MyApplicationTheme { UnderlinePreselectPanel(words, words?.map { it.selected } ?: emptyList(), {}, {}) }
+    }
+    for (w in listOf(null, emptyList(), sample.map { it.copy(selected = false) })) {
+      words = w
+      composeTestRule.waitForIdle()
       composeTestRule.onAllNodesWithTag("underline_preselect_panel").assertCountEquals(0)
     }
+    // 판별력 확인: 하나라도 선택되면 그린다.
+    words = sample
+    composeTestRule.waitForIdle()
+    composeTestRule.onAllNodesWithTag("underline_preselect_panel").assertCountEquals(1)
   }
 
   @Test
