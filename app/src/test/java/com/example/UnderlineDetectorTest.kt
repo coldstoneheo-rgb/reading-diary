@@ -134,6 +134,14 @@ class UnderlineDetectorTest {
     assertEquals(1, UnderlineDetector.detect(img, w, h, listOf(line1, line2)).count { it.lineIndex == 0 })
     val k1a03 = UnderlineDetector.Params(darkRatio = 0.3)
     assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, line2), k1a03).none { it.lineIndex == 0 })
+
+    // 아래쪽 경계: 46 어두운 선 = 0.27배 — 기본 0.28은 놓치고 0.25는 잡는다(문턱이 내려가면 이 테스트가 깨진다).
+    val img2 = canvas()
+    (line1Words + line2Words).forEach { glyphWord(img2, it) }
+    fill(img2, Box(170, 94, 390, 97), paper - 46)
+    assertTrue(UnderlineDetector.detect(img2, w, h, listOf(line1, line2)).none { it.lineIndex == 0 })
+    val k1a025 = UnderlineDetector.Params(darkRatio = 0.25)
+    assertEquals(1, UnderlineDetector.detect(img2, w, h, listOf(line1, line2), k1a025).count { it.lineIndex == 0 })
   }
 
   @Test

@@ -3,6 +3,7 @@ package com.example.ui.viewmodel
 import android.app.Application
 import android.graphics.Bitmap
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.debugtools.OcrBoxDump
@@ -27,6 +28,7 @@ import com.example.data.ocr.GeminiTextExtractor
 import com.example.data.ocr.MlKitTextExtractor
 import com.example.data.ocr.OcrOutcome
 import com.example.data.ocr.TextExtractor
+import com.example.data.ocr.UnderlinePreselect
 import com.example.data.photo.CameraTempFiles
 import com.example.data.photo.DiaryPhotoStore
 import com.example.data.photo.InternalDiaryPhotoStore
@@ -892,11 +894,20 @@ class ReadingViewModel @JvmOverloads constructor(
         if (anyOcrRunning()) return // 재진입 방지(공개 상태가 아니라 Job으로 판정)
         ocrJob = viewModelScope.launch {
             ocrState.value = OcrState.Processing
-            val result = extractSafely(bitmap, textExtractor)
+            underlinePreselect.value = null
+            val result = extractSafely(bitmap, textExtractor, preselect = true)
             ensureActive()
-            ocrState.value = result
+            ocrState.value = result.state
+            underlinePreselect.value = result.preselect
         }
     }
+
+    /**
+     * 밑줄 «미리 선택»(SPIKE §4-2): 마지막 기본(온디바이스) 인식의 어절마다 밑줄 여부. 인식 뒤 같은 비트맵으로
+     * [UnderlinePreselect]를 불러 얻는다. 아직 화면이 읽지 않는다 — 결과 글·화면은 그대로(줄 고르기 UI는 §4 PR 3).
+     * 상자가 없는 결과 · 검출 실패 · 정밀 분석 경로는 null.
+     */
+    val underlinePreselect = MutableStateFlow<List<UnderlinePreselect.Word>?>(null)
 
     /**
      * 사진 URI에서 디코드(다운샘플+EXIF) → 회전/플립 → 크롭 → 추출까지 viewModelScope에서 수행한다.
@@ -912,7 +923,7 @@ class ReadingViewModel @JvmOverloads constructor(
         cropBottom: Float
     ) {
         if (anyOcrRunning()) return // 같은 사진에 두 경로가 동시에 돌아 결과가 서로 덮어쓰는 것을 막는다
-        ocrJob = runOcrPipeline(ocrState, textExtractor, imageUri, rotationDegrees, flipped, cropLeft, cropTop, cropRight, cropBottom)
+        ocrJob = runOcrPipeline(ocrState, textExtractor, imageUri, rotationDegrees, flipped, cropLeft, cropTop, cropRight, cropBottom, preselect = true)
     }
 
     private fun anyOcrRunning() = ocrJob?.isActive == true || preciseJob?.isActive == true
@@ -931,21 +942,24 @@ class ReadingViewModel @JvmOverloads constructor(
         cropLeft: Float,
         cropTop: Float,
         cropRight: Float,
-        cropBottom: Float
+        cropBottom: Float,
+        /** true = 기본 경로: 인식 뒤 같은 비트맵으로 밑줄 미리 선택([underlinePreselect])을 채운다. */
+        preselect: Boolean = false
     ): Job = viewModelScope.launch {
         state.value = OcrState.Processing
+        if (preselect) underlinePreselect.value = null
         val cropped = withContext(Dispatchers.Default) {
             BitmapDecoding.decodeForOcr(getApplication(), imageUri, rotationDegrees, flipped, cropLeft, cropTop, cropRight, cropBottom)
         }
         val result = if (cropped == null) {
             // 디코드 실패는 그 자리에서 오류로 끝낸다. 대체 이미지로 인식을 돌리지 않는다.
-            OcrState.Error(DECODE_ERROR_MESSAGE)
+            Extraction(OcrState.Error(DECODE_ERROR_MESSAGE), null)
         } else {
             val bitmapWidth = cropped.width
             val bitmapHeight = cropped.height
             OcrBoxDump.reset()
             try {
-                extractSafely(cropped, extractor)
+                extractSafely(cropped, extractor, preselect)
             } finally {
                 cropped.recycle()
             }.also {
@@ -954,7 +968,8 @@ class ReadingViewModel @JvmOverloads constructor(
             }
         }
         ensureActive() // 취소됐으면 여기서 끝. 옛 작업의 결과가 새 상태를 덮어쓰지 않는다
-        state.value = result
+        state.value = result.state
+        if (preselect) underlinePreselect.value = result.preselect
     }
 
     // ---- 정밀 분석 경로: 기본 경로(ocrState)와 상태를 분리해 결과가 편집창을 조용히 덮어쓰지 않게 한다 ----
@@ -1001,18 +1016,40 @@ class ReadingViewModel @JvmOverloads constructor(
         preciseOcrState.value = OcrState.Idle
     }
 
+    /** 인식 결과 상태 + (기본 경로만) 밑줄 미리 선택 값. */
+    private class Extraction(val state: OcrState, val preselect: List<UnderlinePreselect.Word>?)
+
     /** 어떤 엔진을 쓰는지는 호출부에서 항상 명시한다(기본값 없음 — 온디바이스/외부 전송 선택이 diff에 드러나게). */
-    private suspend fun extractSafely(bitmap: Bitmap, extractor: TextExtractor): OcrState = try {
+    private suspend fun extractSafely(bitmap: Bitmap, extractor: TextExtractor, preselect: Boolean): Extraction = try {
         when (val outcome = extractor.extract(bitmap)) {
-            is OcrOutcome.Text -> OcrState.Success(outcome.text)
-            OcrOutcome.NoText -> OcrState.Error(NO_TEXT_MESSAGE)
-            is OcrOutcome.Failed -> OcrState.Error(outcome.message)
+            is OcrOutcome.Text ->
+                Extraction(OcrState.Success(outcome.text), if (preselect) preselectSafely(bitmap, outcome) else null)
+            OcrOutcome.NoText -> Extraction(OcrState.Error(NO_TEXT_MESSAGE), null)
+            is OcrOutcome.Failed -> Extraction(OcrState.Error(outcome.message), null)
         }
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
         // 인터페이스는 "던지지 않는다"를 강제하지 못하므로 마지막 방어선. Processing에 고착되지 않게 한다.
-        OcrState.Error(ENGINE_ERROR_MESSAGE)
+        Extraction(OcrState.Error(ENGINE_ERROR_MESSAGE), null)
+    }
+
+    /**
+     * 인식에 쓴 그 비트맵(회수 전)으로 밑줄 미리 선택. 실패해도 인식 결과는 그대로 둔다(null) — 동작 변화 0.
+     * 회색조 배열(긴 변 2048 기준 약 12MB)이 모자라면 OOM도 여기서 삼킨다.
+     */
+    private suspend fun preselectSafely(bitmap: Bitmap, outcome: OcrOutcome.Text): List<UnderlinePreselect.Word>? {
+        if (outcome.lines.none { it.words.isNotEmpty() }) return null
+        return withContext(Dispatchers.Default) {
+            try {
+                UnderlinePreselect.forLines(BitmapDecoding.toGray(bitmap), bitmap.width, bitmap.height, outcome.lines)
+            } catch (e: Exception) {
+                Log.w("ReadingViewModel", "underline preselect failed: ${e.javaClass.simpleName}")
+                null
+            } catch (e: OutOfMemoryError) {
+                null
+            }
+        }
     }
 
     companion object {
@@ -1036,5 +1073,6 @@ class ReadingViewModel @JvmOverloads constructor(
         ocrJob?.cancel() // 화면 이탈/진입 시 진행 중 작업도 버린다. 완료돼도 다른 화면에 결과를 흘리지 않는다
         ocrJob = null
         ocrState.value = OcrState.Idle
+        underlinePreselect.value = null
     }
 }

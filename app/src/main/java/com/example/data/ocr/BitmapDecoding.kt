@@ -150,4 +150,20 @@ object BitmapDecoding {
             null
         }
     }
+
+    /**
+     * 밑줄 검출 입력: 비트맵 → 0..255 회색조(행 우선, [UnderlineDetector.toGray]와 같은 가중치).
+     * 한 행씩 읽어 ARGB 전체 배열(회색조의 2배)을 한꺼번에 잡지 않는다.
+     */
+    fun toGray(bitmap: Bitmap): IntArray {
+        val w = bitmap.width
+        val h = bitmap.height
+        val out = IntArray(w * h)
+        val row = IntArray(w)
+        for (y in 0 until h) {
+            bitmap.getPixels(row, 0, w, 0, y, w, 1)
+            UnderlineDetector.toGray(row).copyInto(out, y * w)
+        }
+        return out
+    }
 }

@@ -1,6 +1,7 @@
 package com.example.golden
 
 import com.example.data.ocr.UnderlineDetector
+import com.example.data.ocr.UnderlinePreselect
 import java.awt.BasicStroke
 import java.awt.Color
 import java.awt.image.BufferedImage
@@ -152,8 +153,36 @@ object GoldenSet {
             it.groupValues[1].toInt() to it.groupValues[2].toInt()
         }
 
+    /** 기기 덤프 머리 `# mapping: … scale X,Y` — 원본 ÷ 앱 비트맵 배율(정수로 반올림, 최소 1). 없으면 1. */
+    fun dumpScale(tsv: String): Int =
+        Regex("^# mapping: offset \\S+ scale ([\\d.]+),", RegexOption.MULTILINE).find(tsv)?.groupValues?.get(1)?.toDoubleOrNull()
+            ?.let { Math.round(it).toInt().coerceAtLeast(1) } ?: 1
+
+    /** 회색조를 [f]×[f] 칸 평균으로 줄인다(앱 해상도 근사). [f] = 1이면 그대로. */
+    fun shrink(gray: IntArray, w: Int, h: Int, f: Int): Triple<IntArray, Int, Int> {
+        if (f <= 1) return Triple(gray, w, h)
+        val sw = w / f; val sh = h / f
+        val out = IntArray(sw * sh) { i ->
+            val x0 = (i % sw) * f; val y0 = (i / sw) * f
+            var s = 0
+            for (y in y0 until y0 + f) for (x in x0 until x0 + f) s += gray[y * w + x]
+            s / (f * f)
+        }
+        return Triple(out, sw, sh)
+    }
+
+    /** TSV 상자 열(left · top · width · height)을 [f]로 나눈다(앱 비트맵 좌표). 머리 줄 · 열 이름 줄은 그대로. */
+    fun scaleBoxes(tsv: String, f: Int): String = if (f <= 1) tsv else tsv.lines().joinToString("\n") { row ->
+        val c = row.split('\t')
+        if (c.size < 12 || c[0].trim().toIntOrNull() == null) row
+        else {
+            val l = c[6].toInt(); val t = c[7].toInt(); val r = l + c[8].toInt(); val b = t + c[9].toInt()
+            (c.take(6) + listOf("${l / f}", "${t / f}", "${r / f - l / f}", "${b / f - t / f}") + c.drop(10)).joinToString("\t")
+        }
+    }
+
     /** Tesseract `tsv` 출력(또는 같은 열로 옮긴 다른 엔진의 상자). level 5(어절)만 쓴다. conf < 0은 «신뢰도 없음» = 통과. */
-    fun readWords(tsv: String, minConf: Double = 40.0): List<Word> {
+    fun readWords(tsv: String, minConf: Double = 40.0, filterHeight: Boolean = true): List<Word> {
         val out = mutableListOf<Word>()
         for (line in tsv.lines().drop(1)) {
             val c = line.split('\t')
@@ -165,33 +194,17 @@ object GoldenSet {
             val l = c[6].toInt(); val t = c[7].toInt(); val w = c[8].toInt(); val h = c[9].toInt()
             out += Word(UnderlineDetector.Box(l, t, l + w, t + h), conf, text)
         }
-        if (out.isEmpty()) return out
-        val mh = median(out.map { it.box.height })
-        // 줄 높이와 동떨어진 상자(잡티·여러 줄을 합친 상자)는 뺀다.
-        return out.filter { it.box.height >= 0.4 * mh && it.box.height <= 2.4 * mh }
+        if (!filterHeight) return out
+        // 줄 높이와 동떨어진 상자(잡티·여러 줄을 합친 상자)는 뺀다 — 앱과 같은 규칙(UnderlinePreselect.keptWords).
+        return UnderlinePreselect.keptWords(out.map { it.box }).map { out[it] }
     }
 
     /**
      * 어절 상자를 글줄로 묶는다(세로 중심이 줄 중앙값에서 글자 높이 절반 안). 줄 아래 끝은 밑줄과 합쳐져 부푼 상자를
      * 피하려고 «위 끝 중앙값 + 높이 30백분위»로 잡는다.
      */
-    fun clusterLines(words: List<Word>): List<Line> {
-        val sorted = words.sortedBy { (it.box.top + it.box.bottom) / 2.0 }
-        val groups = mutableListOf<MutableList<Word>>()
-        for (w in sorted) {
-            val cy = (w.box.top + w.box.bottom) / 2.0
-            val g = groups.lastOrNull()
-            if (g != null && cy - medianD(g.map { (it.box.top + it.box.bottom) / 2.0 }) < 0.5 * median(g.map { it.box.height })) g += w
-            else groups += mutableListOf(w)
-        }
-        return groups.map { g ->
-            val ws = g.sortedBy { it.box.left }
-            val top = median(ws.map { it.box.top })
-            val hs = ws.map { it.box.height }.sorted()
-            val h = hs[(hs.size * 0.3).toInt().coerceAtMost(hs.size - 1)]
-            Line(UnderlineDetector.Box(ws.minOf { it.box.left }, top, ws.maxOf { it.box.right }, top + h), ws)
-        }
-    }
+    fun clusterLines(words: List<Word>): List<Line> =
+        UnderlinePreselect.clusterLines(words.map { it.box }).map { l -> Line(l.box, l.words.map { words[it] }) }
 
     /**
      * 정답 [page] 줄마다 글자 겹침(Dice)이 가장 큰 상자 줄을 순서대로 고른다. 못 찾으면 null.
@@ -292,12 +305,21 @@ object GoldenSet {
     fun runSpike(
         g: Golden, gray: IntArray, w: Int, h: Int, boxSource: String, tsv: String,
         params: UnderlineDetector.Params = UnderlineDetector.Params(), overlayOut: File? = null,
-        /** true(기본)면 줄마다 어절 상자로 맞춘 기울기([UnderlineDetector.lineSlope])를 검출기에 넣는다. false = 수평. */
+        /**
+         * true(기본) = 앱이 부르는 그 함수([UnderlinePreselect.select] — 줄 묶기 · 기울기 · 검출)로 잰다.
+         * false = 보정 전 비교 행용: 같은 줄 묶기에 기울기 없이(수평) 검출기를 직접 부른다(앱 경로에는 없는 길).
+         */
         useSlope: Boolean = true
     ): SpikeResult {
-        val lines = clusterLines(readWords(tsv))
-        val slopes = if (useSlope) DoubleArray(lines.size) { UnderlineDetector.lineSlope(lines[it].words.map { wd -> wd.box }) } else null
-        val runs = UnderlineDetector.detect(gray, w, h, lines.map { it.box }, params, slopes)
+        val words = readWords(tsv, filterHeight = false)
+        val boxes = words.map { it.box }
+        val (plines, runs) = if (useSlope) {
+            UnderlinePreselect.select(gray, w, h, boxes, params).let { it.lines to it.runs }
+        } else {
+            val l = UnderlinePreselect.clusterLines(boxes, UnderlinePreselect.keptWords(boxes))
+            l to UnderlineDetector.detect(gray, w, h, l.map { it.box }, params, null)
+        }
+        val lines = plines.map { l -> Line(l.box, l.words.map { words[it] }) }
         val match = matchLines(g.page, lines)
         val truth = markedTokens(g, "underline")
         val predicted = mutableSetOf<Pair<Int, Int>>()
