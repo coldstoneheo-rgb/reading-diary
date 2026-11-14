@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -150,6 +151,29 @@ class ReadingViewModelPreselectTest {
     gate.complete(Unit)
     awaitUntil { vm.underlinePreselect.value != null }
     assertEquals(emptyList<Any>(), vm.underlinePreselect.value)
+  }
+
+  @Test
+  fun preciseAnalysisThenGateReleased_preselectStaysNull() = runTest(dispatcher) {
+    // #64 재게이트 관찰 ①: 정밀 분석이 앞선 미리 선택을 취소한 뒤 그 계산이 풀려도(낡은 Job) 값을 쓰지 않는다.
+    val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+    val vm = viewModel(FakeExtractor(OcrOutcome.Text("가 나 다
+라 마 바", lines)), FakeExtractor(OcrOutcome.Text("precise")), keyPresent = true)
+    var started = 0
+    var finished = 0
+    vm.preselectRunner = { _, _ -> started++; gate.await(); finished++; listOf(com.example.data.ocr.UnderlinePreselect.Word("가", 0, true)) }
+    awaitUntil { vm.geminiKeyRegistered.value }
+    vm.setGeminiPhotoConsent(true)
+    awaitUntil { vm.preciseAnalysisAvailable.value }
+
+    vm.processUnderlineOcr(pageUri("preselect-stale.png"), 0f, false, 0f, 0f, 1f, 1f)
+    awaitUntil { vm.ocrState.value is OcrState.Success && started == 1 }
+    vm.processPreciseAnalysis(pageUri("preselect-stale-precise.png"), 0f, false, 0f, 0f, 1f, 1f)
+    awaitUntil { vm.preciseOcrState.value is OcrState.Success }
+    gate.complete(Unit)
+    advanceUntilIdle()
+    assertEquals(0, finished) // 취소된 Job은 gate를 지나 값을 만들지 못한다
+    assertNull(vm.underlinePreselect.value)
   }
 
   @Test

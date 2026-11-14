@@ -83,6 +83,9 @@ fun OcrDiaryScreen(
     val loadedBooks by viewModel.loadedBooks.collectAsState()
     val diaries by viewModel.diaries.collectAsState()
     val ocrState by viewModel.ocrState.collectAsState()
+    // 밑줄 미리 선택(새 인식마다 새 값). 칩 상태는 값이 바뀔 때만 새로 — 사용자가 고친 칩은 같은 값 동안 유지된다.
+    val preselect by viewModel.underlinePreselect.collectAsState()
+    val preselectChosen = remember(preselect) { (preselect?.map { it.selected } ?: emptyList()).toMutableStateList() }
     val preciseState by viewModel.preciseOcrState.collectAsState()
     val preciseAvailable by viewModel.preciseAnalysisAvailable.collectAsState()
     var showPreciseConfirm by remember { mutableStateOf(false) }
@@ -1154,6 +1157,15 @@ fun OcrDiaryScreen(
                         }
                     }
                 }
+
+                // 밑줄 미리 선택: 고른 어절이 없으면 아무것도 그리지 않는다(기존 화면 그대로). 편집창 글은 버튼을 눌렀을 때만 바뀐다.
+                UnderlinePreselectPanel(
+                    words = preselect,
+                    chosen = preselectChosen,
+                    onToggle = { i -> preselectChosen[i] = !preselectChosen[i] },
+                    onApply = { preselect?.let { extractedText = preselectedText(it, preselectChosen) } },
+                    modifier = Modifier.padding(top = 10.dp)
+                )
 
                 Spacer(modifier = Modifier.height(10.dp))
 
