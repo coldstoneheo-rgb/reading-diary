@@ -56,7 +56,14 @@ object UnderlineDetector {
          * 기본 −0.025 = 기기 ML Kit 줄 상자 위 끝이 잉크보다 위에 있어서(K1a). 기울기([detect]의 slopes)와 함께 쓴다 —
          * 기울기 없이 띠만 넓히면 기운 줄에서 다음 줄 윗획을 밑줄로 잡는다(11장 정밀도 90%).
          */
-        val nextLinePadRatio: Double? = -0.025
+        val nextLinePadRatio: Double? = -0.025,
+        /**
+         * 열마다 세로 3픽셀 평균(종이 결 · 잡티 거르기)은 줄 높이 H(px)가 이 값 이상일 때만 쓰고, 낮으면 1픽셀을 그대로 읽는다.
+         * 앱은 긴 변 ≤ 2048(기준 사진의 1/2)에서 부르는데, 거기서는 2~3픽셀 연필 선이 1픽셀 남짓이 되어 3행 평균에 묽어진다
+         * (SPIKE §1-0-3: 평균을 끄면 앱 해상도 재현율 64% → 69%). 60 = 원본 해상도 본문 줄(H ≈ 100)은 그대로 두고
+         * 앱 해상도 본문 줄(H ≈ 50)만 1픽셀로 읽는 값(기준 자료 11장: 원본 192/7/79 불변 · 앱 174 → 188어절). 0 = 늘 3픽셀.
+         */
+        val smoothMinHeight: Int = 60
     )
 
     /** [lineIndex]번 줄 아래에서 찾은 밑줄 구간(가로 픽셀 [left, right)). */
@@ -105,6 +112,7 @@ object UnderlineDetector {
 
             val slope = slopes?.get(idx) ?: 0.0
             val cx = (line.left + line.right) / 2.0
+            val smooth = h >= params.smoothMinHeight
             val dark = BooleanArray(x1 - x0)
             for (x in x0 until x1) {
                 var min = Double.MAX_VALUE
@@ -113,8 +121,10 @@ object UnderlineDetector {
                 val off = if (slope == 0.0) 0 else Math.rint((x - cx) * slope).toInt()
                 for (y in (y0 + 1) until (y1 - 1)) {
                     val yy = y + off
-                    // 세로 3픽셀 평균 — 종이 결·잡티 한 점을 획으로 잡지 않는다. 사진 밖으로 옮겨지면 종이(255)로 본다.
+                    // 세로 3픽셀 평균(줄 높이 ≥ smoothMinHeight일 때만) — 종이 결·잡티 한 점을 획으로 잡지 않는다.
+                    // 사진 밖으로 옮겨지면 종이(255)로 본다.
                     val v = if (yy < 1 || yy > height - 2) 255.0
+                    else if (!smooth) gray[yy * width + x].toDouble()
                     else (gray[(yy - 1) * width + x] + gray[yy * width + x] + gray[(yy + 1) * width + x]) / 3.0
                     if (v < min) min = v
                     if ((paper - v) / deltaText >= params.darkRatio) thick++

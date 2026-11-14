@@ -29,7 +29,7 @@ object GoldenMeasure {
     data class Variant(val name: String, val params: UnderlineDetector.Params, val useSlope: Boolean)
 
     /** 보정 전(2026-11-13까지) 검출기: 문턱 0.3Δ · 띠 줄 아래 +0.08H ~ 다음 줄 위 −0.08H · 수평. */
-    val LEGACY = UnderlineDetector.Params(darkRatio = 0.3, bandTopRatio = null, nextLinePadRatio = null)
+    val LEGACY = UnderlineDetector.Params(darkRatio = 0.3, bandTopRatio = null, nextLinePadRatio = null, smoothMinHeight = 0)
 
     /**
      * 설정 비교 표(기기 덤프 상자만, 장 합계). 첫 행 = 보정 전, 이어서 K1a(띠를 기기 ML Kit 줄 상자 모양에 맞춘 지금 기본 띠)
@@ -39,14 +39,17 @@ object GoldenMeasure {
         listOf(0.3, 0.29, 0.28, 0.27, 0.26, 0.25, 0.22, 0.2).map { d ->
             val p = UnderlineDetector.Params().copy(darkRatio = d)
             Variant("K1a+K2 · 문턱 $d${if (p == UnderlineDetector.Params()) " = 지금 기본값" else ""}", p, true)
-        }
+        } + Variant("K1a+K2 · 문턱 0.28 · 세로 3픽셀 평균 늘(줄 높이 보정 전)", UnderlineDetector.Params(smoothMinHeight = 0), true)
 
     /**
      * 앱 해상도 행: 기기 덤프 머리의 배율(원본 ÷ 앱 비트맵, 보통 2)만큼 사진을 줄이고(칸 평균) 상자를 나눠 지금 기본값으로 잰다.
      * 앱은 긴 변 ≤ 2048로 줄인 비트맵에서 검출기를 부른다 — 띠 경계의 정수 자르기(H < 50px · H < 40px)가 원본 해상도와 달라진다.
      * 줄이는 방법(칸 평균)은 기기 디코더(inSampleSize)와 같지 않다 — 근사.
      */
-    val APP_RES = Variant("지금 기본값 · 앱 해상도(덤프 배율로 축소 · 칸 평균)", UnderlineDetector.Params(), true)
+    val APP_RES = listOf(
+        Variant("지금 기본값 · 앱 해상도(덤프 배율로 축소 · 칸 평균)", UnderlineDetector.Params(), true),
+        Variant("세로 3픽셀 평균 늘(줄 높이 보정 전) · 앱 해상도", UnderlineDetector.Params(smoothMinHeight = 0), true)
+    )
 
     private class Tally { var tp = 0; var fp = 0; var fn = 0; var bleed = 0; var off = 0; val per = mutableListOf<String>() }
 
@@ -164,11 +167,11 @@ object GoldenMeasure {
                         per += "${g.id.removePrefix("g")}:${vr.tp}/${vr.fp}/${vr.fn}"
                     }
                 }
-                if (DumpGuard.isDeviceDump(tsv)) {
+                if (DumpGuard.isDeviceDump(tsv)) for (v in APP_RES) {
                     val f = GoldenSet.dumpScale(tsv)
                     val (sg, sw, sh) = GoldenSet.shrink(gray, w, h, f)
-                    val vr = GoldenSet.runSpike(g, sg, sw, sh, src.name, GoldenSet.scaleBoxes(tsv, f))
-                    tallies.getValue(APP_RES).apply {
+                    val vr = GoldenSet.runSpike(g, sg, sw, sh, src.name, GoldenSet.scaleBoxes(tsv, f), v.params)
+                    tallies.getValue(v).apply {
                         tp += vr.tp; fp += vr.fp; fn += vr.fn; bleed += vr.decoyFp["bleed"] ?: 0; off += vr.offBodyRuns.size
                         per += "${g.id.removePrefix("g")}:${vr.tp}/${vr.fp}/${vr.fn}"
                     }
