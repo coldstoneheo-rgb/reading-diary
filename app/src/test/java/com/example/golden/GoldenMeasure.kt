@@ -166,7 +166,10 @@ object GoldenMeasure {
                         tp += vr.tp; fp += vr.fp; fn += vr.fn; bleed += vr.decoyFp["bleed"] ?: 0; off += vr.offBodyRuns.size
                         per += "${g.id.removePrefix("g")}:${vr.tp}/${vr.fp}/${vr.fn}"
                     }
+                    appOff += "${v.name}: ${vr.offBodyRuns.size}${if (vr.offBodyRuns.isEmpty()) "" else " — " + vr.offBodyRuns.joinToString("; ")}"
                 }
+                // 앱 해상도 행의 본문 밖 구간(앱 비트맵 좌표 · 상세 파일에만) — 줄 높이 보정 전/후로 어디가 늘었나 보려고.
+                val appOff = mutableListOf<String>()
                 if (DumpGuard.isDeviceDump(tsv)) for (v in APP_RES) {
                     val f = GoldenSet.dumpScale(tsv)
                     val (sg, sw, sh) = GoldenSet.shrink(gray, w, h, f)
@@ -175,11 +178,13 @@ object GoldenMeasure {
                         tp += vr.tp; fp += vr.fp; fn += vr.fn; bleed += vr.decoyFp["bleed"] ?: 0; off += vr.offBodyRuns.size
                         per += "${g.id.removePrefix("g")}:${vr.tp}/${vr.fp}/${vr.fn}"
                     }
+                    appOff += "${v.name}: ${vr.offBodyRuns.size}${if (vr.offBodyRuns.isEmpty()) "" else " — " + vr.offBodyRuns.joinToString("; ")}"
                 }
                 details.append("\n### ${g.id} · ${r.boxSource}\n\n")
                 details.append("- 오검출 어절: ${r.falsePositives.ifEmpty { listOf("0") }.joinToString(", ")}\n")
                 details.append("- 미검출 어절: ${r.falseNegatives.ifEmpty { listOf("0") }.joinToString(", ")}\n")
                 details.append("- 본문 밖 구간: ${r.offBodyRuns.ifEmpty { listOf("0") }.joinToString("; ")}\n")
+                for (line in appOff) details.append("- 본문 밖 구간(앱 해상도 · $line)\n")
                 val us = GoldenSet.score(r.text, g.marksText("underline"))
                 details.append("- 고른 어절을 글로 이으면(정답 글자 기준): 어절 정밀도 ${pct(us.precision)} · 재현율 ${pct(us.recall)} · 글자 오류율 ${pct(us.cer)}\n")
                 spikeRows++
