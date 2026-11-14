@@ -99,7 +99,8 @@ fun OcrDiaryScreen(
     var extractedText by rememberSaveable(key = "$formKey/text") { mutableStateOf("") }
     var notes by rememberSaveable(key = "$formKey/notes") { mutableStateOf("") }
     var editDetailsLoaded by rememberSaveable(key = "$formKey/editLoaded") { mutableStateOf(false) }
-    // 밑줄 미리 선택(새 인식마다 새 값). 칩 상태는 값이 바뀔 때만 새로 — 사용자가 고친 칩은 같은 값 동안(회전 · 재생성 포함) 유지된다.
+    // 밑줄 미리 선택(새 인식마다 새 값). 칩 상태는 새 값이 올 때만 새로 만든다(사용자가 고친 칩은 같은 값 동안 유지).
+    // 재생성(회전 등) 때는 resetOcrState가 값을 비우므로 패널도 사라진다 — rememberSaveable 복원은 지금 경로에서 쓰이지 않는 대비다.
     val preselect by viewModel.underlinePreselect.collectAsState()
     val preselectChosen = rememberSaveable(
         preselect,
