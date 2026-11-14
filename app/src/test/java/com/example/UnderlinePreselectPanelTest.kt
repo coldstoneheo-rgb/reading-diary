@@ -2,6 +2,16 @@ package com.example
 
 import android.app.Application
 import android.graphics.Bitmap
+import android.net.Uri
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.result.ActivityResultRegistry
+import androidx.activity.result.ActivityResultRegistryOwner
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.test.junit4.StateRestorationTester
+import androidx.compose.ui.test.onNodeWithText
+import androidx.core.app.ActivityOptionsCompat
+import org.junit.Assert.assertTrue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -111,11 +121,56 @@ class UnderlinePreselectPanelTest {
     val input = composeTestRule.onNodeWithTag("diary_extracted_text_input")
     input.performScrollTo().performTextReplacement("내가 쓴 글")
     composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/preselect_before_none.png")
-    // 미리 선택이 와도 고른 어절이 0개면 화면에 아무것도 더해지지 않는다.
+    fun saveButtonBounds() = composeTestRule.onNodeWithTag("save_diary_submit_button").fetchSemanticsNode().boundsInRoot
+    val before = saveButtonBounds()
+    // 미리 선택이 와도 고른 어절이 0개면 화면에 아무것도 더해지지 않는다(패널 노드 0 · 아래 요소 위치 그대로).
     vm.underlinePreselect.value = sample.map { it.copy(selected = false) }
     composeTestRule.waitForIdle()
     composeTestRule.onAllNodesWithTag("underline_preselect_panel").assertCountEquals(0)
+    assertEquals(before, saveButtonBounds())
     input.assertTextEquals("내가 쓴 글", includeEditableText = true)
+    // 판별력: 하나라도 선택되면 아래 요소가 밀린다.
+    vm.underlinePreselect.value = sample
+    composeTestRule.waitForIdle()
+    assertTrue(saveButtonBounds().top > before.top)
+  }
+
+  @Test
+  fun screen_chipEditsSurviveRecreation() {
+    val vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, FakeDiaryPhotoStore()) { false }
+    vm.underlinePreselect.value = sample
+    val restorer = StateRestorationTester(composeTestRule)
+    restorer.setContent { MyApplicationTheme { OcrDiaryScreen(viewModel = vm, bookId = bookId, diaryId = null) } }
+    composeTestRule.waitUntil(10_000) { composeTestRule.onAllNodesWithTag("preselect_word_0").fetchSemanticsNodes().isNotEmpty() }
+    composeTestRule.onNodeWithTag("preselect_word_0").performScrollTo().performClick()
+    composeTestRule.onNodeWithTag("preselect_word_9").performScrollTo().performClick()
+    restorer.emulateSavedInstanceStateRestore()
+    composeTestRule.onNodeWithTag("preselect_word_0").performScrollTo().assertIsSelected()
+    composeTestRule.onNodeWithTag("preselect_word_9").assertIsNotSelected()
+  }
+
+  @Test
+  fun screen_pickingAnotherPhoto_clearsThePanel() {
+    val vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, FakeDiaryPhotoStore()) { false }
+    val registryOwner = object : ActivityResultRegistryOwner {
+      override val activityResultRegistry = object : ActivityResultRegistry() {
+        override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
+          dispatchResult(requestCode, Uri.parse("content://photos/another"))
+        }
+      }
+    }
+    composeTestRule.setContent {
+      CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner) {
+        MyApplicationTheme { OcrDiaryScreen(viewModel = vm, bookId = bookId, diaryId = null) }
+      }
+    }
+    composeTestRule.waitUntil(10_000) { composeTestRule.onAllNodesWithTag("save_diary_submit_button").fetchSemanticsNodes().isNotEmpty() }
+    vm.underlinePreselect.value = sample
+    composeTestRule.waitForIdle()
+    composeTestRule.onAllNodesWithTag("underline_preselect_panel").assertCountEquals(1)
+    composeTestRule.onNodeWithText("사진 선택").performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+    composeTestRule.onAllNodesWithTag("underline_preselect_panel").assertCountEquals(0)
   }
 
   @Test

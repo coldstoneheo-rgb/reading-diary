@@ -29,6 +29,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
@@ -83,9 +84,6 @@ fun OcrDiaryScreen(
     val loadedBooks by viewModel.loadedBooks.collectAsState()
     val diaries by viewModel.diaries.collectAsState()
     val ocrState by viewModel.ocrState.collectAsState()
-    // 밑줄 미리 선택(새 인식마다 새 값). 칩 상태는 값이 바뀔 때만 새로 — 사용자가 고친 칩은 같은 값 동안 유지된다.
-    val preselect by viewModel.underlinePreselect.collectAsState()
-    val preselectChosen = remember(preselect) { (preselect?.map { it.selected } ?: emptyList()).toMutableStateList() }
     val preciseState by viewModel.preciseOcrState.collectAsState()
     val preciseAvailable by viewModel.preciseAnalysisAvailable.collectAsState()
     var showPreciseConfirm by remember { mutableStateOf(false) }
@@ -101,6 +99,13 @@ fun OcrDiaryScreen(
     var extractedText by rememberSaveable(key = "$formKey/text") { mutableStateOf("") }
     var notes by rememberSaveable(key = "$formKey/notes") { mutableStateOf("") }
     var editDetailsLoaded by rememberSaveable(key = "$formKey/editLoaded") { mutableStateOf(false) }
+    // 밑줄 미리 선택(새 인식마다 새 값). 칩 상태는 값이 바뀔 때만 새로 — 사용자가 고친 칩은 같은 값 동안(회전 · 재생성 포함) 유지된다.
+    val preselect by viewModel.underlinePreselect.collectAsState()
+    val preselectChosen = rememberSaveable(
+        preselect,
+        key = "$formKey/preselectChosen",
+        saver = Saver<SnapshotStateList<Boolean>, BooleanArray>(save = { it.toBooleanArray() }, restore = { it.toMutableList().toMutableStateList() })
+    ) { (preselect?.map { it.selected } ?: emptyList()).toMutableStateList() }
 
     // Date & Time picker state: default to current or diary's historic time
     var selectedTimestamp by rememberSaveable(key = "$formKey/time") { mutableStateOf(System.currentTimeMillis()) }
@@ -130,6 +135,7 @@ fun OcrDiaryScreen(
     var cameraStartedAt by rememberSaveable(key = "$formKey/cameraStartedAt") { mutableStateOf(0L) }
 
     fun clearShownPhoto() {
+        viewModel.clearUnderlinePreselect() // 앞 사진의 미리 선택 칩이 새 사진 · 빈 화면에 남지 않게
         activeImageUrl = null
         isImageTaken = false
         isCroppedReady = false

@@ -933,6 +933,9 @@ class ReadingViewModel @JvmOverloads constructor(
         preselectJob = job
     }
 
+    /** 화면이 보여 주던 사진을 지우거나 바꿀 때 — 앞 사진의 미리 선택이 새 사진 화면에 남지 않게 비운다. */
+    fun clearUnderlinePreselect() = cancelPreselect()
+
     private fun cancelPreselect() {
         preselectJob?.cancel()
         preselectJob = null
@@ -941,7 +944,7 @@ class ReadingViewModel @JvmOverloads constructor(
 
     /**
      * 밑줄 «미리 선택»(SPIKE §4-2): 마지막 기본(온디바이스) 인식의 어절마다 밑줄 여부. 인식 뒤 같은 비트맵으로
-     * [UnderlinePreselect]를 불러 얻는다. 아직 화면이 읽지 않는다 — 결과 글·화면은 그대로(줄 고르기 UI는 §4 PR 3).
+     * [UnderlinePreselect]를 불러 얻는다. 결과 화면이 어절 칩으로 보여 준다(UnderlinePreselectPanel — 편집창 글은 사용자가 버튼을 눌렀을 때만 바뀐다).
      * 상자가 없는 결과 · 검출 실패는 null. 정밀 분석을 시작하면 null로 비운다(그 결과로 바꿀 수 있어 옛 값이 남지 않게).
      */
     val underlinePreselect = MutableStateFlow<List<UnderlinePreselect.Word>?>(null)

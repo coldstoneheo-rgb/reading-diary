@@ -157,8 +157,7 @@ class ReadingViewModelPreselectTest {
   fun preciseAnalysisThenGateReleased_preselectStaysNull() = runTest(dispatcher) {
     // #64 재게이트 관찰 ①: 정밀 분석이 앞선 미리 선택을 취소한 뒤 그 계산이 풀려도(낡은 Job) 값을 쓰지 않는다.
     val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
-    val vm = viewModel(FakeExtractor(OcrOutcome.Text("가 나 다
-라 마 바", lines)), FakeExtractor(OcrOutcome.Text("precise")), keyPresent = true)
+    val vm = viewModel(FakeExtractor(OcrOutcome.Text("가 나 다\n라 마 바", lines)), FakeExtractor(OcrOutcome.Text("precise")), keyPresent = true)
     var started = 0
     var finished = 0
     vm.preselectRunner = { _, _ -> started++; gate.await(); finished++; listOf(com.example.data.ocr.UnderlinePreselect.Word("가", 0, true)) }

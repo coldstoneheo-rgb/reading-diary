@@ -8,10 +8,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -52,14 +56,14 @@ fun UnderlinePreselectPanel(
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
-                text = "밑줄로 보이는 어절 ${words.count { it.selected }}개를 골라 두었어요",
+                text = "밑줄로 보이는 어절을 골라 두었어요 · 지금 ${chosen.count { it }}개 선택",
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
                 text = "어절을 눌러 켜고 끌 수 있어요. 버튼을 누르기 전에는 위 문장이 바뀌지 않아요.",
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(8.dp))
             for (line in shownLines) {
@@ -73,6 +77,10 @@ fun UnderlinePreselectPanel(
                             selected = chosen[i],
                             onClick = { onToggle(i) },
                             label = { Text(w.text, fontSize = 12.sp) },
+                            // 켜짐을 색만이 아니라 체크 표시로도 보인다.
+                            leadingIcon = if (chosen[i]) {
+                                { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                            } else null,
                             modifier = Modifier.testTag("preselect_word_$i")
                         )
                     }
