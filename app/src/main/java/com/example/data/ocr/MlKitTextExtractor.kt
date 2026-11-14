@@ -25,7 +25,7 @@ class MlKitTextExtractor : TextExtractor {
         return try {
             recognizer = TextRecognition.getClient(KoreanTextRecognizerOptions.Builder().build())
             val image = InputImage.fromBitmap(bitmap, 0)
-            val blocks = suspendCancellableCoroutine<List<OcrBlock>> { cont ->
+            val (blocks, lines) = suspendCancellableCoroutine<Pair<List<OcrBlock>, List<OcrLine>>> { cont ->
                 recognizer.process(image)
                     .addOnSuccessListener { text ->
                         val mapped = text.textBlocks.map { block ->
@@ -36,10 +36,22 @@ class MlKitTextExtractor : TextExtractor {
                                 left = box?.left ?: 0
                             )
                         }
+                        // 줄·어절 상자(입력 비트맵 좌표) — 밑줄 미리 선택의 입력(SPIKE §4-1). 상자 없는 어절은 뺀다.
+                        val boxed = text.textBlocks.flatMap { block ->
+                            block.lines.map { line ->
+                                OcrLine(
+                                    line.text,
+                                    line.boundingBox?.let { UnderlineDetector.Box(it.left, it.top, it.right, it.bottom) },
+                                    line.elements.mapNotNull { e ->
+                                        e.boundingBox?.let { OcrWord(e.text, UnderlineDetector.Box(it.left, it.top, it.right, it.bottom)) }
+                                    }
+                                )
+                            }
+                        }
                         if (cont.isActive) {
                             // 디버그 빌드만 상자를 담아 둔다(릴리스 = 빈 스텁). 취소된 작업의 늦은 콜백은 담지 않는다.
                             OcrBoxDump.record(text)
-                            cont.resume(mapped)
+                            cont.resume(mapped to boxed)
                         }
                     }
                     .addOnFailureListener { e ->
@@ -47,7 +59,7 @@ class MlKitTextExtractor : TextExtractor {
                     }
             }
             val assembled = OcrTextAssembler.assemble(blocks)
-            if (assembled.isBlank()) OcrOutcome.NoText else OcrOutcome.Text(assembled)
+            if (assembled.isBlank()) OcrOutcome.NoText else OcrOutcome.Text(assembled, lines)
         } catch (e: CancellationException) {
             throw e // 구조적 동시성: 취소는 결과로 바꾸지 않는다
         } catch (e: MlKitException) {
