@@ -57,8 +57,15 @@ object AppWordMeasure {
         /** 본문 밖 줄에서 미리 선택된 엔진 어절 수 — 사용자 화면에 «선택됨»으로 뜰 본문 밖 어절. */
         val offBodySelected: Int,
         /** 본문 밖 미리 선택 어절의 줄 위치(앱 비트맵 좌표 · 글 없음). */
-        val offBodyWhere: List<String>
+        val offBodyWhere: List<String>,
+        /** 본문 줄 안에서 미리 선택됐지만 정답 글자와 하나도 맞춰지지 않은 엔진 어절 수(같은 높이 여백 메모 · 자필 등 — 화면엔 선택됨으로 뜬다). */
+        val inBodyUnmatchedSelected: Int,
+        /** 정답 줄 중 엔진 줄에 대응되지 않은 줄 수(그 줄의 엔진 선택은 «본문 밖»으로 잡힐 수 있다). */
+        val unmatchedPageLines: Int
     )
+
+    /** 정답 어절 중 선택으로 볼 번호 + 선택됐지만 정답 글자와 맞춰진 글자가 0인 엔진 어절 수. */
+    data class Alignment(val tokens: Set<Int>, val unmatchedSelected: Int)
 
     /**
      * [tsv]는 [gray]와 같은 좌표의 엔진 어절 상자(기기 덤프). 앱과 같은 입력: 어절 상자 전부(신뢰도 · 높이 거르기는 select 안의 규칙만).
@@ -79,12 +86,14 @@ object AppWordMeasure {
         val match = GoldenSet.matchLines(g.page, glines)
         val truth = GoldenSet.markedTokens(g, "underline")
         val predicted = mutableSetOf<Pair<Int, Int>>()
+        var inBodyUnmatched = 0
         for ((i, li) in match.withIndex()) {
             if (li == null) continue
             val gold = GoldenSet.normalize(g.page[i]).trim().split(Regex("\\s+"))
             val eng = lines[li].words
-            val chosen = tokensSelected(gold, eng.map { words[it].text }, eng.map { selected[it] })
-            for (k in chosen) predicted += (i + 1) to k
+            val a = align(gold, eng.map { words[it].text }, eng.map { selected[it] })
+            for (k in a.tokens) predicted += (i + 1) to k
+            inBodyUnmatched += a.unmatchedSelected
         }
         val body = match.filterNotNull().toSet()
         val offRuns = res.runs.count { it.lineIndex !in body && it.lineIndex !in dropped }
@@ -101,14 +110,24 @@ object AppWordMeasure {
         val decoyFp = g.decoys.filter { it.line != null }.groupBy { it.kind }.mapValues { (_, ds) ->
             ds.sumOf { d -> fpSet.count { it.first == d.line } }
         }
-        return Result((predicted intersect truth).size, fpSet.size, (truth - predicted).size, decoyFp, offRuns, offSel, offWhere)
+        return Result(
+            (predicted intersect truth).size, fpSet.size, (truth - predicted).size, decoyFp, offRuns, offSel, offWhere,
+            inBodyUnmatched, match.count { it == null }
+        )
     }
 
     /**
      * 정답 줄 어절 [gold]와 엔진 줄 어절 [engine](미리 선택 [sel])을 공백 뺀 글자로 맞춰(편집 거리 역추적 — 같음 · 바꿈만 짝),
      * 맞춰진 글자의 절반 이상이 선택된 엔진 어절 글자인 정답 어절 번호를 돌려준다. 맞춰진 글자가 0이면 선택 아님.
      */
-    fun tokensSelected(gold: List<String>, engine: List<String>, sel: List<Boolean>): Set<Int> {
+    fun tokensSelected(gold: List<String>, engine: List<String>, sel: List<Boolean>): Set<Int> = align(gold, engine, sel).tokens
+
+    /** 정답의 «확신 없는 글자»(WILD)는 어느 글자와도 같다([GoldenSet.editDistance]와 같은 규칙). */
+    private fun same(x: Char, y: Char) = x == y || x == WILD || y == WILD
+    private const val WILD = '�'
+
+    /** [tokensSelected] + 선택됐지만 정답 글자와 하나도 맞춰지지 않은 엔진 어절 수. */
+    fun align(gold: List<String>, engine: List<String>, sel: List<Boolean>): Alignment {
         val a = gold.flatMapIndexed { k, t -> GoldenSet.normalize(t).filterNot { it.isWhitespace() }.map { it to k } }
         val b = engine.flatMapIndexed { k, t -> GoldenSet.normalize(t).filterNot { it.isWhitespace() }.map { it to k } }
         val n = a.size; val m = b.size
@@ -116,18 +135,20 @@ object AppWordMeasure {
         for (i in 0..n) d[i][0] = i
         for (j in 0..m) d[0][j] = j
         for (i in 1..n) for (j in 1..m) {
-            val c = if (a[i - 1].first == b[j - 1].first) 0 else 1
+            val c = if (same(a[i - 1].first, b[j - 1].first)) 0 else 1
             d[i][j] = minOf(d[i - 1][j - 1] + c, d[i - 1][j] + 1, d[i][j - 1] + 1)
         }
         val aligned = IntArray(gold.size)
         val hit = IntArray(gold.size)
+        val engineAligned = BooleanArray(engine.size)
         var i = n; var j = m
         while (i > 0 && j > 0) {
-            val c = if (a[i - 1].first == b[j - 1].first) 0 else 1
+            val c = if (same(a[i - 1].first, b[j - 1].first)) 0 else 1
             when (d[i][j]) {
                 d[i - 1][j - 1] + c -> {
                     val k = a[i - 1].second
                     aligned[k]++
+                    engineAligned[b[j - 1].second] = true
                     if (sel[b[j - 1].second]) hit[k]++
                     i--; j--
                 }
@@ -135,6 +156,7 @@ object AppWordMeasure {
                 else -> j--
             }
         }
-        return gold.indices.filter { aligned[it] > 0 && 2 * hit[it] >= aligned[it] }.toSet()
+        val tokens = gold.indices.filter { aligned[it] > 0 && 2 * hit[it] >= aligned[it] }.toSet()
+        return Alignment(tokens, engine.indices.count { sel[it] && !engineAligned[it] })
     }
 }
