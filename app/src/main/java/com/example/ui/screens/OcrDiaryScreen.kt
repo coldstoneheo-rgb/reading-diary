@@ -29,6 +29,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
@@ -98,6 +99,14 @@ fun OcrDiaryScreen(
     var extractedText by rememberSaveable(key = "$formKey/text") { mutableStateOf("") }
     var notes by rememberSaveable(key = "$formKey/notes") { mutableStateOf("") }
     var editDetailsLoaded by rememberSaveable(key = "$formKey/editLoaded") { mutableStateOf(false) }
+    // 밑줄 미리 선택(새 인식마다 새 값). 칩 상태는 새 값이 올 때만 새로 만든다(사용자가 고친 칩은 같은 값 동안 유지).
+    // 재생성(회전 등) 때는 resetOcrState가 값을 비우므로 패널도 사라진다 — rememberSaveable 복원은 지금 경로에서 쓰이지 않는 대비다.
+    val preselect by viewModel.underlinePreselect.collectAsState()
+    val preselectChosen = rememberSaveable(
+        preselect,
+        key = "$formKey/preselectChosen",
+        saver = Saver<SnapshotStateList<Boolean>, BooleanArray>(save = { it.toBooleanArray() }, restore = { it.toMutableList().toMutableStateList() })
+    ) { (preselect?.map { it.selected } ?: emptyList()).toMutableStateList() }
 
     // Date & Time picker state: default to current or diary's historic time
     var selectedTimestamp by rememberSaveable(key = "$formKey/time") { mutableStateOf(System.currentTimeMillis()) }
@@ -127,6 +136,7 @@ fun OcrDiaryScreen(
     var cameraStartedAt by rememberSaveable(key = "$formKey/cameraStartedAt") { mutableStateOf(0L) }
 
     fun clearShownPhoto() {
+        viewModel.clearUnderlinePreselect() // 앞 사진의 미리 선택 칩이 새 사진 · 빈 화면에 남지 않게
         activeImageUrl = null
         isImageTaken = false
         isCroppedReady = false
@@ -1154,6 +1164,15 @@ fun OcrDiaryScreen(
                         }
                     }
                 }
+
+                // 밑줄 미리 선택: 고른 어절이 없으면 아무것도 그리지 않는다(기존 화면 그대로). 편집창 글은 버튼을 눌렀을 때만 바뀐다.
+                UnderlinePreselectPanel(
+                    words = preselect,
+                    chosen = preselectChosen,
+                    onToggle = { i -> preselectChosen[i] = !preselectChosen[i] },
+                    onApply = { preselect?.let { extractedText = preselectedText(it, preselectChosen) } },
+                    modifier = Modifier.padding(top = 10.dp)
+                )
 
                 Spacer(modifier = Modifier.height(10.dp))
 

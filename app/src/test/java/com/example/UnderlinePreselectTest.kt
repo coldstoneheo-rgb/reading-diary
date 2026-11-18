@@ -118,4 +118,17 @@ class UnderlinePreselectTest {
     assertEquals(1, calls.size)
     assertTrue("call=${calls.single()}", calls.single().trim().endsWith("slopes") && !calls.single().contains("null"))
   }
+
+  @Test
+  fun slopes_cannotBeMadeNullable() {
+    // #64 재게이트 관찰 ②: slopes를 nullable로 바꿔 «기울기 없이» 부르는 우회를 막는다.
+    // 컴파일 단언: Result.slopes가 DoubleArray?가 되면 이 줄이 컴파일되지 않는다.
+    val slopes: DoubleArray = UnderlinePreselect.select(IntArray(4), 2, 2, emptyList()).slopes
+    assertEquals(0, slopes.size)
+    // 소스 단언: 검출기에 넘기는 지역 slopes는 DoubleArray(...)로 만들고, 파일 어디에도 nullable DoubleArray 타입이 없다.
+    val src = File("src/main/java/com/example/data/ocr/UnderlinePreselect.kt").readText()
+    assertTrue(Regex("""val slopes\s*=\s*DoubleArray\(""").containsMatchIn(src))
+    assertFalse("nullable DoubleArray in UnderlinePreselect.kt", Regex("""DoubleArray\s*\?""").containsMatchIn(src))
+    assertTrue(Regex("""val slopes:\s*DoubleArray\s*[,)]""").containsMatchIn(src))
+  }
 }
