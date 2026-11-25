@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>독서 다이어리 개인정보처리방침</title>
+<!-- 원본 = main의 docs/privacy/privacy-policy.html. 게시 사본(gh-pages)은 이 파일을 그대로 복사하고, 고칠 때는 원본을 먼저 고친다. 외부 스크립트·폰트·추적 0. 근거: docs/store-listing/INTERNAL-TEST-2026-11.md §5, docs/adr/ADR-005. -->
+<style>
+  :root { --bg: #fdfcf9; --fg: #222; --muted: #666; --line: #ddd; --accent: #5b4636; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #1b1a18; --fg: #eee; --muted: #aaa; --line: #3a3a3a; --accent: #d8c3a5; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.7 system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 1.6rem; color: var(--accent); margin-bottom: .2rem; }
+  h2 { font-size: 1.15rem; margin-top: 2rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+  .meta { color: var(--muted); font-size: .9rem; }
+  table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+  th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+  .table-wrap { overflow-x: auto; }
+  code { font-size: .9em; }
+</style>
+</head>
+<body>
+<main>
+<h1>독서 다이어리 개인정보처리방침</h1>
+<p class="meta">시행일: <strong>2026-11-25</strong> · 앱 패키지: <code>com.woodpeckerai.readingdiary</code> · 문의: <strong>report@woodpecker-ai.com</strong></p>
+
+<p>독서 다이어리(이하 “앱”)는 계정과 서버가 없는 개인 독서 기록 앱입니다. 앱 개발자는 이용자의 기록·사진·검색어를 받아 보관하는 서버를 운영하지 않습니다.
+이 방침은 앱이 어떤 정보를 기기 안에 두고, 어떤 경우에 기기 밖으로 무엇을 보내는지 사실대로 설명합니다.</p>
+
+<h2>1. 기기 안에 저장하는 정보</h2>
+<ul>
+  <li>책 정보(제목·저자·쪽수·표지 주소·읽기 상태), 책장, 독서 일기(밑줄 구절·메모·쪽·작성 시각), 기록에 남긴 사진, 화면 설정은 <strong>이 기기의 앱 저장소</strong>에 저장됩니다.</li>
+  <li>설정에서 등록한 Gemini API 키는 기기의 암호화 저장소에만 저장되며, 암호화 저장소를 쓸 수 없으면 저장하지 않습니다.</li>
+  <li>앱을 삭제하거나 앱 데이터를 지우면 위 정보는 함께 삭제됩니다. 앱 안에서 책·일기를 지우면 해당 기록이 삭제됩니다.</li>
+</ul>
+
+<h2>2. 사진</h2>
+<ul>
+  <li>밑줄 구절 인식은 <strong>기기 안에서</strong> 실행됩니다(Google ML Kit 한국어 글자 인식). 이 과정에서 <strong>사진은 기기 밖으로 전송되지 않습니다.</strong>
+    설치할 때 또는 처음 사용할 때 Google Play 서비스가 인식 모델을 내려받을 수 있습니다.</li>
+  <li>기록에 남긴 사진은 기록과 함께 앱 내부 저장소에 보관되며, 자동 백업·기기 간 자동 이전에서 제외됩니다. 이용자가 설정에서 직접 실행하는 «백업 파일 만들기»(zip)에만 포함되고, 기록·책을 지우면 함께 지워집니다. 촬영 임시 파일은 앱의 캐시 폴더에 잠시 남을 수 있으며 자동 백업에는 포함되지 않습니다.</li>
+  <li>예외 — 아래 5항의 <strong>정밀 분석</strong>을 이용자가 직접 실행한 사진만 Google로 전송됩니다.</li>
+</ul>
+
+<h2>3. 도서 검색(카카오·Google)</h2>
+<ul>
+  <li>책을 추가할 때 검색창에 입력한 <strong>검색어(제목·저자·ISBN)</strong>가 카카오 책 검색 API(<code>dapi.kakao.com</code>)로 전송되어 검색 결과를 받습니다.
+    키가 없거나, 카카오에서 찾지 못하거나 오류가 나면 같은 검색어가 Google Books API(<code>www.googleapis.com</code>)로 전송됩니다.</li>
+  <li>카카오 검색 결과에는 쪽수가 없어, 그중 한 권을 고르면 <strong>그 책의 ISBN</strong>이 쪽수 확인을 위해 Google Books API로 전송됩니다.</li>
+  <li>앱은 검색어를 기기에도 기록하지 않습니다. 전송된 검색어의 처리는 각 서비스의 개인정보처리방침을 따릅니다.</li>
+  <li>검색 결과의 표지 이미지를 화면에 표시할 때 해당 이미지 서버에 요청이 갑니다(기기의 IP 주소 등 일반적인 접속 정보가 그 서버에 전달됩니다).</li>
+  <li>ISBN 바코드 스캔은 Google Play 서비스의 코드 스캐너가 기기에서 처리하며, 앱은 인식된 숫자만 받아 검색창에 넣습니다.</li>
+</ul>
+
+<h2>4. 자동 백업</h2>
+<ul>
+  <li>안드로이드 자동 백업이 켜져 있으면 책·일기·일반 설정이 <strong>이용자 본인의 Google 계정 백업</strong>에 포함될 수 있습니다. 이 백업은 안드로이드 운영체제가 수행하며 앱 개발자는 접근할 수 없습니다.</li>
+  <li>API 키 저장소와 기록에 남긴 사진은 클라우드 백업과 기기 이전 모두에서 제외됩니다. 그래서 자동 백업으로 복원한 기록에는 사진이 없을 수 있습니다(설정의 «백업 파일 만들기»로 만든 zip에는 사진이 포함됩니다 — 6항).</li>
+  <li>자동 백업은 기기의 설정 › Google › 백업에서 끌 수 있습니다.</li>
+</ul>
+
+<h2>5. 선택 기능: 정밀 분석(Google Gemini)</h2>
+<ul>
+  <li>이 기능은 이용자가 원할 때만 쓰는 선택 기능입니다. 다음 세 가지를 <strong>모두</strong> 거쳐야 실행됩니다.
+    <ol>
+      <li>설정에서 이용자 <strong>본인의</strong> Google Gemini API 키를 등록</li>
+      <li>“정밀 분석을 실행할 때마다 선택한 페이지 사진이 Google Gemini로 전송되는 것에 동의합니다” 체크</li>
+      <li>사진마다 뜨는 확인 창에서 “전송하고 분석”을 누름</li>
+    </ol>
+  </li>
+  <li>실행하면 <strong>선택한 페이지 사진</strong>이 이용자의 키로 Google(<code>generativelanguage.googleapis.com</code>)에 전송됩니다. 처리와 보관은 Google의 Gemini API 약관과 개인정보처리방침을 따르며, 요금은 키 소유자에게 청구됩니다.</li>
+  <li>분석 결과는 이용자가 “이 결과로 바꾸기”를 눌러야 편집창에 들어갑니다. 키를 지우면 사진 전송 동의도 함께 해제됩니다.</li>
+</ul>
+
+<h2>6. 내보내기·복사·백업 파일</h2>
+<ul>
+  <li>“마크다운으로 복사”는 기록을 기기의 클립보드에 복사합니다. 붙여 넣은 뒤의 처리는 이용자가 고른 앱을 따릅니다.</li>
+  <li>“글로 공유하기”는 편집창의 문장과 책 제목·저자·쪽을 안드로이드 공유 화면에서 이용자가 직접 고른 앱으로 보냅니다. 누를 때만 실행되며, 보낸 뒤의 처리는 그 앱을 따릅니다.</li>
+  <li>“마크다운 내보내기”는 이용자가 직접 고른 폴더에 책마다 새 파일을 만듭니다. 이미 같은 이름의 파일이 있으면 건드리지 않고 건너뜁니다. 파일은 이용자가 고른 저장 위치(기기 또는 그 위치가 연결된 서비스)에 저장되며 앱은 그 파일을 다른 곳으로 보내지 않습니다.</li>
+  <li>마크다운으로 내보낸 파일을 앱으로 다시 가져오는 기능은 없습니다(마크다운 내보내기는 백업·복원 기능이 아닙니다 — 복원은 아래 “백업 파일”만).</li>
+  <li>설정의 “백업 파일 만들기”는 책·책장·일기·기록에 남긴 사진을 zip 파일 하나로 만들어 이용자가 직접 고른 저장 위치(기기 또는 그 위치가 연결된 서비스, 예: 본인 Google 드라이브)에 저장합니다. API 키 저장소와 앱 설정은 넣지 않습니다. 이용자가 버튼을 누를 때만 실행되며(예약·자동 실행 없음), 앱은 그 파일을 다른 곳으로 보내지 않습니다.</li>
+  <li>“백업 파일에서 복원”은 이용자가 고른 zip으로 지금 기록을 <strong>바꿉니다</strong>(합치지 않음). 파일을 먼저 검사하고 통과할 때만 바꾸며, 도중에 실패하면 지금 기록을 그대로 둡니다.</li>
+</ul>
+
+<h2>7. 전송 경로 요약</h2>
+<div class="table-wrap">
+<table>
+  <tr><th>무엇이</th><th>어디로</th><th>언제</th></tr>
+  <tr><td>검색어</td><td>카카오 책 검색 (키가 없거나, 카카오에서 찾지 못하거나 오류가 나면 Google Books)</td><td>책 검색 시</td></tr>
+  <tr><td>고른 책의 ISBN</td><td>Google Books</td><td>쪽수 정보가 없는 검색 결과를 고를 때</td></tr>
+  <tr><td>표지 이미지 요청</td><td>표지 이미지 서버</td><td>표지 표시 시</td></tr>
+  <tr><td>선택한 페이지 사진</td><td>Google Gemini (이용자 본인 키)</td><td>정밀 분석을 직접 실행할 때만</td></tr>
+  <tr><td>책·일기·일반 설정</td><td>이용자 본인 Google 계정 백업</td><td>안드로이드 자동 백업이 켜져 있을 때</td></tr>
+  <tr><td>문장·책 제목·저자·쪽</td><td>이용자가 고른 앱</td><td>“글로 공유하기”를 직접 누를 때만</td></tr>
+  <tr><td>책 정보·기록 글(마크다운 파일)</td><td>이용자가 고른 폴더</td><td>“마크다운 파일로 내보내기”를 직접 실행할 때만</td></tr>
+  <tr><td>책·책장·일기·기록 사진 사본(zip)</td><td>이용자가 고른 저장 위치</td><td>설정에서 “백업 파일 만들기”를 직접 실행할 때만</td></tr>
+</table>
+</div>
+<p>앱은 광고·분석·추적 SDK를 쓰지 않고, 앱 개발자가 받아 보관하는 정보는 없습니다(위치·연락처·기기 식별자 포함).</p>
+<p>다만 앱이 쓰는 <strong>Google 구성요소</strong>(ML Kit 글자 인식, Play 서비스 코드 스캐너)는 진단과 사용 통계를 위해 기기 정보(제조사·모델·OS 버전), 앱 이름과 버전, 기기·설치 식별자, 처리 시간, 입력 형식과 크기, 동작 종류, 오류 코드 등을 암호화해 <strong>Google로</strong> 보낼 수 있습니다(<a href="https://developers.google.com/ml-kit/android-data-disclosure">Google의 ML Kit 데이터 공개</a>). 사진과 인식한 글은 여기에 들어가지 않습니다.</p>
+
+<h2>8. 아동</h2>
+<p>앱은 아동을 대상으로 하지 않으며, 연령 정보를 수집하지 않습니다.</p>
+
+<h2>9. 변경</h2>
+<p>이 방침이 바뀌면 이 페이지의 시행일을 갱신합니다. 정보를 기기 밖으로 보내는 새 경로가 생기면 앱 업데이트 전에 이 페이지에 먼저 반영합니다.</p>
+
+<h2>10. 문의</h2>
+<p>운영: <strong>딱따구리AI</strong> · 문의: <strong>report@woodpecker-ai.com</strong></p>
+</main>
+</body>
+</html>
