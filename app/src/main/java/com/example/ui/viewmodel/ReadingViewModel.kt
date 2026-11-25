@@ -555,7 +555,8 @@ class ReadingViewModel @JvmOverloads constructor(
                 val updated = book.copy(
                     currentPage = newPage.coerceIn(0, book.totalPages),
                     status = newStatus,
-                    endDate = if (newPage >= book.totalPages) java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else book.endDate,
+                    // 이미 완독한 책을 끝 쪽에 다시 놓아도 완독일은 그대로다.
+                    endDate = if (newPage >= book.totalPages && book.status != "COMPLETED") java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else book.endDate,
                     startDate = if (book.startDate.isEmpty() && newPage > 0) java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else book.startDate
                 )
                 repository.updateBook(updated)
@@ -625,8 +626,7 @@ class ReadingViewModel @JvmOverloads constructor(
                         coverUrl = coverUrl,
                         bookcaseId = resolvedBookcaseId,
                         status = status,
-                        startDate = if (currentPage > 0) java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else "",
-                        endDate = if (status == "COMPLETED") java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else null
+                        startDate = if (currentPage > 0) java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else ""
                     )
                 )
             } else {
@@ -646,7 +646,7 @@ class ReadingViewModel @JvmOverloads constructor(
                         startDate = existingStartDate,
                         // 이미 완독한 책은 제목 수정·책장 이동만으로 완독일이 오늘로 바뀌지 않게 원래 날짜를 지킨다.
                         endDate = if (status == "COMPLETED") {
-                            currentBook?.endDate ?: java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+                            if (currentBook?.status == "COMPLETED") currentBook.endDate else java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
                         } else null,
                         rating = existingRating
                     )

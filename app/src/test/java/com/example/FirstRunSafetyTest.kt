@@ -153,6 +153,19 @@ class FirstRunSafetyTest {
     vm.saveBook(id = id, title = "고친 제목", author = "지은이", totalPages = 100, currentPage = 100, coverUrl = "", bookcaseId = 2, status = "COMPLETED") { done = true }
     pump { done }
     assertEquals("2026-01-05", runBlocking { db.bookDao().getBookByIdOneShot(id) }!!.endDate)
+
+    // 끝 쪽에 다시 놓아도 그대로, 다시 읽는 중으로 갔다가 완독하면 새 날짜다.
+    var moved = false
+    vm.updateBookProgress(id, 100) { moved = true }
+    pump { moved }
+    assertEquals("2026-01-05", runBlocking { db.bookDao().getBookByIdOneShot(id) }!!.endDate)
+    moved = false
+    vm.updateBookProgress(id, 50) { moved = true }
+    pump { moved }
+    done = false
+    vm.saveBook(id = id, title = "고친 제목", author = "지은이", totalPages = 100, currentPage = 100, coverUrl = "", bookcaseId = 2, status = "COMPLETED") { done = true }
+    pump { done }
+    assertFalse("2026-01-05" == runBlocking { db.bookDao().getBookByIdOneShot(id) }!!.endDate)
   }
 
   @Test
