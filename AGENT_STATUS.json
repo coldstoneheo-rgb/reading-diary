@@ -3,7 +3,7 @@
   "phase": "새해 공개 준비 — 첫 비공개 제출 11-27 목표(docs/store-listing/CLOSED-TEST-2026-11.md)",
   "current_task": "PR #69 · #70 · #71 · 문서 PR 게이트 → 머지",
   "waiting_on": [
-    "사용자: docs/store-listing/CLOSED-TEST-2026-11.md §8(키스토어 · 콘솔 앱 유무 · 공개 문의 메일 · 카카오 키 결정 · 구글 그룹 · Pages 확인 · #67 눈 확인)",
+    "사용자: docs/store-listing/FIRST-UPLOAD-2026-11.md 1~10단계 · #67 눈 확인 (키스토어 · 콘솔 앱 = 없음, 문의 메일 = 확정)",
     "처리방침 주소가 200이 된 뒤 PRIVACY_POLICY_URL 1줄 PR — 그 뒤에만 bundleRelease"
   ],
   "next_actions": [
