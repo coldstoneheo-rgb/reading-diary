@@ -16,6 +16,7 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -99,5 +100,38 @@ class OcrNewPhotoResetTest {
     composeTestRule.onNodeWithText("좌우 반전").performScrollTo().assertIsNotSelected()
     composeTestRule.onNodeWithText("좌측 끝: 0%").assertExists()
     composeTestRule.onNodeWithText("우측 끝: 100%").assertExists()
+  }
+
+  private object FailingExtractor : TextExtractor {
+    override suspend fun extract(bitmap: Bitmap): OcrOutcome = OcrOutcome.Failed("모델을 준비하는 중이에요")
+  }
+
+  /** 실패 안내는 버튼 아래에 남되, 아직 읽지 않은 새 사진 아래에 앞 사진의 실패가 남아 있으면 안 된다. */
+  @Test
+  fun ocrFailure_staysUnderTheButton_andIsClearedByANewPhoto() {
+    val vm = ReadingViewModel(app, FailingExtractor, FailingExtractor, FakeDiaryPhotoStore()) { false }
+    composeTestRule.setContent {
+      CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner) {
+        MyApplicationTheme { OcrDiaryScreen(viewModel = vm, bookId = bookId, diaryId = null) }
+      }
+    }
+    composeTestRule.waitUntil(10_000) {
+      composeTestRule.onAllNodesWithTag("save_diary_submit_button").fetchSemanticsNodes().isNotEmpty()
+    }
+    fun errors() = composeTestRule.onAllNodesWithTag("ocr_error").fetchSemanticsNodes().size
+
+    composeTestRule.onNodeWithText("사진 선택").performScrollTo().performClick()
+    composeTestRule.onNodeWithText("자르기 확정하기", substring = true).performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+    check(errors() == 0)
+    composeTestRule.runOnUiThread { vm.processUnderlineOcr(Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)) }
+    composeTestRule.waitUntil(10_000) { org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle(); errors() == 1 }
+    composeTestRule.onNodeWithText("모델을 준비하는 중이에요").assertExists()
+
+    composeTestRule.onNodeWithText("사진 선택").performScrollTo().performClick()
+    composeTestRule.onNodeWithText("자르기 확정하기", substring = true).performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag("ocr_button").assertExists()
+    check(errors() == 0) { "앞 사진의 실패 안내가 새 사진 아래에 남았다" }
   }
 }

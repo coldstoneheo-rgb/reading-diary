@@ -722,12 +722,7 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                                 shape = RoundedCornerShape(6.dp)
                             ) {
-                                Text(
-                                    text = privacySummaryText(),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(10.dp),
-                                    lineHeight = 16.sp
-                                )
+                                PrivacyPolicyBody()
                             }
                         }
                     }
@@ -736,6 +731,26 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
 
             // 디버그 빌드만: ML Kit 상자 덤프 공유 카드(릴리스 = 빈 스텁)
             OcrBoxDumpSection()
+        }
+    }
+}
+
+/** 처리방침 요약 + 전문 링크(Play: 앱 안에서도 처리방침으로 «링크»되어야 한다). 주소가 비면 링크를 그리지 않는다. */
+@Composable
+internal fun PrivacyPolicyBody(url: String = PRIVACY_POLICY_URL) {
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    Column(modifier = Modifier.padding(10.dp)) {
+        Text(
+            text = privacySummaryText(url),
+            style = MaterialTheme.typography.bodySmall,
+            lineHeight = 16.sp
+        )
+        if (url.isNotBlank()) {
+            TextButton(
+                // 브라우저가 없는 기기에서 죽지 않게 한다. 주소는 위 글에 보인다.
+                onClick = { runCatching { uriHandler.openUri(url) } },
+                modifier = Modifier.testTag("privacy_policy_link")
+            ) { Text("개인정보처리방침 전문 열기") }
         }
     }
 }

@@ -1111,6 +1111,11 @@ class ReadingViewModel @JvmOverloads constructor(
         const val CONSENT_REQUIRED_MESSAGE = "정밀 분석을 쓰려면 설정에서 Gemini API 키를 등록하고 사진 전송에 동의해야 해요."
     }
 
+    /** 실패 안내만 지운다(진행 중 인식 · 성공 결과 · 미리 선택은 그대로). */
+    fun clearOcrError() {
+        if (ocrState.value is OcrState.Error) ocrState.value = OcrState.Idle
+    }
+
     fun resetOcrState() {
         ocrJob?.cancel() // 화면 이탈/진입 시 진행 중 작업도 버린다. 완료돼도 다른 화면에 결과를 흘리지 않는다
         ocrJob = null

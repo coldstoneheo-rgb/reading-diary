@@ -45,7 +45,7 @@ class HonestCopyTest {
   /** 저장 코드 없이 «저장되었습니다»를 띄우던 이미지 저장 버튼과, 글만 보내면서 이미지라고 부르던 문구. 실제 이미지 저장을 만드는 PR에서만 줄인다. */
   @Test
   fun noFakeImageSaveOrImageShareCopy() {
-    val forbidden = listOf("기기 갤러리로 성공적으로 저장", "이미지 저장", "이미지 카드로 SNS", "공유 다이얼로그를 호출")
+    val forbidden = listOf("갤러리로 성공적으로 저장", "이미지 저장", "이미지 카드", "SNS 공유", "컬러 필터", "공유 다이얼로그를 호출")
     val offenders = mainSources().flatMap { file ->
       val text = file.readText()
       forbidden.filter { text.contains(it) }.map { "${file.path}: \"$it\"" }
@@ -56,8 +56,9 @@ class HonestCopyTest {
   /** 글자 인식 모델은 설치할 때 미리 받게 선언한다(첫 인식이 모델 내려받기로 실패하지 않게). */
   @Test
   fun manifest_declaresInstallTimeKoreanOcrModel() {
-    val manifest = File("src/main/AndroidManifest.xml").readText()
-    assertTrue(Regex("com\\.google\\.mlkit\\.vision\\.DEPENDENCIES\"\\s+android:value=\"[^\"]*ocr_korean").containsMatchIn(manifest))
+    val manifest = File("src/main/AndroidManifest.xml").readText().replace(Regex("<!--.*?-->", RegexOption.DOT_MATCHES_ALL), "")
+    val value = Regex("com\\.google\\.mlkit\\.vision\\.DEPENDENCIES\"\\s+android:value=\"([^\"]*)\"").find(manifest)?.groupValues?.get(1)
+    assertTrue("value=$value", value.orEmpty().split(",").containsAll(listOf("ocr_korean", "barcode_ui")))
   }
 
   /** 안드로이드 기본 로봇 아이콘으로 되돌아가지 않게 한다. */
@@ -66,6 +67,12 @@ class HonestCopyTest {
     val drawables = File("src/main/res/drawable")
     assertFalse(File(drawables, "ic_launcher_background.xml").readText().contains("#3DDC84", ignoreCase = true))
     assertFalse(File(drawables, "ic_launcher_foreground.xml").readText().contains("M31,63.928"))
+    for (name in listOf("ic_launcher", "ic_launcher_round")) {
+      val adaptive = File("src/main/res/mipmap-anydpi-v26/$name.xml").readText()
+      for (layer in listOf("background", "foreground", "monochrome")) assertTrue(adaptive.contains("@drawable/ic_launcher_$layer"))
+      // 기본 템플릿의 구형 아이콘(크기로 식별: 초기 커밋의 xxxhdpi 바이트 수)이 아니다.
+      assertFalse(File("src/main/res/mipmap-xxxhdpi/$name.webp").length() in listOf(5743L, 11709L))
+    }
   }
 
   /** ADR-003 실행 7: 도서 검색 안내가 존재하지 않는 키 입력 화면으로 보내면 안 된다(오너 결정: 키 입력 UI 없음, ADR-005 §4). */
