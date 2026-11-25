@@ -27,8 +27,13 @@ import com.example.ui.screens.OcrDiaryScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.ReadingViewModel
 import com.example.ui.viewmodel.Screen
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -55,6 +60,14 @@ class FirstRunSafetyTest {
   }
 
   private fun viewModel(text: String = "쓰지 않음") = ReadingViewModel(app, FixedExtractor(text), FixedExtractor(text), FakeDiaryPhotoStore()) { false }
+
+  private val collectors = mutableListOf<Job>()
+
+  @After
+  fun tearDown() {
+    collectors.forEach { it.cancel() }
+    newInstall()
+  }
 
   @Before
   fun newInstall() {
@@ -88,6 +101,9 @@ class FirstRunSafetyTest {
 
   @Test
   fun newInstall_hasEachDefaultBookcaseOnce_andBasicComesFirst() {
+    // 여는 즉시(첫 조회) 5개가 있다 — 뒤늦은 별도 코루틴이 넣으면 ViewModel의 채우기와 겹쳐 두 벌이 된다.
+    assertEquals(AppDatabase.DEFAULT_BOOKCASES, runBlocking { db.bookcaseDao().getAllBookcasesOneShot() }.map { it.name })
+    newInstall()
     val vm = viewModel() // DB를 처음 여는 것이 ViewModel인 실제 순서
     settle()
     val names = runBlocking { db.bookcaseDao().getAllBookcasesOneShot() }.map { it.name }
@@ -106,21 +122,37 @@ class FirstRunSafetyTest {
     vm.navigateBack()
     vm.navigateTo(Screen.BookDetail(b))
     pump { vm.activeBook.value?.id == b }
+    // 마지막 값만 보면 뒤이은 «나 책» 방출에 가려진다 — 스쳐 간 값까지 모두 적는다.
+    val shownBooks = mutableListOf<Int?>()
+    val shownDiaryBooks = mutableListOf<Int>()
+    collectors += CoroutineScope(Dispatchers.Unconfined).launch { vm.activeBook.collect { shownBooks += it?.id } }
+    collectors += CoroutineScope(Dispatchers.Unconfined).launch { vm.activeBookDiaries.collect { list -> shownDiaryBooks += list.map { it.bookId } } }
     // 책 · 기록 표가 바뀌면 Room은 구독 중인 조회를 모두 다시 내보낸다. 끊지 않은 «가 책» 구독이 화면을 빼앗으면 안 된다.
     runBlocking {
       db.bookDao().update(db.bookDao().getBookByIdOneShot(a)!!.copy(rating = 5))
       db.diaryDao().insert(Diary(bookId = a, page = 1, selectedText = "가 책 문장", notes = ""))
     }
     settle()
-    assertEquals(b, vm.activeBook.value?.id)
-    assertTrue(vm.activeBookDiaries.value.isEmpty())
     // 앞 책의 늦은 진도 저장 · 별점도 지금 연 책을 바꾸지 않는다.
     vm.updateBookProgress(a, 10)
     pump { runBlocking { db.bookDao().getBookByIdOneShot(a) }!!.currentPage == 10 }
     vm.updateBookRating(a, 3)
     pump { runBlocking { db.bookDao().getBookByIdOneShot(a) }!!.rating == 3 }
     settle()
-    assertEquals(b, vm.activeBook.value?.id)
+    assertEquals(setOf<Int?>(b), shownBooks.toSet())
+    assertTrue("$shownDiaryBooks", shownDiaryBooks.isEmpty())
+  }
+
+  @Test
+  fun editingACompletedBook_keepsItsCompletionDate() {
+    val vm = viewModel()
+    val id = runBlocking {
+      db.bookDao().insert(Book(title = "다 읽은 책", author = "지은이", totalPages = 100, currentPage = 100, bookcaseId = 1, status = "COMPLETED", endDate = "2026-01-05")).toInt()
+    }
+    var done = false
+    vm.saveBook(id = id, title = "고친 제목", author = "지은이", totalPages = 100, currentPage = 100, coverUrl = "", bookcaseId = 2, status = "COMPLETED") { done = true }
+    pump { done }
+    assertEquals("2026-01-05", runBlocking { db.bookDao().getBookByIdOneShot(id) }!!.endDate)
   }
 
   @Test

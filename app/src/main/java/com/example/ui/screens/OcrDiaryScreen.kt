@@ -290,8 +290,11 @@ fun OcrDiaryScreen(
         uri?.let { applyPickedPhoto(it) }
     }
 
-    // 저장하지 않은 입력이 있으면 뒤로 갈 때 한 번 묻는다. 저장 중이거나 저장을 마친 화면은 묻지 않는다.
-    val hasUnsavedInput = !diarySaving && submittedCreatedAt == null && if (diaryId == null) {
+    // 저장하지 않은 입력이 있으면 뒤로 갈 때 한 번 묻는다. 이 폼이 저장을 시작했거나 이미 떠나는 중(전환 애니메이션)이면 묻지 않는다.
+    // diarySaving은 앱 전체 상태라 쓰지 않는다 — 앞 기록을 저장하는 동안 쓰던 새 기록도 지켜야 한다.
+    var submittedHere by remember { mutableStateOf(false) }
+    val isCurrent = currentScreen == Screen.AddDiary(bookId, diaryId)
+    val hasUnsavedInput = isCurrent && !submittedHere && submittedCreatedAt == null && if (diaryId == null) {
         extractedText.isNotBlank() || notes.isNotBlank() || activeImageUrl != null || photoDrafts.isNotEmpty()
     } else {
         val original = editingDiary
@@ -1669,6 +1672,7 @@ fun OcrDiaryScreen(
 
                     // 저장 완료는 사용자가 이미 다른 화면으로 갔을 수 있으므로, 저장을 시작한 이 화면일 때만 닫는다.
                     val startedOn = viewModel.currentScreenState.value
+                    submittedHere = true
                     if (diaryId == null) submittedCreatedAt = selectedTimestamp
 
                     // Save diary with selected timestamp (which defaults to System.currentTimeMillis() or selected/historical date-time value)
@@ -1681,6 +1685,7 @@ fun OcrDiaryScreen(
                         createdAt = selectedTimestamp,
                         photos = PhotoDrafts.toInput(slots, loadedPhotos.map { it.photoId }),
                         onFailure = {
+                            submittedHere = false
                             // 이미 화면을 떠났으면 입력이 남아 있지 않다.
                             val message = if (viewModel.currentScreenState.value === startedOn) {
                                 "기록을 저장하지 못했습니다. 입력한 내용은 그대로 있으니 다시 시도해 주세요."

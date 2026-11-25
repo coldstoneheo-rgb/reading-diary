@@ -469,6 +469,7 @@ fun AddEditBookScreen(
                 Button(
                     enabled = !submitted,
                     onClick = {
+                        if (submitted) return@Button // 재구성 전에 밀린 두 번째 탭
                         if (title.isBlank()) {
                             Toast.makeText(context, "도서 제목을 반드시 입력해주세요.", Toast.LENGTH_SHORT).show()
                             return@Button

@@ -625,7 +625,8 @@ class ReadingViewModel @JvmOverloads constructor(
                         coverUrl = coverUrl,
                         bookcaseId = resolvedBookcaseId,
                         status = status,
-                        startDate = if (currentPage > 0) java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else ""
+                        startDate = if (currentPage > 0) java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else "",
+                        endDate = if (status == "COMPLETED") java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else null
                     )
                 )
             } else {
@@ -643,7 +644,10 @@ class ReadingViewModel @JvmOverloads constructor(
                         bookcaseId = resolvedBookcaseId,
                         status = status,
                         startDate = existingStartDate,
-                        endDate = if (status == "COMPLETED") java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else null,
+                        // 이미 완독한 책은 제목 수정·책장 이동만으로 완독일이 오늘로 바뀌지 않게 원래 날짜를 지킨다.
+                        endDate = if (status == "COMPLETED") {
+                            currentBook?.endDate ?: java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+                        } else null,
                         rating = existingRating
                     )
                 )

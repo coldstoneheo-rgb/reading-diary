@@ -441,6 +441,7 @@ internal fun DeleteBookcaseDialog(name: String, books: Int, diaries: Int, onConf
         text = {
             Text(
                 if (books == 0) "이 책장에는 책이 없습니다."
+                else if (diaries == 0) "이 책장의 책 ${books}권이 함께 삭제되며 되돌릴 수 없습니다."
                 else "이 책장의 책 ${books}권과 독서 기록 ${diaries}개(기록에 남긴 사진 포함)가 함께 삭제되며 되돌릴 수 없습니다."
             )
         },
