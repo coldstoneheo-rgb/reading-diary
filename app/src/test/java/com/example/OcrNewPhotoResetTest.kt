@@ -129,6 +129,8 @@ class OcrNewPhotoResetTest {
     composeTestRule.onNodeWithText("모델을 준비하는 중이에요").assertExists()
 
     composeTestRule.onNodeWithText("사진 선택").performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+    check(errors() == 0) { "새 사진을 고른 즉시 지워져야 한다(자르기 확정이 대신 지우면 안 된다)" }
     composeTestRule.onNodeWithText("자르기 확정하기", substring = true).performScrollTo().performClick()
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithTag("ocr_button").assertExists()
