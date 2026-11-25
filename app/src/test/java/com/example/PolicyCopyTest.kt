@@ -53,8 +53,9 @@ class PolicyCopyTest {
     val policy = File("../docs/privacy/privacy-policy.html").readText()
     assertFalse(policy.contains("검색어를 기기에도 기록하지 않습니다"))
     assertFalse(policy.contains("검색 결과의 표지"))
-    assertTrue(policy.contains("입력하던 검색어를 되살리려고"))
-    assertTrue(policy.contains("책 목록·책 상세"))
+    assertTrue(policy.contains("앱은 검색어를 기록으로 저장하지 않습니다. 다만"))
+    assertTrue(policy.contains("되살린 검색어로 다시 검색될 수 있습니다"))
+    assertTrue(policy.contains("검색 결과·책 추가와 수정·책 목록·책 상세"))
   }
 
   @Test
