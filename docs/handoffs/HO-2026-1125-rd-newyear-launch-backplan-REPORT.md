@@ -48,7 +48,17 @@ PR #69 본문 · SPIKE §1-0-5. 앱 해상도 · 앱 어절 판정 190/5/81 → 
 
 ## PR · 검증
 
-(PRTABLE)
+| PR | head | critic | 시험(`verifyRoborazziDebug` 7묶음, 묶음마다 따로) |
+|---|---|---|---|
+| #69 검출기 | `813cdbd` | 7 → 8/10 PASS | 432 · 실패 0 · 건너뜀 1 |
+| #70 첫 사용 기록 지키기 | `ea86898` | 6.5 NEEDS_REVISION → 7.5 → 8/10 PASS | 437 · 실패 0 · 건너뜀 1 · 변이 2건은 시험이 잡음(`2e6087f`) |
+| #71 스토어 준비 | `62f5f2b` | 6.5 NEEDS_REVISION → 7.5 → 8/10 PASS | 437 · 1차에 **1건 실패** → 같은 head 재실행 3회 통과 · 건너뜀 1 |
+| 문서(이 PR) | 이 PR head | 6 NEEDS_REVISION(심각 1) → 8 → 7.5 → 8.5/10 PASS | `BookSearchProviderPolicyTest` · `HonestCopyTest` · `PolicyCopyTest` 종료 0 |
+
+- #71의 실패 = `OcrDiaryPhotoScreenTest.edit_recreation_keepsTextAndPhotoDrafts`(:228). 2026-11-05 REPORT에 간헐로 기록된 시험. critic 코드 판단: 사진 구역은 Room 조회 뒤에 그려지는데 시험은 메모 글만 기다린다 — 이 PR 때문일 가능성은 낮다. 재실행 3회만으로는 증거가 약하다(우연히 약 51%). 시험 고침은 다음 test PR.
+- #69 · #70 · #71의 첫 묶음 목록에는 `src/testDebug`의 `debugtools` 2클래스가 빠져 있었다 — #70 댓글에 «전체»라고 잘못 적었다가 고치고, 세 가지 모두 8건씩 더 돌렸다.
+- 하지 않은 것: 한 프로세스 전체 실행 · `assembleDebug`(서명 키 권한 규칙) · 실기기.
+- #67과 #71은 `OcrDiaryScreen.kt` `clearShownPhoto` 1곳이 충돌한다(두 줄을 모두 두면 풀림). 처음 «충돌 0» 보고는 #71을 고치기 전 값이다.
 
 순서: `fix/store-readiness`가 처리방침 게시 · AAB 빌드보다 먼저다(처리방침의 «글로 공유하기» · «설치할 때 모델 내려받기»는 그 PR이 들어가야 사실이다).
 

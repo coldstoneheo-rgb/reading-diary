@@ -3,13 +3,14 @@
   "phase": "새해 공개 준비 — 첫 비공개 제출 11-27 목표(docs/store-listing/CLOSED-TEST-2026-11.md)",
   "current_task": "PR #69 · #70 · #71 · 문서 PR 게이트 → 머지",
   "waiting_on": [
-    "사용자: docs/store-listing/FIRST-UPLOAD-2026-11.md 1~10단계 · #67 눈 확인 (키스토어 · 콘솔 앱 = 없음, 문의 메일 = 확정)",
+    "사용자: docs/store-listing/FIRST-UPLOAD-2026-11.md 1~11단계 · #67 눈 확인 (키스토어 · 콘솔 앱 = 없음, 문의 메일 = 확정)",
     "처리방침 주소가 200이 된 뒤 PRIVACY_POLICY_URL 1줄 PR — 그 뒤에만 bundleRelease"
   ],
   "next_actions": [
     "게이트 통과 PR 머지 → #67 재정렬(OcrDiaryScreen clearShownPhoto 두 줄) · 기준 이미지 재기록",
     "처리방침 게시 → 1줄 PR → 사용자 bundleRelease → 비공개 트랙 제출(11-27)",
-    "테스트 중 목록(REPORT): 띄어쓰기 검색 · 쪽수 모름 · 키보드 · 테마 저장 · 상태바"
+    "테스트 중 목록(REPORT): 띄어쓰기 검색 · 쪽수 모름 · 키보드 · 테마 저장 · 상태바",
+    "test PR: OcrDiaryPhotoScreenTest.edit_recreation_keepsTextAndPhotoDrafts가 사진 구역을 기다리게(간헐 실패 원인 후보)"
   ],
   "metrics": {
     "unit_tests_after_round": "#69 432 · #70 437 · #71 437 (묶음별, 각 건너뜀 1 · #71은 간헐 1건 재실행 통과)",
