@@ -9,7 +9,7 @@
 
 | 물음 | 원문 | 출처 |
 |---|---|---|
-| **이 요건이 우리 계정에 적용되나** | «personal accounts created after November 13, 2023» · «do not apply to developers with personal accounts created before November 13, 2023» → **계정 종류와 만든 날을 사용자가 확인**(옛 개인 계정 · 조직 계정이면 12명 · 14일 · 접근 신청이 없어지고 앱 설정 · 프로덕션 검토만 남는다) | 14151465 · 9859152 |
+| **이 요건이 우리 계정에 적용되나** | «personal accounts created after November 13, 2023» · «do not apply to developers with personal accounts created before November 13, 2023» → **적용된다고 보고 진행한다**(같은 계정의 다른 앱이 2026-09에 이 절차를 거침 — LC 확인 2026-11-25 · 계정 만든 날은 미대조) | 14151465 · 9859152 |
 | 프로덕션 접근 요건 | «At least 12 testers must be opted in to your closed test when you apply for production access, and they must have been opted in continuously for the preceding 14 days.» | 14151465 |
 | 나갔다 들어온 사람 | «Testers who opt in, test for fewer than 14 days, and then opt out do not count … the 14 days must be consecutive» | 14151465 |
 | 수만 채우면 되나 | «Reasons for required continued testing include having fewer than 12 opted-in testers or insufficient tester engagement during the testing period.» | 14151465 |
@@ -19,6 +19,7 @@
 | 접근 신청 검토 | «Review usually takes seven days or less, but can occasionally take longer.» | 14151465 |
 | 비공개 트랙 첫 검토 기간 | 비공개 트랙만의 말은 **없음**. 일반: «Processing can take a few hours or up to seven days (or longer in exceptional cases)» | 9859654 |
 | 프로덕션 첫 검토 기간 | 프로덕션만의 말은 **없음**. «For certain developer accounts … review times of up to seven days or longer in exceptional cases.» | 9859751 |
+| 구글 그룹을 쓰면 | «For closed tests using a Google Group, users must join the group before opting into your test.» · 주소 형식 «yourgroupname@googlegroups.com» | 9845334 |
 | 옵트인 링크가 생기는 때 | «The opt-in link displays only when an app status is 'Published'.» → 첫 검토가 끝나야 12명을 들일 수 있다 | 9845334 |
 | 링크가 퍼지는 시간 | «the test link can take several hours to become available to testers» | 9845334 |
 | 새 빌드를 올리면 14일을 다시 세나 | **말이 없음**(세는 대상은 옵트인). «Updating your app in closed testing before releasing to production helps minimize low ratings» | 14151465 |
@@ -83,6 +84,7 @@
 | 카테고리 | 도서/참고자료 | |
 | 연락 메일 | **사용자가 정함**(공개된다) | |
 | «앱 만들기» 선언 | 개발자 프로그램 정책 · 미국 수출법 확인 + Play 앱 서명 약관 동의 | 9859152 |
+| 테스터(비공개 트랙 › 테스터) | «Google 그룹스» 선택 → `(그룹 주소)@googlegroups.com` · 의견 받을 곳 `(주소)` | 9845334 · 그룹 방식은 LC 가정(2026-11-25, 사용자 통보) |
 | 첫 출시의 앱 서명 | «Google이 만든 키 사용»(기본) | 9859348 |
 | 처리방침 URL | §5의 주소 | |
 
@@ -178,11 +180,13 @@ cd ~\reading-diary; & "C:\Program Files\Android\Android Studio\jbr\bin\keytool.e
 
 ## 7. 테스터 안내문(발신은 사용자)
 
-첫 글(명단 모으기 — 검토를 보내기 전):
+첫 글(그룹 가입 — 검토를 보내기 전):
 
 ```
 독서 다이어리 앱을 함께 써 보실 분을 찾아요. 안드로이드 휴대폰만 돼요(아이폰은 안 돼요).
-참여하실 분은 휴대폰 Play 스토어에 로그인된 구글 계정 메일 주소를 저에게 개인 메시지로 보내 주세요. (단체방에는 올리지 말아 주세요)
+참여하실 분은 휴대폰 Play 스토어에 로그인된 구글 계정으로 아래 그룹에 먼저 가입해 주세요. 메일 주소를 저에게 알려 주지 않으셔도 돼요.
+   (그룹 가입 링크)
+며칠 안에 설치 링크를 다시 올릴게요.
 ```
 
 둘째 글(참여 링크가 생긴 뒤):
@@ -191,10 +195,12 @@ cd ~\reading-diary; & "C:\Program Files\Android\Android Studio\jbr\bin\keytool.e
 [독서 다이어리 비공개 테스트에 와 주셔서 고맙습니다]
 
 참여 3단계
-1) 휴대폰에서 아래 링크를 누르고 «테스터 되기»를 누릅니다. 알려 주신 그 구글 계정으로 열어야 화면이 떠요.
+1) 아직이면 그룹에 먼저 가입합니다. (그룹 가입 링크)
+2) 가입한 그 구글 계정으로 아래 링크를 열고 «테스터 되기»를 누릅니다.
    (참여 링크)
-2) 같은 화면의 «Google Play에서 다운로드»로 설치합니다. (링크가 열리기까지 몇 시간 걸릴 수 있어요)
-3) 14일 동안 테스트를 나가지 말아 주세요. 중간에 나가면 14일이 처음부터 다시 시작돼요.
+3) 같은 화면의 «Google Play에서 다운로드»로 설치합니다. (링크가 열리기까지 몇 시간 걸릴 수 있어요)
+
+14일 동안 테스트에서도 그룹에서도 나가지 말아 주세요. 중간에 나가면 14일이 처음부터 다시 시작돼요.
 
 부탁드리는 한 가지
  - 이틀에 한 번, 읽는 책에서 마음에 든 문장 하나를 남겨 주세요. 다른 기능은 편하게 눌러 보시고, 불편한 점을 알려 주세요.
@@ -214,9 +220,10 @@ cd ~\reading-diary; & "C:\Program Files\Android\Android Studio\jbr\bin\keytool.e
 
 | 날짜 | 할 일 | 분 | 먼저 있어야 하는 것 |
 |---|---|---|---|
-| 11-26 | 답 5개: 개발자 계정 종류와 만든 날 · 키스토어 파일 유무 · 콘솔에 앱이 이미 있는지(버전 코드 1을 올린 적이 있는지) · 공개 문의 메일 · 의견 받을 곳 | 8 | — |
+| 11-26 | 답 4개: 키스토어 파일 유무 · 콘솔에 앱이 이미 있는지(버전 코드 1을 올린 적이 있는지) · 공개 문의 메일 · 의견 받을 곳 | 8 | — |
 | 11-26 | **필수** 카카오 키 결정(§3) | 5 | — |
-| 11-26 | 채팅방에 첫 글(§7) → 구글 계정 메일 15~18개 모으기(개인 메시지) | 10 | — |
+| 11-26 | 구글 그룹 1개 만들기(groups.google.com · 누구나 가입 요청 없이 가입 · 구성원 목록은 소유자만 보기) | 5 | — |
+| 11-26 | 채팅방에 첫 글(§7) — 15~18명이 그룹에 가입하게 | 5 | 그룹 |
 | 11-26 | 키가 없으면 만들기 + 레포 밖 두 곳에 사본 | 10 | §6 명령 |
 | 11-26 | 처리방침 게시 확인 1회(GitHub Pages) | 3 | 문의 메일 |
 | 11-26 | #67 칩 화면 눈 확인 | 10 | APK |
@@ -224,7 +231,7 @@ cd ~\reading-diary; & "C:\Program Files\Android\Android Studio\jbr\bin\keytool.e
 | 11-26 | 카카오 릴리스 전용 키 만들기(위 결정이 «새 키»일 때) | 5 | 11-11 REPORT «키» |
 | 11-27 | 앱 설정(등록정보 · 그림 · 앱 콘텐츠 · 데이터 보안) | 40 | §4 · §5 주소 |
 | 11-27 | `bundleRelease` | 15 | 수리 PR 머지 · 앱 안 링크 PR 머지 |
-| 11-27 | 비공개 트랙: AAB · 출시 노트(§6) · 이메일 목록에 테스터 메일 붙여 넣기 · 국가(한국) · 의견 받을 곳 · «검토로 보내기» | 15 | 위 전부 |
+| 11-27 | 비공개 트랙: AAB · 출시 노트(§6) · 테스터에 그룹 주소 · 국가(한국) · 의견 받을 곳 · «검토로 보내기» | 15 | 위 전부 |
 | 검토 통과 뒤 | 참여 링크를 둘째 글(§7)에 붙여 채팅방에 올리기 | 5 | 상태 «게시됨» |
 | 12-04 | 옵트인 12명 이상인지 확인 | 2 | |
 | 12-18 | 프로덕션 접근 신청 | 20 | 워커의 신청서 초안 |
