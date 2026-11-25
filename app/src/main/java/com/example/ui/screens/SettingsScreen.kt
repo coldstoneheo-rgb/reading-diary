@@ -50,7 +50,7 @@ internal val PRIVACY_SUMMARY_LINES = listOf(
     "1. 책·책장·독서 일기·기록에 남긴 사진·설정은 이 기기에 저장됩니다. 개발자는 기록을 받아 보관하는 서버를 운영하지 않습니다.",
     "2. 책 페이지 글자 인식은 기기 안에서 실행되며, 사진은 기기 밖으로 전송되지 않습니다(4·5번 예외).",
     "3. 책을 검색하면 입력한 검색어가 카카오 책 검색으로 전송됩니다(키가 없거나, 카카오에서 찾지 못하거나 오류가 나면 Google Books로 전송). 쪽수 정보가 없는 책을 고르면 그 책의 ISBN이 Google Books로 전송됩니다. 책 표지를 화면에 표시할 때는 표지 이미지 서버에 요청이 갑니다.",
-    "4. 안드로이드 자동 백업이 켜져 있으면 책·일기·일반 설정이 본인 Google 계정 백업에 포함될 수 있습니다(API 키와 기록에 남긴 사진은 제외). 설정의 «백업 파일 만들기»를 직접 실행하면 기록과 사진이 zip 파일 하나로 내가 고른 위치에 저장됩니다(API 키·설정 제외).",
+    "4. 안드로이드 자동 백업이 켜져 있으면 책·일기·일반 설정이 본인 Google 계정 백업에 포함될 수 있습니다(API 키와 기록에 남긴 사진은 제외). 설정의 «백업 파일 만들기»를 직접 실행하면 기록과 사진이 zip 파일 하나로 내가 고른 위치에 저장됩니다(API 키·설정 제외). «글로 공유하기»를 누르면 문장과 책 정보가 내가 고른 앱으로 갑니다.",
     "5. 정밀 분석은 본인 Gemini 키 등록, 사진 전송 동의, 사진마다 확인을 모두 거친 경우에만 선택한 페이지 사진을 Google Gemini로 전송합니다."
 )
 
@@ -722,12 +722,7 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                                 shape = RoundedCornerShape(6.dp)
                             ) {
-                                Text(
-                                    text = privacySummaryText(),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(10.dp),
-                                    lineHeight = 16.sp
-                                )
+                                PrivacyPolicyBody()
                             }
                         }
                     }
@@ -736,6 +731,26 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
 
             // 디버그 빌드만: ML Kit 상자 덤프 공유 카드(릴리스 = 빈 스텁)
             OcrBoxDumpSection()
+        }
+    }
+}
+
+/** 처리방침 요약 + 전문 링크(Play: 앱 안에서도 처리방침으로 «링크»되어야 한다). 주소가 비면 링크를 그리지 않는다. */
+@Composable
+internal fun PrivacyPolicyBody(url: String = PRIVACY_POLICY_URL) {
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    Column(modifier = Modifier.padding(10.dp)) {
+        Text(
+            text = privacySummaryText(url),
+            style = MaterialTheme.typography.bodySmall,
+            lineHeight = 16.sp
+        )
+        if (url.isNotBlank()) {
+            TextButton(
+                // 브라우저가 없는 기기에서 죽지 않게 한다. 주소는 위 글에 보인다.
+                onClick = { runCatching { uriHandler.openUri(url) } },
+                modifier = Modifier.testTag("privacy_policy_link")
+            ) { Text("개인정보처리방침 전문 열기") }
         }
     }
 }

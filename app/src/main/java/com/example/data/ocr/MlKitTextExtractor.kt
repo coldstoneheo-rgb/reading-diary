@@ -13,7 +13,7 @@ import kotlin.coroutines.resume
 
 /**
  * ML Kit Text Recognition v2(한국어 스크립트)로 온디바이스 추출. 언번들 배포(ADR-002 Q1):
- * 모델은 Google Play 서비스가 첫 사용 시 내려받는다. 사진은 기기 밖으로 나가지 않는다.
+ * 모델은 Play 스토어로 설치할 때(매니페스트 DEPENDENCIES) 또는 첫 사용 때 Google Play 서비스가 내려받는다. 사진은 기기 밖으로 나가지 않는다.
  *
  * 인식된 텍스트는 로그에 남기지 않는다.
  */
