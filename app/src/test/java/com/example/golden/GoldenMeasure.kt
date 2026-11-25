@@ -30,17 +30,17 @@ object GoldenMeasure {
 
     /** 보정 전(2026-11-13까지) 검출기: 문턱 0.3Δ · 띠 줄 아래 +0.08H ~ 다음 줄 위 −0.08H · 수평. */
     val LEGACY = UnderlineDetector.Params(darkRatio = 0.3, bandTopRatio = null, nextLinePadRatio = null, smoothMinHeight = 0,
-        seedFraction = 0.0, nextLineOverlapRatio = null)
+        seedFraction = 0.0)
 
-    /** 2026-11-15(#65)부터 2026-11-25까지의 기본값: 한 단계 문턱 0.28 · 겹친 상자도 다음 줄로 침. */
-    val SINGLE_028 = UnderlineDetector.Params(darkRatio = 0.28, seedFraction = 0.0, nextLineOverlapRatio = null)
+    /** 2026-11-15(#65)부터 2026-11-25까지의 기본값: 한 단계 문턱 0.28. */
+    val SINGLE_028 = UnderlineDetector.Params(darkRatio = 0.28, seedFraction = 0.0)
 
     /**
      * 설정 비교 표(기기 덤프 상자만, 장 합계). 첫 행 = 보정 전, 이어서 K1a(띠를 기기 ML Kit 줄 상자 모양에 맞춘 지금 기본 띠)
      * + K2(줄 기울기)에 문턱(darkRatio)을 단계로 바꾼 행. 지금 기본값 행은 위 장별 표의 기기 덤프 행 합과 같다.
      */
     val VARIANTS: List<Variant> = listOf(Variant("보정 전(문턱 0.3 · 띠 ±0.08H · 수평)", LEGACY, false)) +
-        listOf(0.3, 0.28, 0.26, 0.24, 0.22, 0.2).map { d ->
+        listOf(0.3, 0.29, 0.28, 0.27, 0.26, 0.25, 0.22, 0.2).map { d ->
             Variant("K1a+K2 · 한 단계 문턱 $d${if (d == 0.28) " = 직전 기본값" else ""}", SINGLE_028.copy(darkRatio = d), true)
         } + Variant("K1a+K2 · 두 단계 문턱 = 지금 기본값", UnderlineDetector.Params(), true)
 
@@ -54,12 +54,11 @@ object GoldenMeasure {
         Variant("직전 기본값(한 단계 0.28) · 앱 해상도", SINGLE_028, true)
     )
 
-    /** 앱 어절 판정(앱 해상도)으로 나란히 재는 검출기 설정 — 낮은 문턱 · 뚜렷한 열 몫 · 겹친 줄 규칙을 바꾼 행. */
+    /** 앱 어절 판정(앱 해상도)으로 나란히 재는 검출기 설정 — 낮은 문턱 · 뚜렷한 열 몫을 바꾼 행. */
     val APP_WORD_PARAMS: List<Pair<String, UnderlineDetector.Params>> = listOf(
         "직전 기본값(한 단계 0.28)" to SINGLE_028,
         "한 단계 0.23" to SINGLE_028.copy(darkRatio = 0.23),
-        "한 단계 0.28 + 겹친 줄 규칙" to SINGLE_028.copy(nextLineOverlapRatio = 0.05),
-        "두 단계 0.23 · 겹친 줄 규칙 없음" to UnderlineDetector.Params(nextLineOverlapRatio = null)
+        "지금 기본값 · 세로 3픽셀 평균 늘" to UnderlineDetector.Params(smoothMinHeight = 0)
     ) + listOf(0.25, 0.24, 0.23, 0.22, 0.21).flatMap { d ->
         listOf(0.15, 0.2, 0.25, 0.3).map { sf ->
             val p = UnderlineDetector.Params(darkRatio = d, seedFraction = sf)
@@ -199,7 +198,7 @@ object GoldenMeasure {
                         per += "${g.id.removePrefix("g")}:${vr.tp}/${vr.fp}/${vr.fn}"
                     }
                 }
-                // 앱 해상도 행의 본문 밖 구간(앱 비트맵 좌표 · 상세 파일에만) — 줄 높이 보정 전/후로 어디가 늘었나 보려고.
+                // 앱 해상도 행의 본문 밖 구간(앱 비트맵 좌표 · 상세 파일에만) — 직전 기본값과 견줘 어디가 늘었나 보려고.
                 val appOff = mutableListOf<String>()
                 var appCur: GoldenSet.SpikeResult? = null
                 if (DumpGuard.isDeviceDump(tsv)) for (v in APP_RES) {
