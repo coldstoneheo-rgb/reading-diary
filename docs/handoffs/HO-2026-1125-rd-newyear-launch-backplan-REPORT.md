@@ -96,5 +96,5 @@ PR #69 본문 · SPIKE §1-0-5. 앱 해상도 · 앱 어절 판정 190/5/81 → 
 ## 3줄
 
 ① 검증: 위 «PR · 검증» 표의 명령과 결과(묶음별 `verifyRoborazziDebug`). 실기기 · `assembleDebug` · 서명 빌드 · 한 프로세스 전체 실행은 하지 않았다.
-② 사용자 손: `docs/store-listing/FIRST-UPLOAD-2026-11.md` 1단계부터, 카카오 키 결정, GitHub Pages 승인.
+② 사용자 손: `docs/store-listing/FIRST-UPLOAD-2026-11.md` 1단계부터, 카카오 키 결정, 처리방침 «게시해도 됨»(LC에).
 ③ 다음 3: 처리방침 게시 + 주소 PR → 11-27 비공개 제출 → 칩 되돌리기 · 새 사진 때 인식 취소.

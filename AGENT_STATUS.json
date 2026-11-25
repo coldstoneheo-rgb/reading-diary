@@ -1,7 +1,7 @@
 {
   "as_of": "2026-11-25T17:10:00+09:00",
   "phase": "새해 공개 준비 — 첫 비공개 제출 11-27 목표(docs/store-listing/CLOSED-TEST-2026-11.md)",
-  "current_task": "처리방침 게시(Pages 승인 대기) → 주소 1줄 PR",
+  "current_task": "처리방침 게시(사용자 «게시해도 됨» 대기) → 주소 1줄 PR",
   "waiting_on": [
     "사용자: docs/store-listing/FIRST-UPLOAD-2026-11.md 1~11단계 · 처리방침 «게시해도 됨»(LC에) · 카카오 키 결정",
     "순서: ① 사용자 «게시해도 됨» ② 워커 gh-pages ③ Settings › Pages → 주소 200 → PRIVACY_POLICY_URL 1줄 PR — 그 뒤에만 bundleRelease"
