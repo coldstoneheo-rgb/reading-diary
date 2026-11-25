@@ -21,9 +21,15 @@ object OcrTextAssembler {
      * - 신뢰도 필터·띄어쓰기 보정은 하지 않는다. 사용자가 저장 전 편집한다.
      */
     fun assemble(blocks: List<OcrBlock>): String =
-        blocks
-            .sortedWith(compareBy({ it.top }, { it.left }))
+        inReadingOrder(blocks, { it.top }, { it.left })
             .map { block -> block.lines.map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" ") }
             .filter { it.isNotEmpty() }
             .joinToString("\n\n")
+
+    /**
+     * 블록을 편집창 글과 같은 순서(top → left)로 정렬한다. 어절 상자([OcrOutcome.Text.lines])도 이 순서로 늘어놓아야
+     * 밑줄 칩의 순서와 «고른 어절로 문장 바꾸기»의 글이 편집창 글과 같은 순서가 된다.
+     */
+    fun <T> inReadingOrder(blocks: List<T>, top: (T) -> Int, left: (T) -> Int): List<T> =
+        blocks.sortedWith(compareBy({ top(it) }, { left(it) }))
 }

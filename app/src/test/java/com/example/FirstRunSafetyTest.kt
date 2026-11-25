@@ -6,6 +6,9 @@ import android.os.Looper
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -21,8 +24,12 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.data.AppDatabase
 import com.example.data.Book
 import com.example.data.Diary
+import com.example.data.ocr.OcrLine
 import com.example.data.ocr.OcrOutcome
+import com.example.data.ocr.OcrWord
 import com.example.data.ocr.TextExtractor
+import com.example.data.ocr.UnderlineDetector
+import com.example.data.ocr.UnderlinePreselect
 import com.example.ui.screens.AddEditBookScreen
 import com.example.ui.screens.OcrDiaryScreen
 import com.example.ui.theme.MyApplicationTheme
@@ -57,7 +64,11 @@ class FirstRunSafetyTest {
   private val db: AppDatabase get() = AppDatabase.getDatabase(app)
 
   private class FixedExtractor(private val text: String) : TextExtractor {
-    override suspend fun extract(bitmap: Bitmap): OcrOutcome = OcrOutcome.Text(text)
+    /** 엔진처럼 한 줄의 어절 상자도 준다(밑줄 미리 선택의 입력). */
+    override suspend fun extract(bitmap: Bitmap): OcrOutcome = OcrOutcome.Text(
+      text,
+      listOf(OcrLine(text, null, text.split(" ").mapIndexed { i, w -> OcrWord(w, UnderlineDetector.Box(i * 10, 0, i * 10 + 8, 8)) }))
+    )
   }
 
   private fun viewModel(text: String = "쓰지 않음") = ReadingViewModel(app, FixedExtractor(text), FixedExtractor(text), FakeDiaryPhotoStore()) { false }
@@ -281,6 +292,8 @@ class FirstRunSafetyTest {
   @Test
   fun wholeLoop_newInstall_toFindingTheSentenceAgainByOneWord() {
     val vm = viewModel(text = "바람이 부는 언덕에 나무가 서 있다")
+    // 검출기 자체는 UnderlineDetectorTest · 기준 자료 측정이 본다. 여기서는 앞 세 어절에 밑줄이 있는 결과를 흉내 낸다.
+    vm.preselectRunner = { _, lines -> lines.single().words.mapIndexed { i, w -> UnderlinePreselect.Word(w.text, 0, i < 3) } }
     composeTestRule.setContent { MyApplicationTheme { MainAppEntry(vm) } }
 
     // 1) 책 등록
@@ -303,11 +316,21 @@ class FirstRunSafetyTest {
     // 3) 인식(사진 · ML Kit만 가짜) → 결과가 편집창에 들어온다 → 고친다
     composeTestRule.runOnUiThread { vm.processUnderlineOcr(Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)) }
     pump { shown("바람이 부는 언덕에 나무가 서 있다") }
-    composeTestRule.onNodeWithTag("diary_extracted_text_input").performScrollTo().performTextReplacement("바람이 부는 언덕에")
+    // 밑줄 어절 칩: 미리 켜져 있지만 버튼을 눌러야 문장이 바뀐다. 잘못 켜진 «부는»은 끄고 놓친 «나무가»는 켠다.
+    pump { composeTestRule.onAllNodesWithTag("underline_preselect_panel").fetchSemanticsNodes().isNotEmpty() }
+    composeTestRule.onNodeWithTag("preselect_word_0").assertIsSelected()
+    composeTestRule.onNodeWithTag("preselect_word_3").assertIsNotSelected()
+    composeTestRule.onNodeWithTag("preselect_word_1").performScrollTo().performClick()
+    composeTestRule.onNodeWithTag("preselect_word_3").performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+    assertTrue(shown("바람이 부는 언덕에 나무가 서 있다"))
+    composeTestRule.onNodeWithTag("preselect_apply_button").performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag("diary_extracted_text_input").assertTextContains("바람이 언덕에 나무가")
     composeTestRule.onNodeWithTag("diary_page_input").performScrollTo().performTextReplacement("7")
     composeTestRule.onNodeWithTag("save_diary_submit_button").performScrollTo().performClick()
     pump { vm.currentScreenState.value == Screen.BookDetail(bookId) }
-    assertEquals(listOf("바람이 부는 언덕에"), runBlocking { db.diaryDao().getAllDiaries().first() }.map { it.selectedText })
+    assertEquals("칩으로 만든 문장이 그대로 저장된다", listOf("바람이 언덕에 나무가"), runBlocking { db.diaryDao().getAllDiaries().first() }.map { it.selectedText })
 
     // 4) 낱말 하나로 다시 찾기
     composeTestRule.runOnUiThread { vm.openPhraseRecall() }

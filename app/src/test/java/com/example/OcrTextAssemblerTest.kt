@@ -24,6 +24,22 @@ class OcrTextAssemblerTest {
     )
   }
 
+  /** 칩(어절 상자)의 블록 순서 = 편집창 글의 블록 순서. 아래 블록을 먼저 준 엔진 결과에서도 같아야 한다. */
+  @Test
+  fun boxesUseTheSameBlockOrderAsTheText() {
+    val blocks = listOf(
+      OcrBlock(lines = listOf("아래"), top = 400, left = 10),
+      OcrBlock(lines = listOf("오른쪽"), top = 100, left = 600),
+      OcrBlock(lines = listOf("왼쪽"), top = 100, left = 10)
+    )
+    val ordered = OcrTextAssembler.inReadingOrder(blocks, { it.top }, { it.left }).map { it.lines.single() }
+    assertEquals(listOf("왼쪽", "오른쪽", "아래"), ordered)
+    assertEquals(ordered.joinToString("\n\n"), OcrTextAssembler.assemble(blocks))
+    // 실제 추출기가 어절 상자에도 이 순서를 쓰는지(ML Kit은 JVM에서 돌지 않아 소스로 고정한다).
+    val extractor = java.io.File("src/main/java/com/example/data/ocr/MlKitTextExtractor.kt").readText()
+    assertEquals(1, Regex("val boxed = OcrTextAssembler\\.inReadingOrder\\(").findAll(extractor).count())
+  }
+
   @Test
   fun blankLinesAndEmptyBlocksAreDropped_noSpacingCorrection() {
     val blocks = listOf(
