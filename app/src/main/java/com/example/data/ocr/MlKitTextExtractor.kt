@@ -37,7 +37,10 @@ class MlKitTextExtractor : TextExtractor {
                             )
                         }
                         // 줄·어절 상자(입력 비트맵 좌표) — 밑줄 미리 선택의 입력(SPIKE §4-1). 상자 없는 어절은 뺀다.
-                        val boxed = text.textBlocks.flatMap { block ->
+                        // 블록 순서는 편집창 글과 같게 맞춘다(엔진은 읽기 순서를 보장하지 않는다).
+                        val boxed = OcrTextAssembler.inReadingOrder(
+                            text.textBlocks, { it.boundingBox?.top ?: 0 }, { it.boundingBox?.left ?: 0 }
+                        ).flatMap { block ->
                             block.lines.map { line ->
                                 OcrLine(
                                     line.text,

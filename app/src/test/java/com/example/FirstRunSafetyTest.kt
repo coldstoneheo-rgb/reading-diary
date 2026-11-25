@@ -294,11 +294,10 @@ class FirstRunSafetyTest {
     composeTestRule.onNodeWithTag("preselect_apply_button").performScrollTo().performClick()
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithTag("diary_extracted_text_input").assertTextContains("바람이 언덕에 나무가")
-    composeTestRule.onNodeWithTag("diary_extracted_text_input").performScrollTo().performTextReplacement("바람이 부는 언덕에")
     composeTestRule.onNodeWithTag("diary_page_input").performScrollTo().performTextReplacement("7")
     composeTestRule.onNodeWithTag("save_diary_submit_button").performScrollTo().performClick()
     pump { vm.currentScreenState.value == Screen.BookDetail(bookId) }
-    assertEquals(listOf("바람이 부는 언덕에"), runBlocking { db.diaryDao().getAllDiaries().first() }.map { it.selectedText })
+    assertEquals("칩으로 만든 문장이 그대로 저장된다", listOf("바람이 언덕에 나무가"), runBlocking { db.diaryDao().getAllDiaries().first() }.map { it.selectedText })
 
     // 4) 낱말 하나로 다시 찾기
     composeTestRule.runOnUiThread { vm.openPhraseRecall() }

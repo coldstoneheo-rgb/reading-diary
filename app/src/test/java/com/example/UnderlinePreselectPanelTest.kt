@@ -135,8 +135,11 @@ class UnderlinePreselectPanelTest {
     input.performScrollTo()
     composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/preselect_before_none.png")
     // 편집창 아래 요소의 위치가 그대로인지로 «아무것도 더해지지 않음»을 본다.
-    fun saveButtonBounds() = composeTestRule.onNodeWithTag("share_text_button").fetchSemanticsNode().boundsInRoot
+    // 화면 밖 노드의 boundsInRoot는 잘려 0이 되므로(빈 단언) 스크롤해 보이게 한 뒤 잘리지 않는 위치로 견준다.
+    composeTestRule.onNodeWithTag("share_text_button").performScrollTo()
+    fun saveButtonBounds() = composeTestRule.onNodeWithTag("share_text_button").fetchSemanticsNode().positionInRoot
     val before = saveButtonBounds()
+    org.junit.Assert.assertTrue("$before", before.y > 0f)
     // 미리 선택이 와도 고른 어절이 0개면 화면에 아무것도 더해지지 않는다(패널 노드 0 · 아래 요소 위치 그대로).
     vm.underlinePreselect.value = sample.map { it.copy(selected = false) }
     composeTestRule.waitForIdle()
