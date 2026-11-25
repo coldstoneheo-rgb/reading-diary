@@ -44,7 +44,7 @@ class PolicyCopyTest {
     val policy = File("../docs/privacy/privacy-policy.html").readText()
     assertFalse("placeholder left in the policy", policy.contains("["))
     assertTrue(Regex("시행일: <strong>[0-9]{4}-[0-9]{2}-[0-9]{2}<").containsMatchIn(policy))
-    assertTrue(policy.contains("운영: <strong>딱따구리AI</strong>"))
+    assertTrue(policy.contains("운영: <strong>딱따구리AI(WoodpeckerAI)</strong>"))
   }
 
   /** 공개된 처리방침이 사실보다 좁거나 센 말로 돌아가지 않게 한다(표지 요청은 검색 화면만이 아니고, 검색어는 화면 복원을 위해 잠시 남을 수 있다). */
