@@ -16,8 +16,8 @@ data class ExportPlan(val toCreate: List<ExportFile>, val skipped: List<String>)
  */
 object MarkdownExport {
 
-    const val FOLDER_NAME = "독서 다이어리"
-    const val INDEX_NAME = "독서 다이어리 목록"
+    const val FOLDER_NAME = "문장서랍"
+    const val INDEX_NAME = "문장서랍 목록"
     const val EXTENSION = ".md"
     const val MIME_TYPE = "text/markdown"
     private const val MAX_NAME_LENGTH = 120

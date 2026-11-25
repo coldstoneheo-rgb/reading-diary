@@ -27,7 +27,7 @@ import java.util.Locale
 /** 백업 파일 이름 제안. 사용자가 저장 창에서 바꿀 수 있다. */
 object BackupFileNames {
     fun suggested(now: Long): String =
-        "독서다이어리-백업-" + SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date(now)) + ".zip"
+        "문장서랍-백업-" + SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date(now)) + ".zip"
 }
 
 /**
