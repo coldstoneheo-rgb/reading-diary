@@ -135,8 +135,8 @@ INTERNAL-TEST §5-2는 ML Kit 몫을 «[사용자 확인]»으로 비워 두었�
 
 ## 5. 처리방침 호스팅
 
-- 실측(2026-11-25 14:11): `https://coldstoneheo-rgb.github.io/` 404 · `…/reading-diary/privacy-policy.html` 404 · 레포 `has_pages=false` · PUBLIC. 공개 레포의 GitHub Pages는 무료다.
-- 길: `gh-pages` 가지에 `privacy-policy.html` 한 파일만 둔다(`docs/` 전체를 사이트로 내지 않으려고) → 레포 Settings › Pages › Branch `gh-pages` / root → 주소 `https://coldstoneheo-rgb.github.io/reading-diary/privacy-policy.html`.
+- 게시 전 실측(2026-11-25 14:11): `https://coldstoneheo-rgb.github.io/` 404 · `…/reading-diary/privacy-policy.html` 404 · 레포 `has_pages=false` · PUBLIC. 공개 레포의 GitHub Pages는 무료다.
+- 길: `gh-pages` 가지에 `privacy-policy.html` 한 파일만 둔다(`docs/` 전체를 사이트로 내지 않으려고) → 주소 `https://coldstoneheo-rgb.github.io/reading-diary/privacy-policy.html`.
 - **게시함(2026-11-25 17:42):** 사용자 «게시해도 됨» → `gh-pages` `a00424b` → GitHub가 Pages를 자동으로 켬(Settings 쓰기 0) → 17:43 HTTP 200 · 시행일 2026-11-25 · 원본과 바이트 같음.
 - 앱 안 주소 = `PRIVACY_POLICY_URL`(누르는 링크는 `PrivacyPolicyBody`).
 
