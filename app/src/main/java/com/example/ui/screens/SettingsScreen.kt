@@ -34,10 +34,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import com.example.ui.viewmodel.ReadingViewModel
 
 /**
- * 처리방침 공개 URL(INTERNAL-TEST-2026-11 U4). 오너가 docs/privacy/privacy-policy.html을 배포한 뒤 이 한 곳만 채운다.
+ * 처리방침 공개 URL(INTERNAL-TEST-2026-11 U4). `gh-pages` 가지의 docs/privacy/privacy-policy.html 사본이다(게시 2026-11-25).
  * 비어 있으면 화면에 URL 줄을 띄우지 않는다(가짜 주소를 보여 주지 않는다).
  */
-internal const val PRIVACY_POLICY_URL = ""
+internal const val PRIVACY_POLICY_URL = "https://coldstoneheo-rgb.github.io/reading-diary/privacy-policy.html"
 
 /** 앱 안 이용약관 요약. 사실 서술만 둔다(발견 D8). */
 internal const val TERMS_SUMMARY =
