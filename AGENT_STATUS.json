@@ -12,7 +12,7 @@
     "테스트 중 목록(REPORT): 띄어쓰기 검색 · 쪽수 모름 · 키보드 · 테마 저장 · 상태바"
   ],
   "metrics": {
-    "unit_tests_after_round": 429,
+    "unit_tests_after_round": "#69 432 · #70 437 · #71 437 (묶음별, 각 건너뜀 1 · #71은 간헐 1건 재실행 통과)",
     "unit_test_classes": 52,
     "screenshot_baselines": 17,
     "room_schema_version": 3,
@@ -24,6 +24,6 @@
     "kakao_real_call": "사용자 실기기 검색 성공(11-05 18:2x 사용자 보고)",
     "underline_product_numbers": "앱 해상도(근사) · 앱 어절 판정, 정답 271: 205/3/66(PR #69, 머지 전) · 정밀도 98.6% · 재현율 75.6% · 비침 0 · 본문 밖 선택 2 · 정답 밖 선택 3 · 직전 190/5/81"
   },
-  "head": "0c10714 (main)",
-  "last_commit": "origin/main 0c10714 (#66)"
+  "head": "df88c87 (main, 이 문서 PR 전)",
+  "last_commit": "origin/main df88c87 (#68)"
 }
