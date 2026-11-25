@@ -1,29 +1,30 @@
 {
-  "as_of": "2026-11-15T06:00:00+09:00",
-  "phase": "밑줄 검출 제품화 — 검출기 보정 #65(fe725bb) · 앱 어절 판정 측정 #66(0c10714) 머지 · «미리 선택» 칩 화면 #67 draft",
-  "current_task": "마감 — 아침 사용자 손: #67 화면 눈 확인(APK 73a4fe8)",
+  "as_of": "2026-11-25T15:00:00+09:00",
+  "phase": "새해 공개 준비 — 첫 비공개 제출 11-27 목표(docs/store-listing/CLOSED-TEST-2026-11.md)",
+  "current_task": "#69 · #72 머지 → #67 재정렬 · 배선 시험 PR",
   "waiting_on": [
-    "사용자: D:\\사진\\reading-diary\\preselect-ui-20261115\\reading-diary-debug-20261115-73a4fe8.apk 덮어 설치(거부되면 앱을 지우지 말고 멈춤) → 밑줄 친 쪽 1장 인식 → ① 칩 카드와 켜진 밑줄 어절 ② 버튼을 눌러야만 문장이 바뀜 ③ 밑줄 없는 쪽에서 카드 없음 확인 → 통과면 #67 draft 해제 · LC 게이트 · 머지",
-    "사용자 결정(기본값): «모두 끄기» 버튼 = 넣지 않음 · 미리 선택 0인 줄 칩 = 다음 PR 후보 · 맨 위·아래 줄 제외 = 보류(머리말 없는 쪽 견본 뒤 재측정)"
+    "사용자: docs/store-listing/FIRST-UPLOAD-2026-11.md 1~11단계 · #67 눈 확인 (키스토어 · 콘솔 앱 = 없음, 문의 메일 = 확정)",
+    "처리방침 주소가 200이 된 뒤 PRIVACY_POLICY_URL 1줄 PR — 그 뒤에만 bundleRelease"
   ],
   "next_actions": [
-    "#67 눈 확인 → 머지",
-    "검출기: 놓침 81 중 56이 3·9번 옅은 물결 밑줄(SPIKE §5)",
-    "칩 UI 후속: 모든 줄 펼치기 · 떨어진 구간 줄바꿈 · 바꾸기 되돌리기"
+    "게이트 통과 PR 머지 → #67 재정렬(OcrDiaryScreen clearShownPhoto 두 줄) · 기준 이미지 재기록",
+    "처리방침 게시 → 1줄 PR → 사용자 bundleRelease → 비공개 트랙 제출(11-27)",
+    "테스트 중 목록(REPORT): 띄어쓰기 검색 · 쪽수 모름 · 키보드 · 테마 저장 · 상태바",
+    "test PR: OcrDiaryPhotoScreenTest.edit_recreation_keepsTextAndPhotoDrafts가 사진 구역을 기다리게(간헐 실패 원인 후보)"
   ],
   "metrics": {
-    "unit_tests_after_round": 429,
+    "unit_tests_after_round": "#69 432 · #70 437 · #71 437 (묶음별, 각 건너뜀 1 · #71은 간헐 1건 재실행 통과)",
     "unit_test_classes": 52,
     "screenshot_baselines": 17,
     "room_schema_version": 3,
     "prs_merged_this_round": 2,
-    "prs_ready_unmerged": 1,
+    "prs_ready_unmerged": 2,
     "critic_first_pass_rate": "3/12 (누적. R4 1차 6/10 NEEDS_REVISION → 2차 7/10 PASS → 보정 3차 6/10 NEEDS_REVISION → 4차 7/10 PASS · 도서 검색 1차 6/10 NEEDS_REVISION → 8/10 PASS · #36 1차 6/10 NEEDS_REVISION → PASS · #37 8/10 PASS · #39 8/10 PASS · P3 1차 8/10 조건부 PASS · P4 1차 7/10 PASS, 발주서 ≥8 미달 → 수정 뒤 8/10) · #47 1차 6.5 NEEDS_REVISION → 8/10 PASS · #48 사전 6/10 NEEDS_REVISION → 8/10 PASS",
     "gradle_runs": "64 (이번 라운드 19: ② 필터 1 · verify 1 · A~M 1 · N~S 1(PhotoSave 멈춤, 강제 종료) · N~S 재시도 1(메모리 보호 회수) · N·O·Ph·Po 1(순서 의존 10실패) · OcrDiary 단독 1 · RVM·S* 1 · PhotoSave 단독 1 | P5 컴파일 실패 1(테스트 호출부) · 대상 1(1실패) · Backup 재실행 1 · verify A~M 1 · verify O·Ph·Po 1 · verify N·RVM·S* 2(1차 2실패) · N·O·PhotoSave 1 · verify A~M+Ph·Po 1 · assembleDebug 1 — 묶음 세부는 REPORT) | 이전: (도서 검색 교체: 11 — 옛 경로 스텁 red 1 · 전체 test 1(간헐 실패 1) · 실패분 재실행 1 · record 2 · verify 2 · assembleDebug 2 · 보정 필터 1 · 변이 확인 1(의도된 실패) |#40 head 재검증 1 · P4: 11 — 메모리 부족 강제 종료 2 · 테스트 실패 3(테스트 방식 문제) · record 1 · verify 재사용 1 · 옛 동작 재현 1(의도된 실패) · 전체 test 1 · verify 1 · assembleDebug 1 | P3: 8 — kspDebugKotlin 1 · 필터 실행 1차 실패(MigrationTestHelper assets 미발견) · 필터 2차 15/15 · HEAD cbc3f9f testDebugUnitTest·verifyRoborazziDebug exit 0 · M5 red 변형 실행 1(의도된 실패) · HEAD 2e53c9c testDebugUnitTest 195(통과 194·건너뜀 1)·verifyRoborazziDebug 195(통과 194·건너뜀 1) · P2: 4 · #36: 8 · #37: 2 · #35·#38: 0)",
     "unit_tests_note": "#48 head 12a98d1 묶음별: verify A~M+Ph·Po 278 · N/VM/Schema/S 52 · N·O·PhotoSave 한 묶음 36 → 겹치지 않게 359(통과 358·건너뜀 1·실패 0). 골든 변경 0",
     "kakao_real_call": "사용자 실기기 검색 성공(11-05 18:2x 사용자 보고)",
-    "underline_product_numbers": "앱 해상도(근사) · 앱 어절 판정, 정답 271: 190/5/81 · 정밀도 97.4% · 재현율 70.1% · 비침 0 · 본문 밖 미리 선택 3 · 본문 줄 안 정답 밖 미리 선택 3"
+    "underline_product_numbers": "앱 해상도(근사) · 앱 어절 판정, 정답 271: 205/3/66(PR #69, 머지 전) · 정밀도 98.6% · 재현율 75.6% · 비침 0 · 본문 밖 선택 2 · 정답 밖 선택 3 · 직전 190/5/81"
   },
-  "head": "0c10714 (main)",
-  "last_commit": "origin/main 0c10714 (#66)"
+  "head": "bdff327 (main)",
+  "last_commit": "origin/main bdff327 (#71)"
 }
