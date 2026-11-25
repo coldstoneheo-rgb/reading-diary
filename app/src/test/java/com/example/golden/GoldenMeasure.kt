@@ -29,17 +29,20 @@ object GoldenMeasure {
     data class Variant(val name: String, val params: UnderlineDetector.Params, val useSlope: Boolean)
 
     /** 보정 전(2026-11-13까지) 검출기: 문턱 0.3Δ · 띠 줄 아래 +0.08H ~ 다음 줄 위 −0.08H · 수평. */
-    val LEGACY = UnderlineDetector.Params(darkRatio = 0.3, bandTopRatio = null, nextLinePadRatio = null, smoothMinHeight = 0)
+    val LEGACY = UnderlineDetector.Params(darkRatio = 0.3, bandTopRatio = null, nextLinePadRatio = null, smoothMinHeight = 0,
+        seedFraction = 0.0, nextLineOverlapRatio = null)
+
+    /** 2026-11-15(#65)부터 2026-11-25까지의 기본값: 한 단계 문턱 0.28 · 겹친 상자도 다음 줄로 침. */
+    val SINGLE_028 = UnderlineDetector.Params(darkRatio = 0.28, seedFraction = 0.0, nextLineOverlapRatio = null)
 
     /**
      * 설정 비교 표(기기 덤프 상자만, 장 합계). 첫 행 = 보정 전, 이어서 K1a(띠를 기기 ML Kit 줄 상자 모양에 맞춘 지금 기본 띠)
      * + K2(줄 기울기)에 문턱(darkRatio)을 단계로 바꾼 행. 지금 기본값 행은 위 장별 표의 기기 덤프 행 합과 같다.
      */
     val VARIANTS: List<Variant> = listOf(Variant("보정 전(문턱 0.3 · 띠 ±0.08H · 수평)", LEGACY, false)) +
-        listOf(0.3, 0.29, 0.28, 0.27, 0.26, 0.25, 0.22, 0.2).map { d ->
-            val p = UnderlineDetector.Params().copy(darkRatio = d)
-            Variant("K1a+K2 · 문턱 $d${if (p == UnderlineDetector.Params()) " = 지금 기본값" else ""}", p, true)
-        } + Variant("K1a+K2 · 문턱 0.28 · 세로 3픽셀 평균 늘(줄 높이 보정 전)", UnderlineDetector.Params(smoothMinHeight = 0), true)
+        listOf(0.3, 0.28, 0.26, 0.24, 0.22, 0.2).map { d ->
+            Variant("K1a+K2 · 한 단계 문턱 $d${if (d == 0.28) " = 직전 기본값" else ""}", SINGLE_028.copy(darkRatio = d), true)
+        } + Variant("K1a+K2 · 두 단계 문턱 = 지금 기본값", UnderlineDetector.Params(), true)
 
     /**
      * 앱 해상도 행: 기기 덤프 머리의 배율(원본 ÷ 앱 비트맵, 보통 2)만큼 사진을 줄이고(칸 평균) 상자를 나눠 지금 기본값으로 잰다.
@@ -48,8 +51,21 @@ object GoldenMeasure {
      */
     val APP_RES = listOf(
         Variant("지금 기본값 · 앱 해상도(덤프 배율로 축소 · 칸 평균)", UnderlineDetector.Params(), true),
-        Variant("세로 3픽셀 평균 늘(줄 높이 보정 전) · 앱 해상도", UnderlineDetector.Params(smoothMinHeight = 0), true)
+        Variant("직전 기본값(한 단계 0.28) · 앱 해상도", SINGLE_028, true)
     )
+
+    /** 앱 어절 판정(앱 해상도)으로 나란히 재는 검출기 설정 — 낮은 문턱 · 뚜렷한 열 몫 · 겹친 줄 규칙을 바꾼 행. */
+    val APP_WORD_PARAMS: List<Pair<String, UnderlineDetector.Params>> = listOf(
+        "직전 기본값(한 단계 0.28)" to SINGLE_028,
+        "한 단계 0.23" to SINGLE_028.copy(darkRatio = 0.23),
+        "한 단계 0.28 + 겹친 줄 규칙" to SINGLE_028.copy(nextLineOverlapRatio = 0.05),
+        "두 단계 0.23 · 겹친 줄 규칙 없음" to UnderlineDetector.Params(nextLineOverlapRatio = null)
+    ) + listOf(0.25, 0.24, 0.23, 0.22, 0.21).flatMap { d ->
+        listOf(0.15, 0.2, 0.25, 0.3).map { sf ->
+            val p = UnderlineDetector.Params(darkRatio = d, seedFraction = sf)
+            "두 단계 $d · 뚜렷한 열 $sf${if (p == UnderlineDetector.Params()) " = 지금 기본값" else ""}" to p
+        }
+    }
 
     private class Tally { var tp = 0; var fp = 0; var fn = 0; var bleed = 0; var off = 0; val per = mutableListOf<String>() }
 
@@ -107,6 +123,7 @@ object GoldenMeasure {
         var spikeRows = 0
         val tallies = (VARIANTS + APP_RES).associateWith { Tally() }
         val wordTallies = linkedMapOf<String, WordTally>()
+        val paramTallies = linkedMapOf<String, WordTally>()
         val sideBySide = mutableListOf<String>()
         val excludedFromVariants = sortedSetOf<String>()
         val variantIds = sortedSetOf<String>()
@@ -205,6 +222,9 @@ object GoldenMeasure {
                     val f = GoldenSet.dumpScale(tsv)
                     val (sg, sw, sh) = GoldenSet.shrink(gray, w, h, f)
                     val stsv = GoldenSet.scaleBoxes(tsv, f)
+                    for ((name, p) in APP_WORD_PARAMS) {
+                        paramTallies.getOrPut(name) { WordTally() }.add(id, AppWordMeasure.run(g, sg, sw, sh, stsv, p))
+                    }
                     for (flt in AppWordMeasure.FILTERS) {
                         val aw = AppWordMeasure.run(g, sg, sw, sh, stsv, filter = flt)
                         wordTallies.getOrPut("앱 해상도(근사) · ${flt.name}") { WordTally() }.add(id, aw)
@@ -253,6 +273,11 @@ object GoldenMeasure {
             sb.append("| 해상도 · 줄 제외 | 정밀도 | 재현율 | 맞음/오검출/놓침 | 비침 오검출 | 본문 밖 구간 | 본문 밖 미리 선택 어절 | 본문 줄 안 정답 밖 미리 선택 어절 | 대응 실패 정답 줄 | 장별 맞음/오검출/놓침 | 장별 본문 밖 미리 선택 |\n|---|---|---|---|---|---|---|---|---|---|---|\n")
             for ((name, t) in wordTallies) {
                 sb.append("| $name | ${pct(prec(t.tp, t.fp))} | ${pct(prec(t.tp, t.fn))} | ${t.tp}/${t.fp}/${t.fn} | ${t.bleed} | ${t.offRuns} | ${t.offSel} | ${t.inBody} | ${t.unmatchedLines} | ${t.per.joinToString(" ")} | ${t.offPer.joinToString(" ")} |\n")
+            }
+            sb.append("\n### 검출기 설정 비교(앱 해상도 · 앱 어절 판정 · 줄 제외 없음)\n\n")
+            sb.append("| 설정 | 정밀도 | 재현율 | 맞음/오검출/놓침 | 비침 | 본문 밖 구간 | 본문 밖 선택 | 본문 줄 안 정답 밖 선택 | 장별 맞음/오검출/놓침 |\n|---|---|---|---|---|---|---|---|---|\n")
+            for ((name, t) in paramTallies) {
+                sb.append("| $name | ${pct(prec(t.tp, t.fp))} | ${pct(prec(t.tp, t.fn))} | ${t.tp}/${t.fp}/${t.fn} | ${t.bleed} | ${t.offRuns} | ${t.offSel} | ${t.inBody} | ${t.per.joinToString(" ")} |\n")
             }
             sb.append("\n### 장별 나란히(앱 해상도 · 줄 제외 없음): 글자 폭 비례 판정(위 «앱 해상도» 행) ↔ 앱 어절 판정\n\n")
             sb.append("| 자료 | 글자 폭 판정 맞음/오검출/놓침 | 앱 어절 판정 맞음/오검출/놓침 | 정밀도 | 재현율 | 비침 | 글자 폭 판정 본문 밖 구간 | 앱 판정 본문 밖 구간 | 본문 밖 미리 선택 어절 | 본문 줄 안 정답 밖 미리 선택 | 대응 실패 정답 줄 |\n|---|---|---|---|---|---|---|---|---|---|---|\n")

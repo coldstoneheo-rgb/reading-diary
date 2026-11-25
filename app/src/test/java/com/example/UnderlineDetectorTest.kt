@@ -132,21 +132,54 @@ class UnderlineDetectorTest {
 
   @Test
   fun faintLine_isCaughtAtTheDefaultThresholdOnly() {
-    // 종이보다 49 어두운 선 = 글자 획 Δ(170)의 0.288배: 기본 문턱 0.28은 잡고 보정 전 0.3은 놓친다(같은 K1a 띠).
+    // 종이보다 49 어두운 선 = 글자 획 Δ(170)의 0.288배: 뚜렷한 열 문턱 0.28은 잡고 보정 전 한 단계 0.3은 놓친다(같은 K1a 띠).
     val img = canvas()
     (line1Words + line2Words).forEach { glyphWord(img, it) }
     fill(img, Box(170, 94, 390, 97), paper - 49)
     assertEquals(1, UnderlineDetector.detect(img, w, h, listOf(line1, line2), slopes = null).count { it.lineIndex == 0 })
-    val k1a03 = UnderlineDetector.Params(darkRatio = 0.3)
+    val k1a03 = UnderlineDetector.Params(darkRatio = 0.3, seedFraction = 0.0)
     assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, line2), k1a03, slopes = null).none { it.lineIndex == 0 })
 
-    // 아래쪽 경계: 46 어두운 선 = 0.27배 — 기본 0.28은 놓치고 0.25는 잡는다(문턱이 내려가면 이 테스트가 깨진다).
+    // 아래쪽 경계: 46 어두운 선 = 0.27배 — 낮은 문턱(0.23)은 넘지만 뚜렷한 열(0.28)이 0이라 기본값은 놓치고, 한 단계 0.25는 잡는다.
     val img2 = canvas()
     (line1Words + line2Words).forEach { glyphWord(img2, it) }
     fill(img2, Box(170, 94, 390, 97), paper - 46)
     assertTrue(UnderlineDetector.detect(img2, w, h, listOf(line1, line2), slopes = null).none { it.lineIndex == 0 })
-    val k1a025 = UnderlineDetector.Params(darkRatio = 0.25)
+    val k1a025 = UnderlineDetector.Params(darkRatio = 0.25, seedFraction = 0.0)
     assertEquals(1, UnderlineDetector.detect(img2, w, h, listOf(line1, line2), k1a025, slopes = null).count { it.lineIndex == 0 })
+  }
+
+  /** 낮은 문턱(0.25배 = 42 어두움)의 밑줄 220px 가운데 왼쪽 [strong]px만 뚜렷하다(0.35배 = 60 어두움). */
+  private fun faintLineWithStrongPart(strong: Int): List<UnderlineDetector.Run> {
+    val img = canvas()
+    (line1Words + line2Words).forEach { glyphWord(img, it) }
+    fill(img, Box(170, 94, 390, 97), paper - 42)
+    if (strong > 0) fill(img, Box(170, 94, 170 + strong, 97), paper - 60)
+    return UnderlineDetector.detect(img, w, h, listOf(line1, line2), slopes = null).filter { it.lineIndex == 0 }
+  }
+
+  @Test
+  fun faintUnderline_isAcceptedWholeOnlyWhenEnoughOfItIsDistinct() {
+    // 두 단계 문턱: 구간 220px의 20%(44px) 이상이 뚜렷해야 받아들이고, 받아들이면 옅은 부분까지 한 구간이다.
+    assertEquals(listOf(UnderlineDetector.Run(0, 170, 390)), faintLineWithStrongPart(50))
+    assertTrue(faintLineWithStrongPart(40).isEmpty())
+    assertTrue("고르게 옅은 선(비침 · 얼룩)은 낮은 문턱을 넘어도 밑줄이 아니다", faintLineWithStrongPart(0).isEmpty())
+  }
+
+  @Test
+  fun splitOffPartOfTheSameLine_doesNotCloseTheBand() {
+    // 휜 쪽에서 같은 줄 어절 일부가 따로 묶여 위 끝이 이 줄 아래 끝보다 5px(0.125H) 위에 온 상자: 다음 줄로 치면 띠가 사라진다.
+    val img = canvas()
+    (line1Words + line2Words).forEach { glyphWord(img, it) }
+    fill(img, Box(170, 92, 390, 95), 60)
+    val split = Box(300, 75, 390, 115)
+    val lines = listOf(line1, split, line2)
+    assertEquals(1, UnderlineDetector.detect(img, w, h, lines, slopes = null).count { it.lineIndex == 0 })
+    val before = UnderlineDetector.Params(nextLineOverlapRatio = null)
+    assertTrue(UnderlineDetector.detect(img, w, h, lines, before, slopes = null).none { it.lineIndex == 0 })
+    // 겹침이 허용치(0.05H = 2px) 안이면 여전히 다음 줄이다 — 띠가 막혀 잡지 않는다.
+    val touching = Box(50, 78, 390, 118)
+    assertTrue(UnderlineDetector.detect(img, w, h, listOf(line1, touching), slopes = null).none { it.lineIndex == 0 })
   }
 
   @Test

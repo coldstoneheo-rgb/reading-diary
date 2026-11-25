@@ -5,7 +5,7 @@ package com.example.data.ocr
  * 아직 화면·ViewModel에 연결하지 않는다. 판정은 레포 밖 기준 자료(docs/quality/GOLDEN-SET.md)의 일치율로 한다.
  *
  * A(밑줄): 각 글줄 상자 아래 «띠»(다음 줄 위까지)에서 열마다 종이보다 충분히 어두운 «가는» 획이 있는지 보고,
- * 그런 열이 글자 1.2개 폭 이상 이어지면 밑줄 구간으로 본다. 문턱은 같은 줄 글자 획의 어둡기(Δ_text)에 대한 비율이라
+ * 그런 열이 글자 1.2개 폭 이상 이어지고 그 안에 뚜렷한 열이 충분하면(두 단계 문턱) 밑줄 구간으로 본다. 문턱은 같은 줄 글자 획의 어둡기(Δ_text)에 대한 비율이라
  * 사진마다 밝기가 달라도 같은 값을 쓴다. 뒷장 비침은 연필·볼펜 밑줄보다 옅어 이 비율에서 걸러진다(기준 사진 1번 실측 0건).
  * 글자(다음 줄 글자 윗부분 등)는 세로로 두꺼워 «가는 획» 조건에서 빠진다.
  * 기운 줄은 호출하는 쪽이 줄마다 [lineSlope](어절 상자 아래 끝의 직선 맞춤)를 넘겨 띠를 기울여 읽는다 — 기본 띠 값(K1a)은
@@ -24,11 +24,16 @@ object UnderlineDetector {
     /** 문턱은 모두 그 줄의 글자 높이(H) 또는 글자 획 어둡기(Δ_text)에 대한 비율. */
     data class Params(
         /**
-         * 띠의 열이 «어둡다» = (종이 − 그 열 최솟값) ≥ darkRatio × Δ_text.
-         * 0.28 = 기준 사진 11장 재측정(2026-11-14)에서 «정밀도 ≥ 95% · 비침 오검출 ≤ 2 · 본문 밖 오검출 구간 ≤ 10»을 지키는
-         * 가장 낮은 단계(0.27은 본문 밖 14).
+         * 띠의 열이 «어둡다» = (종이 − 그 열 최솟값) ≥ darkRatio × Δ_text. 구간을 잇는 낮은 문턱이고, 구간을 받아들일지는
+         * [seedRatio] · [seedFraction]이 정한다(두 단계 문턱). 0.23 = 2026-11-25 기준 사진 11장(앱 해상도 · 앱 어절 판정)에서
+         * «오검출 ≤ 5 · 비침 0 · 본문 밖 선택 ≤ 3 · 본문 줄 안 정답 밖 선택 ≤ 3 · 장별 맞음 하락 0»을 지키는 가장 낮은 단계
+         * (0.22는 정답 밖 선택 4). 한 단계 문턱이던 2026-11-14 값은 0.28.
          */
-        val darkRatio: Double = 0.28,
+        val darkRatio: Double = 0.23,
+        /** 뚜렷한 열 = (종이 − 그 열 최솟값) ≥ seedRatio × Δ_text. 옅은 밑줄도 몇 군데는 뚜렷하다. */
+        val seedRatio: Double = 0.28,
+        /** 구간 가로 폭 가운데 뚜렷한 열([seedRatio])이 이 비율 이상일 때만 밑줄 구간으로 받아들인다. 0 = 한 단계 문턱(검사 안 함). */
+        val seedFraction: Double = 0.2,
         /** 띠 안에서 어두운 행이 이보다 많으면(× H) 글자 획으로 보고 버린다. */
         val maxThicknessRatio: Double = 0.25,
         /** 어두운 열 사이 이만큼(× H)까지의 빈틈은 이어 붙인다(흐린 연필·물결선). */
@@ -68,7 +73,12 @@ object UnderlineDetector {
          * 앱 쪽 여유는 약 5px(더 크게 찍은 사진은 H가 60을 넘어 다시 평균된다).
          * 1픽셀 모드에서도 띠 양 끝 1행은 읽지 않는다(3행 평균용 여백) — 앱 해상도에서 K1a 띠 확장은 사실상 0이다(기준 자료 11장: 원본 192/7/79 불변 · 앱 174 → 188어절). 0 = 늘 3픽셀.
          */
-        val smoothMinHeight: Int = 60
+        val smoothMinHeight: Int = 60,
+        /**
+         * 위 끝이 «이 줄 아래 끝 − 이 비율 × H»보다 위에 있는 상자는 다음 줄로 치지 않는다(휜 쪽에서 같은 줄 어절 일부가 따로 묶인 것).
+         * 그대로 두면 띠가 6픽셀 미만이 되어 줄 전체를 건너뛴다(기준 사진 3번 9째 줄 — SPIKE §1-0-1 R0). null = 겹쳐도 다음 줄로 친다.
+         */
+        val nextLineOverlapRatio: Double? = 0.05
     )
 
     /** [lineIndex]번 줄 아래에서 찾은 밑줄 구간(가로 픽셀 [left, right)). */
@@ -98,8 +108,10 @@ object UnderlineDetector {
             val x1 = (line.right + h / 2).coerceIn(0, width)
             if (x1 - x0 < 2) continue
             // 띠를 막는 «다음 줄» = 아래에 있으면서 띠의 가로 범위와 겹치는 첫 줄. 옆 단·여백 메모처럼 가로로 비켜 난 줄은 띠를 자르지 않는다.
+            // 이 줄과 세로로 겹치는 상자는 같은 줄에서 갈라진 것으로 보고 다음 줄로 치지 않는다.
+            val minNextTop = params.nextLineOverlapRatio?.let { line.bottom - (it * h).toInt() } ?: Int.MIN_VALUE
             val nextTop = order.drop(k + 1).map { lines[it] }
-                .firstOrNull { it.left < x1 && it.right > x0 }?.top ?: Int.MAX_VALUE
+                .firstOrNull { it.left < x1 && it.right > x0 && it.top >= minNextTop }?.top ?: Int.MAX_VALUE
             val y0 = (line.bottom + ((params.bandTopRatio ?: params.bandStartRatio) * h).toInt()).coerceIn(0, height)
             val y1 = minOf(
                 nextTop.toLong() - ((params.nextLinePadRatio ?: params.bandStartRatio) * h).toLong(),
@@ -119,6 +131,7 @@ object UnderlineDetector {
             val cx = (line.left + line.right) / 2.0
             val smooth = h >= params.smoothMinHeight
             val dark = BooleanArray(x1 - x0)
+            val seed = BooleanArray(x1 - x0)
             for (x in x0 until x1) {
                 var min = Double.MAX_VALUE
                 var thick = 0
@@ -135,6 +148,7 @@ object UnderlineDetector {
                     if ((paper - v) / deltaText >= params.darkRatio) thick++
                 }
                 dark[x - x0] = (paper - min) / deltaText >= params.darkRatio && thick <= maxThick
+                seed[x - x0] = (paper - min) / deltaText >= params.seedRatio
             }
 
             val gap = params.gapRatio * h
@@ -142,7 +156,9 @@ object UnderlineDetector {
             var start = -1
             var last = -1
             fun flush() {
-                if (start >= 0 && last - start + 1 >= minLen) runs += Run(idx, x0 + start, x0 + last + 1)
+                if (start < 0 || last - start + 1 < minLen) return
+                val seeds = (start..last).count { seed[it] }
+                if (seeds >= params.seedFraction * (last - start + 1)) runs += Run(idx, x0 + start, x0 + last + 1)
             }
             for (i in dark.indices) {
                 if (!dark[i]) continue
