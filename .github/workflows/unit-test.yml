@@ -1,0 +1,25 @@
+# 단위 시험만(서명 · 릴리스 빌드 · 스크린샷 비교 없음). 비밀 값 0 — .env 없이 .env.example 기본값으로 돈다.
+name: unit-test
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: unit-test-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.4.1'
+      - run: gradle :app:testDebugUnitTest --no-daemon --max-workers=2
