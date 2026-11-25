@@ -5,6 +5,7 @@ import android.app.TimePickerDialog
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -31,21 +32,20 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -114,9 +114,6 @@ fun OcrDiaryScreen(
     val dateFormatter = remember { SimpleDateFormat("yyyy년 MM월 dd일", Locale.KOREA) }
     val timeFormatter = remember { SimpleDateFormat("a h:mm", Locale.KOREA) }
 
-    var showShareCardDialog by remember { mutableStateOf(false) }
-    var selectedPaletteIndex by remember { mutableStateOf(0) }
-
     // User Selection flow variables
     var selectedMethod by rememberSaveable(key = "$formKey/method") { mutableStateOf<String?>(null) } // "CAMERA" or "GALLERY"
     var activeImageUrl by rememberSaveable(key = "$formKey/image") { mutableStateOf<String?>(null) }
@@ -137,6 +134,7 @@ fun OcrDiaryScreen(
 
     fun clearShownPhoto() {
         viewModel.clearUnderlinePreselect() // 앞 사진의 미리 선택 칩이 새 사진 · 빈 화면에 남지 않게
+        viewModel.clearOcrError() // 앞 사진의 실패 안내가 새 사진 아래에 남지 않게
         activeImageUrl = null
         isImageTaken = false
         isCroppedReady = false
@@ -299,6 +297,41 @@ fun OcrDiaryScreen(
         uri?.let { applyPickedPhoto(it) }
     }
 
+    // 저장하지 않은 입력이 있으면 뒤로 갈 때 한 번 묻는다. 이 폼이 저장을 시작했거나 이미 떠나는 중(전환 애니메이션)이면 묻지 않는다.
+    // diarySaving은 앱 전체 상태라 쓰지 않는다 — 앞 기록을 저장하는 동안 쓰던 새 기록도 지켜야 한다.
+    var submittedHere by remember { mutableStateOf(false) }
+    val isCurrent = currentScreen == Screen.AddDiary(bookId, diaryId)
+    val hasUnsavedInput = isCurrent && !submittedHere && submittedCreatedAt == null && if (diaryId == null) {
+        extractedText.isNotBlank() || notes.isNotBlank() || activeImageUrl != null || photoDrafts.isNotEmpty()
+    } else {
+        val original = editingDiary
+        editDetailsLoaded && original != null && (
+            extractedText != original.selectedText || notes != original.notes || pageStr != original.page.toString() ||
+                selectedTimestamp != original.createdAt || activeImageUrl != null ||
+                (photosLoaded && photoDrafts != loadedPhotos.map { PhotoInputSlot.Existing(it.photoId) })
+            )
+    }
+    var showDiscardConfirm by remember { mutableStateOf(false) }
+    val leave = {
+        viewModel.resetOcrState()
+        viewModel.navigateBack()
+    }
+    BackHandler(enabled = hasUnsavedInput) { showDiscardConfirm = true }
+    if (showDiscardConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDiscardConfirm = false },
+            title = { Text("저장하지 않고 나갈까요?") },
+            text = { Text("지금까지 적은 내용과 고른 사진이 사라집니다.") },
+            confirmButton = {
+                TextButton(
+                    onClick = { showDiscardConfirm = false; leave() },
+                    modifier = Modifier.testTag("discard_diary_confirm")
+                ) { Text("나가기", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { showDiscardConfirm = false }) { Text("계속 쓰기") } }
+        )
+    }
+
     // Load initial edit details. 처음 한 번만 채운다(복원된 입력이나 편집 중 글을 DB 값으로 덮지 않게).
     LaunchedEffect(editingDiary) {
         editingDiary?.let {
@@ -344,9 +377,7 @@ fun OcrDiaryScreen(
                 extractedText = state.text
                 Toast.makeText(context, "인식된 문장을 원문과 대조해 주세요.", Toast.LENGTH_SHORT).show()
             }
-            is OcrState.Error -> {
-                Toast.makeText(context, state.message, Toast.LENGTH_LONG).show()
-            }
+            // 실패는 «틀 안 글자 읽기» 버튼 아래에 남긴다(OcrErrorText). 토스트는 두 줄에서 잘려 다음에 할 일이 보이지 않았다.
             else -> Unit
         }
     }
@@ -409,10 +440,7 @@ fun OcrDiaryScreen(
             TopAppBar(
                 title = { Text(if (diaryId != null) "독서 펜기록 수정" else "독서 펜기록 추가", style = MaterialTheme.typography.titleMedium) },
                 navigationIcon = {
-                    IconButton(onClick = {
-                        viewModel.resetOcrState()
-                        viewModel.navigateBack()
-                    }) {
+                    IconButton(onClick = { if (hasUnsavedInput) showDiscardConfirm = true else leave() }) {
                         Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "뒤로가기")
                     }
                 },
@@ -926,6 +954,7 @@ fun OcrDiaryScreen(
                             if (!isCroppedReady) {
                                 Button(
                                     onClick = {
+                                        viewModel.clearOcrError()
                                         isCroppedReady = true
                                         Toast.makeText(context, "자르기 적용 완료! 아래 '틀 안 글자 읽기'를 누르세요.", Toast.LENGTH_SHORT).show()
                                     },
@@ -1049,6 +1078,8 @@ fun OcrDiaryScreen(
                                     Text("틀 안 글자 읽기", fontWeight = FontWeight.Bold)
                                 }
                             }
+                            // 인식 중 자르기를 다시 열어도 실패가 조용히 사라지지 않게 버튼과 따로 그린다.
+                            (ocrState as? OcrState.Error)?.let { OcrErrorText(it.message) }
                         }
                     }
                 }
@@ -1234,6 +1265,7 @@ fun OcrDiaryScreen(
                             TextButton(
                                 onClick = {
                                     extractedText = result.text
+                                    viewModel.clearOcrError()
                                     viewModel.resetPreciseOcrState()
                                 },
                                 modifier = Modifier.testTag("precise_analysis_apply")
@@ -1243,19 +1275,22 @@ fun OcrDiaryScreen(
                     )
                 }
 
-                // SNS Card Share Button at the bottom of Stage 3
+                // 글로 공유: 공유 시트에 보낼 글을 그대로 넘긴다(이미지는 만들지 않는다).
                 OutlinedButton(
                     onClick = {
                         if (extractedText.isBlank()) {
                             Toast.makeText(context, "공유할 문장이 없습니다. 먼저 책 페이지 사진에서 글자를 읽어 와 주세요.", Toast.LENGTH_SHORT).show()
                         } else {
-                            selectedPaletteIndex = autoSelectPalette(extractedText)
-                            showShareCardDialog = true
+                            val share = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(android.content.Intent.EXTRA_TEXT, diaryShareText(extractedText, currentBook.title, currentBook.author, pageStr))
+                            }
+                            context.startActivity(android.content.Intent.createChooser(share, "글로 공유하기"))
                         }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .testTag("sns_share_card_button"),
+                        .testTag("share_text_button"),
                     enabled = extractedText.isNotBlank(),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
@@ -1271,294 +1306,12 @@ fun OcrDiaryScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "✨ 감성 이미지 카드로 SNS 공유하기", 
+                        text = "글로 공유하기", 
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.labelLarge
                     )
                 }
             }
-
-            // Dialogue overlay for sharing card
-            if (showShareCardDialog && currentBook != null) {
-                val palettes = listOf(
-                    PastelPalette(
-                        name = "포근한 노을",
-                        description = "따뜻하고 감성적인 피치 핑크 톤",
-                        gradStart = Color(0xFFFFF2EC),
-                        gradEnd = Color(0xFFFEE4D6),
-                        textColor = Color(0xFF5A4438),
-                        accentColor = Color(0xFFD48B6A)
-                    ),
-                    PastelPalette(
-                        name = "싱그런 허브",
-                        description = "마음을 안정시키는 소프트 민트 초록 톤",
-                        gradStart = Color(0xFFE8F6F1),
-                        gradEnd = Color(0xFFD1EDE3),
-                        textColor = Color(0xFF2C433B),
-                        accentColor = Color(0xFF5D9B84)
-                    ),
-                    PastelPalette(
-                        name = "차분한 은하",
-                        description = "신비롭고 감각적인 라벤더 퍼플 톤",
-                        gradStart = Color(0xFFF1EBF9),
-                        gradEnd = Color(0xFFDFD1F7),
-                        textColor = Color(0xFF382A52),
-                        accentColor = Color(0xFF8667BF)
-                    ),
-                    PastelPalette(
-                        name = "아늑한 서재",
-                        description = "따뜻하고 깊이감 있는 샌드 오트밀 톤",
-                        gradStart = Color(0xFFFAF7F2),
-                        gradEnd = Color(0xFFEFE8DD),
-                        textColor = Color(0xFF4A453A),
-                        accentColor = Color(0xFF9E8D6E)
-                    ),
-                    PastelPalette(
-                        name = "장미빛 회상",
-                        description = "설렘과 추억이 깃든 인디 핑크 톤",
-                        gradStart = Color(0xFFFFF0F3),
-                        gradEnd = Color(0xFFFAD1D8),
-                        textColor = Color(0xFF5C3C43),
-                        accentColor = Color(0xFFC77B8A)
-                    )
-                )
-
-                val activePalette = palettes.getOrElse(selectedPaletteIndex) { palettes.first() }
-
-                Dialog(
-                    onDismissRequest = { showShareCardDialog = false }
-                ) {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-                    ) {
-                        Column(
-                             modifier = Modifier
-                                 .fillMaxWidth()
-                                 .padding(20.dp),
-                             horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                             // Title
-                             Row(
-                                 modifier = Modifier.fillMaxWidth(),
-                                 horizontalArrangement = Arrangement.SpaceBetween,
-                                 verticalAlignment = Alignment.CenterVertically
-                             ) {
-                                 Text(
-                                     text = "📖 감성 구절 이미지 카드",
-                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                     color = MaterialTheme.colorScheme.onSurface
-                                 )
-                                 IconButton(
-                                     onClick = { showShareCardDialog = false },
-                                     modifier = Modifier.size(24.dp)
-                                 ) {
-                                     Icon(
-                                         imageVector = Icons.Default.Close,
-                                         contentDescription = "닫기",
-                                         tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                                     )
-                                 }
-                             }
-
-                             Spacer(modifier = Modifier.height(14.dp))
-
-                             // THE BEAUTIFUL PASTEL CARD PREVIEW (모던, 심플, 감각적, 따뜻함)
-                             Box(
-                                 modifier = Modifier
-                                     .fillMaxWidth()
-                                     .aspectRatio(1f) // Square share card
-                                     .clip(RoundedCornerShape(16.dp))
-                                     .background(
-                                         Brush.verticalGradient(
-                                             colors = listOf(activePalette.gradStart, activePalette.gradEnd)
-                                         )
-                                     )
-                                     .border(1.dp, activePalette.accentColor.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
-                                     .padding(24.dp),
-                                 contentAlignment = Alignment.Center
-                             ) {
-                                 Column(
-                                     horizontalAlignment = Alignment.CenterHorizontally,
-                                     verticalArrangement = Arrangement.SpaceBetween,
-                                     modifier = Modifier.fillMaxSize()
-                                 ) {
-                                     // Top Design Accent
-                                     Icon(
-                                         imageVector = Icons.Default.FormatQuote,
-                                         contentDescription = null,
-                                         tint = activePalette.accentColor.copy(alpha = 0.4f),
-                                         modifier = Modifier
-                                             .size(28.dp)
-                                             .graphicsLayer(rotationZ = 180f)
-                                     )
-
-                                     // Main Quote Text (Centered, Serif-like elegant scale)
-                                     Text(
-                                         text = extractedText,
-                                         style = MaterialTheme.typography.bodyLarge.copy(
-                                             fontWeight = FontWeight.Medium,
-                                             fontSize = if (extractedText.length > 80) 13.sp else 15.sp,
-                                             lineHeight = if (extractedText.length > 80) 20.sp else 24.sp,
-                                             fontStyle = FontStyle.Italic
-                                         ),
-                                         color = activePalette.textColor,
-                                         textAlign = TextAlign.Center,
-                                         maxLines = 6,
-                                         overflow = TextOverflow.Ellipsis,
-                                         modifier = Modifier
-                                             .fillMaxWidth()
-                                             .padding(horizontal = 4.dp, vertical = 6.dp)
-                                     )
-
-                                     // Bottom info containing metadata
-                                     Column(
-                                         horizontalAlignment = Alignment.CenterHorizontally
-                                     ) {
-                                         // Subtle Divider line
-                                         Box(
-                                             modifier = Modifier
-                                                 .width(36.dp)
-                                                 .height(1.5.dp)
-                                                 .background(activePalette.accentColor.copy(alpha = 0.4f))
-                                         )
-                                         Spacer(modifier = Modifier.height(8.dp))
-                                         // Book Title & Author
-                                         Text(
-                                             text = "『${currentBook.title}』",
-                                             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp),
-                                             color = activePalette.textColor.copy(alpha = 0.9f),
-                                             textAlign = TextAlign.Center,
-                                             maxLines = 1,
-                                             overflow = TextOverflow.Ellipsis
-                                         )
-                                         Spacer(modifier = Modifier.height(2.dp))
-                                         Text(
-                                             text = "${currentBook.author} 씀 ${if (pageStr.isNotEmpty()) "| $pageStr 쪽" else ""}",
-                                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                             color = activePalette.textColor.copy(alpha = 0.65f),
-                                             textAlign = TextAlign.Center
-                                         )
-                                     }
-                                 }
-                             }
-
-                             Spacer(modifier = Modifier.height(16.dp))
-
-                             // PALETTE PICKER SECTION
-                             Text(
-                                 text = "🎨 컬러 필터 (문장 부합 추천 테마 자동 셋팅됨)",
-                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                 modifier = Modifier.align(Alignment.Start)
-                             )
-                             Spacer(modifier = Modifier.height(6.dp))
-
-                             Row(
-                                 modifier = Modifier.fillMaxWidth(),
-                                 horizontalArrangement = Arrangement.SpaceBetween
-                             ) {
-                                 palettes.forEachIndexed { index, palette ->
-                                     val isSelected = selectedPaletteIndex == index
-                                     Box(
-                                         modifier = Modifier
-                                             .size(44.dp)
-                                             .clip(RoundedCornerShape(12.dp))
-                                             .background(
-                                                 Brush.verticalGradient(
-                                                     colors = listOf(palette.gradStart, palette.gradEnd)
-                                                 )
-                                             )
-                                             .border(
-                                                 width = if (isSelected) 3.dp else 1.dp,
-                                                 color = if (isSelected) MaterialTheme.colorScheme.primary else palette.textColor.copy(alpha = 0.15f),
-                                                 shape = RoundedCornerShape(12.dp)
-                                             )
-                                             .clickable { selectedPaletteIndex = index }
-                                             .padding(2.dp),
-                                         contentAlignment = Alignment.Center
-                                     ) {
-                                         if (isSelected) {
-                                             Icon(
-                                                 imageVector = Icons.Default.Check,
-                                                 contentDescription = "선택됨",
-                                                 tint = palette.textColor,
-                                                 modifier = Modifier.size(16.dp)
-                                             )
-                                         } else {
-                                             Text(
-                                                 text = palette.name.take(2),
-                                                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
-                                                 color = palette.textColor.copy(alpha = 0.7f)
-                                             )
-                                         }
-                                     }
-                                 }
-                             }
-
-                             Spacer(modifier = Modifier.height(20.dp))
-
-                             // SHARE & SAVE ACTIONS
-                             Row(
-                                 modifier = Modifier.fillMaxWidth(),
-                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
-                             ) {
-                                 // Instagram / Kakao Share Button
-                                 Button(
-                                     onClick = {
-                                         val shareIntent = android.content.Intent().apply {
-                                             action = android.content.Intent.ACTION_SEND
-                                             type = "text/plain"
-                                             putExtra(
-                                                 android.content.Intent.EXTRA_TEXT,
-                                                 "✨ [북 다이어리 밑줄 구절 공유] ✨\n\n" +
-                                                         "\"$extractedText\"\n\n" +
-                                                         "📚 도서: 『${currentBook.title}』\n" +
-                                                         "✍️ 저자: ${currentBook.author}\n" +
-                                                         "📖 페이지: ${if (pageStr.isNotEmpty()) "${pageStr}쪽" else "선택 안 함"}\n\n" +
-                                                         "#독서기록 #북스타그램 #독서펜기록 #동양화책장"
-                                             )
-                                         }
-                                         context.startActivity(android.content.Intent.createChooser(shareIntent, "감성 구절 공유하기"))
-                                         showShareCardDialog = false
-                                         Toast.makeText(context, "📸 SNS 공유 다이얼로그를 호출했습니다!", Toast.LENGTH_SHORT).show()
-                                     },
-                                     modifier = Modifier.weight(1f),
-                                     shape = RoundedCornerShape(12.dp),
-                                     colors = ButtonDefaults.buttonColors(
-                                         containerColor = MaterialTheme.colorScheme.primary
-                                     )
-                                 ) {
-                                     Icon(imageVector = Icons.Default.Send, contentDescription = null, modifier = Modifier.size(16.dp))
-                                     Spacer(modifier = Modifier.width(6.dp))
-                                     Text("SNS 공유", fontWeight = FontWeight.Bold)
-                                 }
-
-                                 // Save Image local simulator Button
-                                 OutlinedButton(
-                                     onClick = {
-                                         Toast.makeText(context, "💾 [${activePalette.name}] 테마의 감성 카드 이미지가 기기 갤러리로 성공적으로 저장되었습니다!", Toast.LENGTH_LONG).show()
-                                         showShareCardDialog = false
-                                     },
-                                     modifier = Modifier.weight(1f),
-                                     shape = RoundedCornerShape(12.dp),
-                                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                                 ) {
-                                     Icon(imageVector = Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
-                                     Spacer(modifier = Modifier.width(6.dp))
-                                     Text("이미지 저장", fontWeight = FontWeight.Bold)
-                                 }
-                             }
-                        }
-                     }
-                 }
-             }
 
              if (diaryId != null && photosLoaded) {
                 DiaryPhotoEditSection(
@@ -1658,6 +1411,7 @@ fun OcrDiaryScreen(
 
                     // 저장 완료는 사용자가 이미 다른 화면으로 갔을 수 있으므로, 저장을 시작한 이 화면일 때만 닫는다.
                     val startedOn = viewModel.currentScreenState.value
+                    submittedHere = true
                     if (diaryId == null) submittedCreatedAt = selectedTimestamp
 
                     // Save diary with selected timestamp (which defaults to System.currentTimeMillis() or selected/historical date-time value)
@@ -1670,6 +1424,7 @@ fun OcrDiaryScreen(
                         createdAt = selectedTimestamp,
                         photos = PhotoDrafts.toInput(slots, loadedPhotos.map { it.photoId }),
                         onFailure = {
+                            submittedHere = false
                             // 이미 화면을 떠났으면 입력이 남아 있지 않다.
                             val message = if (viewModel.currentScreenState.value === startedOn) {
                                 "기록을 저장하지 못했습니다. 입력한 내용은 그대로 있으니 다시 시도해 주세요."
@@ -1714,22 +1469,21 @@ private val PhotoDraftsSaver = Saver<List<PhotoInputSlot>, ArrayList<String>>(
     restore = { PhotoDrafts.decode(it) }
 )
 
-data class PastelPalette(
-    val name: String,
-    val description: String,
-    val gradStart: Color,
-    val gradEnd: Color,
-    val textColor: Color,
-    val accentColor: Color
-)
+/** 공유 시트로 보내는 글 전부. */
+internal fun diaryShareText(text: String, title: String, author: String, page: String): String =
+    "\"$text\"\n\n" + listOf("『$title』", author.trim(), if (page.isBlank()) "" else "${page}쪽").filter { it.isNotBlank() }.joinToString(" · ")
 
-fun autoSelectPalette(text: String): Int {
-    val t = text.trim()
-    return when {
-        t.contains("사랑") || t.contains("기억") || t.contains("그리움") || t.contains("추억") || t.contains("마음") || t.contains("가족") -> 4 // 장미빛 회상
-        t.contains("밤") || t.contains("우주") || t.contains("하늘") || t.contains("꿈") || t.contains("노래") || t.contains("영혼") || t.contains("은하") -> 2 // 차분한 은하
-        t.contains("자연") || t.contains("초록") || t.contains("나무") || t.contains("숲") || t.contains("새") || t.contains("바람") || t.contains("쉼") || t.contains("안식") || t.contains("허브") -> 1 // 싱그런 허브
-        t.contains("부") || t.contains("성공") || t.contains("돈") || t.contains("지혜") || t.contains("배움") || t.contains("독서") || t.contains("시간") || t.contains("생각") || t.contains("서재") -> 3 // 아늑한 서재
-        else -> 0 // 포근한 노을
-    }
+/** 글자 인식 실패 안내(모델 준비 중 · 인터넷 필요 등). 다시 누르면 새 인식이 시작되며 사라진다. */
+@Composable
+internal fun OcrErrorText(message: String) {
+    Text(
+        text = message,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .semantics { liveRegion = LiveRegionMode.Polite }
+            .testTag("ocr_error")
+    )
 }

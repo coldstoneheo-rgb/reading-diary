@@ -464,9 +464,12 @@ fun AddEditBookScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Confirm Submit Button
+                // Confirm Submit Button. 저장하고 화면이 사라지는 동안 다시 눌리면 같은 책이 두 권 등록된다.
+                var submitted by remember { mutableStateOf(false) }
                 Button(
+                    enabled = !submitted,
                     onClick = {
+                        if (submitted) return@Button // 재구성 전에 밀린 두 번째 탭
                         if (title.isBlank()) {
                             Toast.makeText(context, "도서 제목을 반드시 입력해주세요.", Toast.LENGTH_SHORT).show()
                             return@Button
@@ -482,6 +485,7 @@ fun AddEditBookScreen(
                         }
                         val currentPage = currentPageStr.toIntOrNull() ?: 0
 
+                        submitted = true
                         viewModel.saveBook(
                             id = bookId,
                             title = title,

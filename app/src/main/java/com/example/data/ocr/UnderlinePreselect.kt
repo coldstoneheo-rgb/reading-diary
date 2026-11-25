@@ -10,7 +10,7 @@ import com.example.data.ocr.UnderlineDetector.Box
  * [UnderlineDetector.detect] → 어절마다 «밑줄 구간과 절반 이상 겹침» 여부.
  *
  * **기울기는 항상 넘긴다.** 이 함수에는 기울기를 끄는 인자가 없다 — 기본 띠(K1a)는 기울기를 넘긴다는 전제로 고른 값이라
- * 기울기 없이 부르면 기준 사진 11장에서 정밀도 90.5% · 비침 오검출 4로 떨어진다(SPIKE §5).
+ * 기울기 없이 부르면 기준 사진 11장에서 정밀도 90.5% · 비침 오검출 4로 떨어진다(한 단계 문턱 0.28 때 값 — SPIKE §5).
  * 앱 코드에서 [UnderlineDetector.detect]를 직접 부르는 곳은 이 파일뿐이다(UnderlinePreselectTest.appPath_cannotCallTheDetectorWithoutSlope가 고정).
  */
 object UnderlinePreselect {

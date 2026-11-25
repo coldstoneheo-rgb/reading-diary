@@ -135,7 +135,7 @@ class UnderlinePreselectPanelTest {
     input.performScrollTo()
     composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/preselect_before_none.png")
     // 편집창 아래 요소의 위치가 그대로인지로 «아무것도 더해지지 않음»을 본다.
-    fun saveButtonBounds() = composeTestRule.onNodeWithTag("sns_share_card_button").fetchSemanticsNode().boundsInRoot
+    fun saveButtonBounds() = composeTestRule.onNodeWithTag("share_text_button").fetchSemanticsNode().boundsInRoot
     val before = saveButtonBounds()
     // 미리 선택이 와도 고른 어절이 0개면 화면에 아무것도 더해지지 않는다(패널 노드 0 · 아래 요소 위치 그대로).
     vm.underlinePreselect.value = sample.map { it.copy(selected = false) }

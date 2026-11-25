@@ -525,7 +525,7 @@ fun BookDetailScreen(
                         diary = diary,
                         fontSize = diaryFontSize,
                         onDeleteClick = {
-                            viewModel.deleteDiary(diary.id, currentBook.id)
+                            viewModel.deleteDiary(diary.id)
                             Toast.makeText(context, "기록이 삭제되었습니다.", Toast.LENGTH_SHORT).show()
                         },
                         onEditClick = {

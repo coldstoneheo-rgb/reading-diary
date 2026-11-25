@@ -92,11 +92,35 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
+    // 서랍이 열려 있으면 뒤로는 서랍만 닫는다.
+    BackHandler(enabled = drawerState.isOpen) { coroutineScope.launch { drawerState.close() } }
+
+    // 확인을 기다리는 책장 삭제
+    var bookcaseToDelete by remember { mutableStateOf<com.example.data.Bookcase?>(null) }
+    val allBooks by viewModel.books.collectAsState()
+    val allDiaries by viewModel.diaries.collectAsState()
+    bookcaseToDelete?.let { target ->
+        val bookIds = allBooks.filter { it.bookcaseId == target.id }.map { it.id }.toSet()
+        DeleteBookcaseDialog(
+            name = target.name,
+            books = bookIds.size,
+            diaries = allDiaries.count { it.bookId in bookIds },
+            onConfirm = {
+                bookcaseToDelete = null
+                viewModel.deleteBookcase(target.id)
+                Toast.makeText(context, "'${target.name}' 책장이 삭제되었습니다.", Toast.LENGTH_SHORT).show()
+            },
+            onDismiss = { bookcaseToDelete = null }
+        )
+    }
+
     // Custom bookcase name input
     var newBookcaseName by remember { mutableStateOf("") }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
+        // 대시보드에서만 밀어서 연다. 기록을 쓰는 중에 밀려 나와 다른 화면으로 가면 쓰던 글이 사라진다.
+        gesturesEnabled = currentScreen == Screen.Dashboard || drawerState.isOpen,
         drawerContent = {
             ModalDrawerSheet(
                 drawerContainerColor = MaterialTheme.colorScheme.surface,
@@ -210,15 +234,12 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                             // Delete triggers only for client added categories
                             if (!bookcase.isSystem) {
                                 IconButton(
-                                    onClick = {
-                                        viewModel.deleteBookcase(bookcase.id)
-                                        Toast.makeText(context, "'${bookcase.name}' 책장이 삭제되었습니다.", Toast.LENGTH_SHORT).show()
-                                    },
+                                    onClick = { bookcaseToDelete = bookcase },
                                     modifier = Modifier.size(24.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Delete,
-                                        contentDescription = "Delete Bookcase",
+                                        contentDescription = "'${bookcase.name}' 책장 삭제",
                                         tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
                                         modifier = Modifier.size(16.dp)
                                     )
@@ -252,7 +273,7 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                                             }
                                         }
                                     ) {
-                                        Icon(imageVector = Icons.Default.CreateNewFolder, contentDescription = "Add category", tint = MaterialTheme.colorScheme.primary)
+                                        Icon(imageVector = Icons.Default.CreateNewFolder, contentDescription = "새 책장 만들기", tint = MaterialTheme.colorScheme.primary)
                                     }
                                 },
                                 textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
@@ -408,5 +429,27 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                 }
             }
         }
+    )
+}
+
+/** 책장을 지우면 안에 든 책·기록·사진까지 함께 지워지므로(CASCADE) 무엇이 사라지는지 보여 주고 확인받는다. */
+@Composable
+internal fun DeleteBookcaseDialog(name: String, books: Int, diaries: Int, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("'$name' 책장을 삭제할까요?") },
+        text = {
+            Text(
+                if (books == 0) "이 책장에는 책이 없습니다."
+                else if (diaries == 0) "이 책장의 책 ${books}권이 함께 삭제되며 되돌릴 수 없습니다."
+                else "이 책장의 책 ${books}권과 독서 기록 ${diaries}개(기록에 남긴 사진 포함)가 함께 삭제되며 되돌릴 수 없습니다."
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm, modifier = Modifier.testTag("delete_bookcase_confirm")) {
+                Text("삭제", color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } }
     )
 }

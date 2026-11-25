@@ -5,9 +5,6 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 /**
  * 스키마 JSON을 `app/schemas/`로 내보낸다(ADR-004 1단계 ③). 정본은 커밋된 `2.json`·`3.json`이다.
@@ -38,6 +35,9 @@ abstract class AppDatabase : RoomDatabase() {
 
         const val DB_NAME = "reading_diary_db"
 
+        /** 기본(시스템) 책장. 첫 항목이 새 책의 기본 책장이다. */
+        val DEFAULT_BOOKCASES = listOf("기본 책장", "소설", "재테크", "자기계발", "인문")
+
         /** 앱이 쓰는 빌더 설정 전부(마이그레이션·콜백). MigrationTest M4가 같은 설정으로 연다. */
         internal fun builder(context: Context, name: String): RoomDatabase.Builder<AppDatabase> =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, name)
@@ -57,20 +57,12 @@ abstract class AppDatabase : RoomDatabase() {
                 // DB가 새로 만들어졌으면(신규 설치·DB 없이 설정만 복원) 예전 예시 표식은 무효다.
                 // 남겨 두면 id가 다시 1부터 매겨진 진짜 책을 예시로 오인할 수 있다(SampleBooks).
                 clearSampleMarks(context)
-                CoroutineScope(Dispatchers.IO).launch {
-                    val dbInstance = getDatabase(context)
-                    val bookcaseDao = dbInstance.bookcaseDao()
-
-                    if (bookcaseDao.getCount() == 0) {
-                        bookcaseDao.insert(Bookcase(name = "소설", isSystem = true))
-                        bookcaseDao.insert(Bookcase(name = "재테크", isSystem = true))
-                        bookcaseDao.insert(Bookcase(name = "자기계발", isSystem = true))
-                        bookcaseDao.insert(Bookcase(name = "인문", isSystem = true))
-                        bookcaseDao.insert(Bookcase(name = "기본 책장", isSystem = true))
-
-                        // 책·일기 시드 없음: 신규 설치는 빈 서재로 시작한다. 예시는 설정 «예시 2권 넣기»(ADR-003-1, SampleBooks).
-                    }
+                // 기본 책장은 DB를 만드는 그 자리에서 넣는다. 별도 코루틴으로 넣으면 ViewModel의 «빠진 기본 책장 채우기»와 겹쳐
+                // 두 벌이 생기고, 시스템 책장은 사용자가 지울 수 없다.
+                DEFAULT_BOOKCASES.forEach { name ->
+                    db.execSQL("INSERT INTO bookcases (name, isSystem) VALUES (?, 1)", arrayOf<Any>(name))
                 }
+                // 책·일기 시드 없음: 신규 설치는 빈 서재로 시작한다. 예시는 설정 «예시 2권 넣기»(ADR-003-1, SampleBooks).
             }
         }
     }

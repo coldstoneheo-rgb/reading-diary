@@ -167,19 +167,10 @@ class ReadingViewModel @JvmOverloads constructor(
         }
         viewModelScope.launch {
             val bookcaseDao = database.bookcaseDao()
-            val existing = bookcaseDao.getAllBookcasesOneShot()
-            val defaults = listOf("기본 책장", "소설", "재테크", "자기계발", "인문")
-            if (existing.isEmpty()) {
-                defaults.forEach { name ->
-                    bookcaseDao.insert(Bookcase(name = name, isSystem = true))
-                }
-            } else {
-                val existingNames = existing.map { it.name }
-                defaults.forEach { name ->
-                    if (!existingNames.contains(name)) {
-                        bookcaseDao.insert(Bookcase(name = name, isSystem = true))
-                    }
-                }
+            // 새 DB의 기본 책장은 AppDatabase.onCreate가 넣는다. 여기서는 예전 설치·복원본에 빠진 것만 채운다.
+            val existingNames = bookcaseDao.getAllBookcasesOneShot().map { it.name }
+            AppDatabase.DEFAULT_BOOKCASES.filterNot { it in existingNames }.forEach { name ->
+                bookcaseDao.insert(Bookcase(name = name, isSystem = true))
             }
         }
     }
@@ -530,17 +521,24 @@ class ReadingViewModel @JvmOverloads constructor(
         }
     }
 
+    /** 지금 연 책의 구독. 다른 책을 열면 앞 책의 구독을 끊는다 — 남아 있으면 뒤늦은 방출이 새 책 화면을 앞 책으로 바꾼다. */
+    private var bookDetailJob: Job? = null
+
     private fun loadBookDetail(bookId: Int) {
-        viewModelScope.launch {
-            repository.getBookById(bookId).collect { book ->
-                activeBook.value = book
-            }
+        bookDetailJob?.cancel()
+        if (activeBook.value?.id != bookId) {
+            activeBook.value = null
+            activeBookDiaries.value = emptyList()
         }
-        viewModelScope.launch {
-            repository.getDiariesForBook(bookId).collect { diariesList ->
-                activeBookDiaries.value = diariesList
-            }
+        bookDetailJob = viewModelScope.launch {
+            launch { repository.getBookById(bookId).collect { activeBook.value = it } }
+            launch { repository.getDiariesForBook(bookId).collect { activeBookDiaries.value = it } }
         }
+    }
+
+    /** DB에 쓴 책을 화면에 바로 비춘다. 그 사이 다른 책을 열었으면 건드리지 않는다. */
+    private fun showIfActive(updated: Book) {
+        if (activeBook.value?.id == updated.id) activeBook.value = updated
     }
 
     // Slider Progress modification
@@ -557,11 +555,12 @@ class ReadingViewModel @JvmOverloads constructor(
                 val updated = book.copy(
                     currentPage = newPage.coerceIn(0, book.totalPages),
                     status = newStatus,
-                    endDate = if (newPage >= book.totalPages) java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else book.endDate,
+                    // 이미 완독한 책을 끝 쪽에 다시 놓아도 완독일은 그대로다.
+                    endDate = if (newPage >= book.totalPages && book.status != "COMPLETED") java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else book.endDate,
                     startDate = if (book.startDate.isEmpty() && newPage > 0) java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else book.startDate
                 )
                 repository.updateBook(updated)
-                activeBook.value = updated
+                showIfActive(updated)
                 onComplete()
             }
         }
@@ -645,7 +644,10 @@ class ReadingViewModel @JvmOverloads constructor(
                         bookcaseId = resolvedBookcaseId,
                         status = status,
                         startDate = existingStartDate,
-                        endDate = if (status == "COMPLETED") java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else null,
+                        // 이미 완독한 책은 제목 수정·책장 이동만으로 완독일이 오늘로 바뀌지 않게 원래 날짜를 지킨다.
+                        endDate = if (status == "COMPLETED") {
+                            if (currentBook?.status == "COMPLETED") currentBook.endDate else java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+                        } else null,
                         rating = existingRating
                     )
                 )
@@ -660,7 +662,7 @@ class ReadingViewModel @JvmOverloads constructor(
             if (book != null) {
                 val updated = book.copy(rating = rating.coerceIn(0, 5))
                 repository.updateBook(updated)
-                activeBook.value = updated
+                showIfActive(updated)
                 onComplete()
             }
         }
@@ -848,6 +850,7 @@ class ReadingViewModel @JvmOverloads constructor(
             if (_backupState.value is BackupState.Restored) {
                 // 교체 전 화면 상태(열린 책·예시 표식)를 버린다.
                 sampleMarks.value = readSampleMarks()
+                bookDetailJob?.cancel()
                 activeBook.value = null
                 selectedBookcaseId.value = null
                 activeBookDiaries.value = emptyList()
@@ -875,13 +878,9 @@ class ReadingViewModel @JvmOverloads constructor(
         photoStore.sweep(repository.allPhotoPaths().toSet())
     }
 
-    fun deleteDiary(diaryId: Int, bookId: Int) {
+    fun deleteDiary(diaryId: Int) {
         viewModelScope.launch {
-            repository.deleteDiary(diaryId)
-            // Reload active diaries
-            repository.getDiariesForBook(bookId).collect { diariesList ->
-                activeBookDiaries.value = diariesList
-            }
+            repository.deleteDiary(diaryId) // 열린 책의 목록은 loadBookDetail의 구독이 갱신한다
         }
     }
 
@@ -1112,6 +1111,11 @@ class ReadingViewModel @JvmOverloads constructor(
         const val RESTORE_READ_ERROR = "백업 파일을 읽지 못했어요. 지금 기록은 그대로입니다."
         const val RESTORE_FAILED = "복원 중 문제가 생겨 되돌렸어요. 지금 기록은 그대로입니다."
         const val CONSENT_REQUIRED_MESSAGE = "정밀 분석을 쓰려면 설정에서 Gemini API 키를 등록하고 사진 전송에 동의해야 해요."
+    }
+
+    /** 실패 안내만 지운다(진행 중 인식 · 성공 결과 · 미리 선택은 그대로). */
+    fun clearOcrError() {
+        if (ocrState.value is OcrState.Error) ocrState.value = OcrState.Idle
     }
 
     fun resetOcrState() {
