@@ -1,5 +1,6 @@
 package com.example
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -51,6 +52,13 @@ class HonestCopyTest {
       forbidden.filter { text.contains(it) }.map { "${file.path}: \"$it\"" }
     }
     assertTrue("fake image save/share copy found:\n" + offenders.joinToString("\n"), offenders.isEmpty())
+  }
+
+  /** 공유 시트로 나가는 글 전부 — 편집창 글과 책 정보뿐이고 빈 칸은 빠진다. */
+  @Test
+  fun shareText_isExactlyTheSentenceAndTheBook() {
+    assertEquals("\"문장\"\n\n『책』 · 지은이 · 12쪽", com.example.ui.screens.diaryShareText("문장", "책", "지은이", "12"))
+    assertEquals("\"문장\"\n\n『책』", com.example.ui.screens.diaryShareText("문장", "책", " ", ""))
   }
 
   /** 글자 인식 모델은 설치할 때 미리 받게 선언한다(첫 인식이 모델 내려받기로 실패하지 않게). */

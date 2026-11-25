@@ -30,8 +30,6 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -1036,8 +1034,9 @@ fun OcrDiaryScreen(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text("틀 안 글자 읽기", fontWeight = FontWeight.Bold)
                                 }
-                                (ocrState as? OcrState.Error)?.let { OcrErrorText(it.message) }
                             }
+                            // 인식 중 자르기를 다시 열어도 실패가 조용히 사라지지 않게 버튼과 따로 그린다.
+                            (ocrState as? OcrState.Error)?.let { OcrErrorText(it.message) }
                         }
                     }
                 }
@@ -1418,7 +1417,7 @@ private val PhotoDraftsSaver = Saver<List<PhotoInputSlot>, ArrayList<String>>(
 
 /** 공유 시트로 보내는 글 전부. */
 internal fun diaryShareText(text: String, title: String, author: String, page: String): String =
-    "\"$text\"\n\n『$title』 $author" + (if (page.isBlank()) "" else " · ${page}쪽")
+    "\"$text\"\n\n" + listOf("『$title』", author.trim(), if (page.isBlank()) "" else "${page}쪽").filter { it.isNotBlank() }.joinToString(" · ")
 
 /** 글자 인식 실패 안내(모델 준비 중 · 인터넷 필요 등). 다시 누르면 새 인식이 시작되며 사라진다. */
 @Composable
