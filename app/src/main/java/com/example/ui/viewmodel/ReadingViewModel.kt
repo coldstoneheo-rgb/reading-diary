@@ -167,19 +167,10 @@ class ReadingViewModel @JvmOverloads constructor(
         }
         viewModelScope.launch {
             val bookcaseDao = database.bookcaseDao()
-            val existing = bookcaseDao.getAllBookcasesOneShot()
-            val defaults = listOf("기본 책장", "소설", "재테크", "자기계발", "인문")
-            if (existing.isEmpty()) {
-                defaults.forEach { name ->
-                    bookcaseDao.insert(Bookcase(name = name, isSystem = true))
-                }
-            } else {
-                val existingNames = existing.map { it.name }
-                defaults.forEach { name ->
-                    if (!existingNames.contains(name)) {
-                        bookcaseDao.insert(Bookcase(name = name, isSystem = true))
-                    }
-                }
+            // 새 DB의 기본 책장은 AppDatabase.onCreate가 넣는다. 여기서는 예전 설치·복원본에 빠진 것만 채운다.
+            val existingNames = bookcaseDao.getAllBookcasesOneShot().map { it.name }
+            AppDatabase.DEFAULT_BOOKCASES.filterNot { it in existingNames }.forEach { name ->
+                bookcaseDao.insert(Bookcase(name = name, isSystem = true))
             }
         }
     }
@@ -530,17 +521,24 @@ class ReadingViewModel @JvmOverloads constructor(
         }
     }
 
+    /** 지금 연 책의 구독. 다른 책을 열면 앞 책의 구독을 끊는다 — 남아 있으면 뒤늦은 방출이 새 책 화면을 앞 책으로 바꾼다. */
+    private var bookDetailJob: Job? = null
+
     private fun loadBookDetail(bookId: Int) {
-        viewModelScope.launch {
-            repository.getBookById(bookId).collect { book ->
-                activeBook.value = book
-            }
+        bookDetailJob?.cancel()
+        if (activeBook.value?.id != bookId) {
+            activeBook.value = null
+            activeBookDiaries.value = emptyList()
         }
-        viewModelScope.launch {
-            repository.getDiariesForBook(bookId).collect { diariesList ->
-                activeBookDiaries.value = diariesList
-            }
+        bookDetailJob = viewModelScope.launch {
+            launch { repository.getBookById(bookId).collect { activeBook.value = it } }
+            launch { repository.getDiariesForBook(bookId).collect { activeBookDiaries.value = it } }
         }
+    }
+
+    /** DB에 쓴 책을 화면에 바로 비춘다. 그 사이 다른 책을 열었으면 건드리지 않는다. */
+    private fun showIfActive(updated: Book) {
+        if (activeBook.value?.id == updated.id) activeBook.value = updated
     }
 
     // Slider Progress modification
@@ -561,7 +559,7 @@ class ReadingViewModel @JvmOverloads constructor(
                     startDate = if (book.startDate.isEmpty() && newPage > 0) java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else book.startDate
                 )
                 repository.updateBook(updated)
-                activeBook.value = updated
+                showIfActive(updated)
                 onComplete()
             }
         }
@@ -660,7 +658,7 @@ class ReadingViewModel @JvmOverloads constructor(
             if (book != null) {
                 val updated = book.copy(rating = rating.coerceIn(0, 5))
                 repository.updateBook(updated)
-                activeBook.value = updated
+                showIfActive(updated)
                 onComplete()
             }
         }
@@ -848,6 +846,7 @@ class ReadingViewModel @JvmOverloads constructor(
             if (_backupState.value is BackupState.Restored) {
                 // 교체 전 화면 상태(열린 책·예시 표식)를 버린다.
                 sampleMarks.value = readSampleMarks()
+                bookDetailJob?.cancel()
                 activeBook.value = null
                 selectedBookcaseId.value = null
                 activeBookDiaries.value = emptyList()
@@ -875,13 +874,9 @@ class ReadingViewModel @JvmOverloads constructor(
         photoStore.sweep(repository.allPhotoPaths().toSet())
     }
 
-    fun deleteDiary(diaryId: Int, bookId: Int) {
+    fun deleteDiary(diaryId: Int) {
         viewModelScope.launch {
-            repository.deleteDiary(diaryId)
-            // Reload active diaries
-            repository.getDiariesForBook(bookId).collect { diariesList ->
-                activeBookDiaries.value = diariesList
-            }
+            repository.deleteDiary(diaryId) // 열린 책의 목록은 loadBookDetail의 구독이 갱신한다
         }
     }
 

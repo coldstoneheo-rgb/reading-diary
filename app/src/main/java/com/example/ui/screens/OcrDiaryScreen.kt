@@ -5,6 +5,7 @@ import android.app.TimePickerDialog
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -289,6 +290,38 @@ fun OcrDiaryScreen(
         uri?.let { applyPickedPhoto(it) }
     }
 
+    // 저장하지 않은 입력이 있으면 뒤로 갈 때 한 번 묻는다. 저장 중이거나 저장을 마친 화면은 묻지 않는다.
+    val hasUnsavedInput = !diarySaving && submittedCreatedAt == null && if (diaryId == null) {
+        extractedText.isNotBlank() || notes.isNotBlank() || activeImageUrl != null || photoDrafts.isNotEmpty()
+    } else {
+        val original = editingDiary
+        editDetailsLoaded && original != null && (
+            extractedText != original.selectedText || notes != original.notes || pageStr != original.page.toString() ||
+                selectedTimestamp != original.createdAt || activeImageUrl != null ||
+                (photosLoaded && photoDrafts != loadedPhotos.map { PhotoInputSlot.Existing(it.photoId) })
+            )
+    }
+    var showDiscardConfirm by remember { mutableStateOf(false) }
+    val leave = {
+        viewModel.resetOcrState()
+        viewModel.navigateBack()
+    }
+    BackHandler(enabled = hasUnsavedInput) { showDiscardConfirm = true }
+    if (showDiscardConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDiscardConfirm = false },
+            title = { Text("저장하지 않고 나갈까요?") },
+            text = { Text("지금까지 적은 내용과 고른 사진이 사라집니다.") },
+            confirmButton = {
+                TextButton(
+                    onClick = { showDiscardConfirm = false; leave() },
+                    modifier = Modifier.testTag("discard_diary_confirm")
+                ) { Text("나가기", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { showDiscardConfirm = false }) { Text("계속 쓰기") } }
+        )
+    }
+
     // Load initial edit details. 처음 한 번만 채운다(복원된 입력이나 편집 중 글을 DB 값으로 덮지 않게).
     LaunchedEffect(editingDiary) {
         editingDiary?.let {
@@ -399,10 +432,7 @@ fun OcrDiaryScreen(
             TopAppBar(
                 title = { Text(if (diaryId != null) "독서 펜기록 수정" else "독서 펜기록 추가", style = MaterialTheme.typography.titleMedium) },
                 navigationIcon = {
-                    IconButton(onClick = {
-                        viewModel.resetOcrState()
-                        viewModel.navigateBack()
-                    }) {
+                    IconButton(onClick = { if (hasUnsavedInput) showDiscardConfirm = true else leave() }) {
                         Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "뒤로가기")
                     }
                 },
