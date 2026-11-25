@@ -25,7 +25,7 @@
 시작 메뉴 › PowerShell을 새로 열고(Claude 창 · Git Bash 아님) 1줄:
 
 ```
-cd C:\Users\colds\reading-diary; & "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -genkeypair -v -keystore my-upload-key.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000
+cd ~\reading-diary; & "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -genkeypair -v -keystore my-upload-key.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000
 ```
 
 비밀번호를 먼저 정해 비밀번호 관리자에 저장한다 — 6자 이상, **영문 · 숫자 위주**(한글은 8단계에서만 실패할 수 있다). 비밀번호 2번(화면에 안 보임) → 이름 등은 Enter → 마지막 «맞습니까? / Is CN=… correct? [no]»에는 Enter가 아니라 `y`. 키 비밀번호를 따로 물으면 Enter(같은 값). **«이미 있습니다 / already exists»가 나오면 멈춘다**(덮어쓰지 않는다).
@@ -37,7 +37,7 @@ cd C:\Users\colds\reading-diary; & "C:\Program Files\Android\Android Studio\jbr\
 
 ## 2. 키 사본 두 곳 — 5분
 
-`my-upload-key.jks`를 ① PC 밖 저장 장치 ② 본인만 보는 클라우드 폴더에 복사한다. 레포 안 다른 폴더 · 채팅 · 메일에는 두지 않는다(공개 레포 — git이 무시하는 것은 루트의 이 이름뿐, `.gitignore:25`).
+`my-upload-key.jks`를 ① PC 밖 저장 장치 ② 본인만 보는 클라우드 폴더에 복사한다. 레포 안 다른 폴더 · 채팅 · 메일에는 두지 않는다(공개 레포 — git은 이 이름의 파일을 어느 폴더에서든 무시하지만(`.gitignore:25`), 이름이 바뀐 사본은 무시하지 않는다).
 - **됐는지:** 두 사본의 크기가 원본과 같다. 비밀번호가 비밀번호 관리자에 있다(1단계에서 저장).
 
 ## 3. 콘솔에서 앱 만들기 — 10분
@@ -52,6 +52,8 @@ play.google.com/console › «앱 만들기» → 답안지 §4-1의 이름 · �
 - **됐는지:** 고른 번호를 LC에 말했다. ②면 카카오 콘솔에 새 키가 보이고, `.env`를 메모장으로 열었을 때 `KAKAO_REST_API_KEY=` 줄이 하나이며 값이 새 키다(빌드는 틀려도 경고하지 않는다).
 
 ## 5. 처리방침 게시 — 3분
+
+(워커) 게시하는 날 `gh-pages` 사본과 원본 `docs/privacy/privacy-policy.html`의 `[게시일 입력]`을 **같은 날짜**로 채운다.
 
 워커가 `gh-pages` 가지(처리방침 한 파일)를 올린 뒤: GitHub 레포 › Settings › Pages › Source «Deploy from a branch» › `gh-pages` / root › Save. (사용자가 승인하면 워커가 대신할 수도 있다.)
 - **됐는지:** 몇 분 뒤 `https://coldstoneheo-rgb.github.io/reading-diary/privacy-policy.html`이 시크릿 창에서 열리고 **시행일이 날짜로, 문의 메일이 주소로** 보인다(`[ ]` 자리가 남지 않음) → 워커가 앱 안 주소 1줄 PR을 낸다.
@@ -68,7 +70,7 @@ play.google.com/console › «앱 만들기» → 답안지 §4-1의 이름 · �
 
 ## 8. 서명 빌드 — 15분
 
-답안지 §6에서 `cd ~/reading-diary`로 시작하는 블록, 그다음 `unset …`로 시작하는 블록을 **한 블록씩** Git Bash 창에서.
+시작하기 전에 LC에 «워커 창이 쉬는지»를 묻는다. 답안지 §6에서 `cd ~/reading-diary`로 시작하는 블록, 그다음 `unset …`로 시작하는 블록을 **한 블록씩** Git Bash 창에서.
 - **됐는지:** `BUILD SUCCESSFUL`이 나오고 `app/build/outputs/bundle/release/app-release.aab`가 방금 시각으로 있다. 첫 블록의 커밋이 워커가 알려 준 SHA와 같다. (선택) `keytool -printcert -jarfile`로 AAB의 서명이 1단계 키인지 본다.
 
 ## 9. 구글 그룹 만들기 — 5분
@@ -79,6 +81,7 @@ groups.google.com › 그룹 만들기 → 그룹에 가입할 수 있는 사용
 ## 10. 비공개 트랙 → 검토로 보내기 — 15분
 
 테스트 및 출시 › 테스트 › 비공개 테스트 › 트랙 관리: 국가 «대한민국» → 테스터 «Google 그룹스»에 그룹 주소 · 의견 받을 곳 → 새 버전 만들기 → AAB 올리기(앱 서명은 기본값) → 출시 노트(답안지 §6) → 미리보기에 **오류**가 있으면 멈추고 캡처, 경고뿐이면 캡처만 보내고 계속 → 저장 → 게시 개요 › «검토를 위해 보내기».
+- **versionCode는 한 번 올리면 다시 못 쓴다** — 올린 뒤 고치려면 워커가 +1 PR을 먼저 낸다(같은 AAB를 다시 올리지 않는다).
 - 비공개 첫 제출에는 관리형 게시를 쓸 수 없다(9859654).
 - **됐는지:** 게시 개요에 «검토 중»이 보인다. 그 뒤로는 검토가 끝날 때까지 아무것도 더 보내지 않는다(줄 뒤로 밀릴 수 있다).
 
