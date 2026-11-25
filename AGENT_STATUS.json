@@ -1,23 +1,25 @@
 {
-  "as_of": "2026-11-25T17:55:00+09:00",
+  "as_of": "2026-11-25T18:15:00+09:00",
   "phase": "새해 공개 준비 — 첫 비공개 제출 11-27 목표(docs/store-listing/CLOSED-TEST-2026-11.md)",
-  "current_task": "처리방침 게시 끝(2026-11-25 17:43 HTTP 200 · gh-pages a00424b) → 앱 안 주소 PR 머지",
+  "current_task": "앱 안 주소 #76 · 최소 CI #75 · 처리방침 두 문장 #77 머지 — 사용자 단계 지원",
   "waiting_on": [
     "사용자: docs/store-listing/FIRST-UPLOAD-2026-11.md 1~11단계(5는 끝남, 주소 확인만) · 카카오 키 결정(① / ②)",
-    "앱 안 주소 PR이 main에 든 뒤에만 사용자 bundleRelease(8단계 직전에 LC가 알려 주는 main SHA)"
+    "게시본 재게시(#77 두 문장): 사용자 «다시 게시해도 됨» 뒤에만 gh-pages를 올린다 — 그 전까지 원본 ≠ 게시본. 10단계 전 권고",
+    "8단계 SHA는 시작 직전에 LC가 다시 알려 준다(main eff9ff2 · app/src/main의 끝은 b4de5ef)"
   ],
   "next_actions": [
-    "주소 PR 머지 → 사용자 bundleRelease → 비공개 제출(11-26 저녁, 늦어도 11-27)",
+    "사용자 «다시 게시해도 됨» 답 → gh-pages 재게시 + 바이트 대조(10단계 전 권고)",
+    "사용자 bundleRelease → 비공개 제출(11-26 저녁, 늦어도 11-27)",
     "테스트 중 앞쪽: 칩 «문장 바꾸기» 되돌리기",
-    "테스트 중 앞쪽: 새 사진을 고르면 진행 중 인식 취소",
+    "테스트 중 앞쪽: 새 사진을 고르면 진행 중 인식 취소 — PR #78 draft(11단계 실기기 확인 뒤 2번째 빌드)",
     "테스트 중 목록(REPORT): 띄어쓰기 검색 · 쪽수 모름 · 키보드 · 테마 저장 · 상태바 · 시험 공백"
   ],
   "metrics": {
-    "unit_tests_after_round": "main 06ad284 트리(924d094ca5) 458/0/1 (묶음별, @Test 458)",
+    "unit_tests_after_round": "[#74까지의 값] main 06ad284 트리(924d094ca5) 458/0/1 (묶음별, @Test 458) · 이번 라운드 eff9ff2는 CI 45581965356(d5af7df, 전체 단위 시험) 성공",
     "unit_test_classes": 67,
     "screenshot_baselines": 19,
     "room_schema_version": 3,
-    "prs_merged_this_round": 6,
+    "prs_merged_this_round": 3,
     "prs_ready_unmerged": 0,
     "critic_first_pass_rate": "[2026-11-11 이전 라운드 값] 3/12 (누적. R4 1차 6/10 NEEDS_REVISION → 2차 7/10 PASS → 보정 3차 6/10 NEEDS_REVISION → 4차 7/10 PASS · 도서 검색 1차 6/10 NEEDS_REVISION → 8/10 PASS · #36 1차 6/10 NEEDS_REVISION → PASS · #37 8/10 PASS · #39 8/10 PASS · P3 1차 8/10 조건부 PASS · P4 1차 7/10 PASS, 발주서 ≥8 미달 → 수정 뒤 8/10) · #47 1차 6.5 NEEDS_REVISION → 8/10 PASS · #48 사전 6/10 NEEDS_REVISION → 8/10 PASS",
     "gradle_runs": "[2026-11-11 이전 라운드 값] 64 (이번 라운드 19: ② 필터 1 · verify 1 · A~M 1 · N~S 1(PhotoSave 멈춤, 강제 종료) · N~S 재시도 1(메모리 보호 회수) · N·O·Ph·Po 1(순서 의존 10실패) · OcrDiary 단독 1 · RVM·S* 1 · PhotoSave 단독 1 | P5 컴파일 실패 1(테스트 호출부) · 대상 1(1실패) · Backup 재실행 1 · verify A~M 1 · verify O·Ph·Po 1 · verify N·RVM·S* 2(1차 2실패) · N·O·PhotoSave 1 · verify A~M+Ph·Po 1 · assembleDebug 1 — 묶음 세부는 REPORT) | 이전: (도서 검색 교체: 11 — 옛 경로 스텁 red 1 · 전체 test 1(간헐 실패 1) · 실패분 재실행 1 · record 2 · verify 2 · assembleDebug 2 · 보정 필터 1 · 변이 확인 1(의도된 실패) |#40 head 재검증 1 · P4: 11 — 메모리 부족 강제 종료 2 · 테스트 실패 3(테스트 방식 문제) · record 1 · verify 재사용 1 · 옛 동작 재현 1(의도된 실패) · 전체 test 1 · verify 1 · assembleDebug 1 | P3: 8 — kspDebugKotlin 1 · 필터 실행 1차 실패(MigrationTestHelper assets 미발견) · 필터 2차 15/15 · HEAD cbc3f9f testDebugUnitTest·verifyRoborazziDebug exit 0 · M5 red 변형 실행 1(의도된 실패) · HEAD 2e53c9c testDebugUnitTest 195(통과 194·건너뜀 1)·verifyRoborazziDebug 195(통과 194·건너뜀 1) · P2: 4 · #36: 8 · #37: 2 · #35·#38: 0)",
@@ -25,6 +27,6 @@
     "kakao_real_call": "사용자 실기기 검색 성공(11-05 18:2x 사용자 보고)",
     "underline_product_numbers": "앱 해상도(근사) · 앱 어절 판정, 정답 271: 205/3/66(#69 be99f50) · 정밀도 98.6% · 재현율 75.6% · 비침 0 · 본문 밖 선택 2 · 정답 밖 선택 3 · 직전 190/5/81"
   },
-  "head": "06ad284 (main, 이 문서 PR 전)",
-  "last_commit": "origin/main 06ad284 (#67)"
+  "head": "eff9ff2 (main, 이 문서 PR 전)",
+  "last_commit": "origin/main eff9ff2 (#77)"
 }
