@@ -56,7 +56,7 @@
 | 책 등록 · 기록 · 사진 보관 · 기억 서랍 · 문구 회상 · 백업/복원 · 마크다운 내보내기 | main | 지금 |
 | 기록이 사라지거나 섞이는 결함 수리(책장 삭제 확인 · 책 섞임 · 기본 책장 두 벌 · 뒤로 확인 · 연타 · 완독일) | #70 머지(`1c9a802`) | **비공개 테스트 전** |
 | 앱 아이콘 · 가짜 «이미지 저장» 제거 · 글자 인식 모델 미리 받기 | #71 머지(`bdff327`) | **비공개 테스트 전** |
-| 앱 안 처리방침 링크(누르는 링크는 #71에 들어감 · 주소 `PRIVACY_POLICY_URL`은 게시 뒤 1줄 PR) | 주소 대기 | **비공개 테스트 전** |
+| 앱 안 처리방침 링크(누르는 링크는 #71 · 주소 `PRIVACY_POLICY_URL`은 게시(2026-11-25) 뒤 PR) | 주소 넣음 | **비공개 테스트 전** |
 | 밑줄 검출기 두 단계 문턱(놓침 81 → 66) | #69 머지(`be99f50`) | 첫 빌드에 들어감 |
 | #67 칩 화면 | 머지(`06ad284`) | 첫 빌드에 들어감(실기기 확인은 11단계) |
 | «고른 어절로 문장 바꾸기»가 손으로 고친 글까지 덮음 · 되돌리기 없음 | 게이트 관찰 | 테스트 중 앞쪽 |
@@ -91,7 +91,7 @@
 | «앱 만들기» 선언 | 개발자 프로그램 정책 · 미국 수출법 확인 + Play 앱 서명 약관 동의 | 9859152 |
 | 테스터(비공개 트랙 › 테스터) | «Google 그룹스» 선택 → `(그룹 주소)@googlegroups.com` · 의견 받을 곳 report@woodpecker-ai.com(기본값) | 9845334 · 그룹 방식은 LC 가정(2026-11-25, 사용자 통보) |
 | 첫 출시의 앱 서명 | «Google이 만든 키 사용»(기본) | 9859348 |
-| 처리방침 URL | §5의 주소 | |
+| 처리방침 URL | https://coldstoneheo-rgb.github.io/reading-diary/privacy-policy.html | §5 |
 
 ### 4-2. 앱 콘텐츠
 | 항목 | 답 | 근거 |
@@ -137,8 +137,8 @@ INTERNAL-TEST §5-2는 ML Kit 몫을 «[사용자 확인]»으로 비워 두었�
 
 - 실측(2026-11-25 14:11): `https://coldstoneheo-rgb.github.io/` 404 · `…/reading-diary/privacy-policy.html` 404 · 레포 `has_pages=false` · PUBLIC. 공개 레포의 GitHub Pages는 무료다.
 - 길: `gh-pages` 가지에 `privacy-policy.html` 한 파일만 둔다(`docs/` 전체를 사이트로 내지 않으려고) → 레포 Settings › Pages › Branch `gh-pages` / root → 주소 `https://coldstoneheo-rgb.github.io/reading-diary/privacy-policy.html`.
-- 켜는 것은 공개 게시라 사용자 확인 1회 뒤에 한다. 문의 메일은 들어갔고, 게시할 때 `[게시일 입력]` 1곳을 채운다.
-- 주소가 200을 돌려준 뒤 `PRIVACY_POLICY_URL` 1줄 PR(누르는 링크 자체는 `fix/store-readiness`의 `PrivacyPolicyBody`).
+- **게시함(2026-11-25 17:42):** 사용자 «게시해도 됨» → `gh-pages` `a00424b` → GitHub가 Pages를 자동으로 켬(Settings 쓰기 0) → 17:43 HTTP 200 · 시행일 2026-11-25 · 원본과 바이트 같음.
+- 앱 안 주소 = `PRIVACY_POLICY_URL`(누르는 링크는 `PrivacyPolicyBody`).
 
 ## 6. 서명 빌드
 
@@ -222,7 +222,7 @@ cd ~\reading-diary; & "C:\Program Files\Android\Android Studio\jbr\bin\keytool.e
 | 날짜 | 할 일 | 분 | 먼저 있어야 하는 것 |
 |---|---|---|---|
 | 11-25 ~ 26 | 1 키 만들기 · 2 사본 두 곳 · 3 콘솔 앱 만들기 · 4 카카오 키 정하기 · 9 구글 그룹 | 40 | — |
-| 11-26 | 5 처리방침 게시 | 3 | ① 사용자 «게시해도 됨» ② 워커 `gh-pages` |
+| 11-25 | 5 처리방침 게시 — 끝남, 주소 확인만 | 1 | — |
 | 11-27 | 6 등록정보 · 그림 / 7 앱 콘텐츠 · 데이터 보안 | 40 | 3 · 5 |
 | 11-27 | 8 서명 빌드 | 15 | #70 · #71 · 앱 안 주소 PR 머지 |
 | **11-27** | 10 비공개 트랙 → 검토로 보내기 | 15 | 6 · 7 · 8 · 9 |

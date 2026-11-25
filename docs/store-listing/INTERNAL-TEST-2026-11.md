@@ -18,7 +18,7 @@
 | 태그(선택) | 독서, 노트, 도서 관리 | 콘솔 태그 목록에서 가장 가까운 것 선택 |
 | 광고 포함 | 아니요 | |
 | 연락처 이메일 | (오너 입력) | 공개된다. 개인 메일 대신 앱 전용 주소 권장 |
-| 개인정보처리방침 URL | **`https://<오너 배포 위치>/privacy-policy.html`** (자리) | 원본: [docs/privacy/privacy-policy.html](../privacy/privacy-policy.html). 배포는 오너(§7) |
+| 개인정보처리방침 URL | https://coldstoneheo-rgb.github.io/reading-diary/privacy-policy.html | 원본: [docs/privacy/privacy-policy.html](../privacy/privacy-policy.html). 게시 2026-11-25(CLOSED-TEST §5) |
 
 ## 2. 설명 문안
 

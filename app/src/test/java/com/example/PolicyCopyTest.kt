@@ -8,6 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 /**
  * 설정 화면의 처리방침 요약이 docs/privacy/privacy-policy.html의 전송 경로를 빠뜨리지 않게 고정한다(발견 D8).
@@ -32,9 +33,18 @@ class PolicyCopyTest {
   }
 
   @Test
-  fun privacyPolicyUrl_isBlankOrHttps() {
-    // U4(처리방침 배포) 전에는 비워 둔다. 채울 때는 https만.
-    assertTrue(PRIVACY_POLICY_URL.isBlank() || PRIVACY_POLICY_URL.startsWith("https://"))
+  fun privacyPolicyUrl_isThePublishedPage() {
+    // 콘솔에 적는 주소와 같아야 한다. 바꾸려면 gh-pages 게시 주소부터 바꾼다.
+    assertEquals("https://coldstoneheo-rgb.github.io/reading-diary/privacy-policy.html", PRIVACY_POLICY_URL)
+  }
+
+  /** 게시 사본(gh-pages)은 이 원본을 그대로 복사한 것이다 — 채우지 않은 `[ ]` 자리가 남으면 안 된다. */
+  @Test
+  fun publishedPolicySource_hasNoPlaceholder() {
+    val policy = File("../docs/privacy/privacy-policy.html").readText()
+    assertFalse("placeholder left in the policy", policy.contains("["))
+    assertTrue(Regex("시행일: <strong>[0-9]{4}-[0-9]{2}-[0-9]{2}<").containsMatchIn(policy))
+    assertTrue(policy.contains("운영: <strong>딱따구리AI</strong>"))
   }
 
   @Test
