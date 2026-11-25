@@ -20,7 +20,7 @@ ADR-004 1단계(PR #20·#22·#23)가 2026-09-07에 머지된 뒤 저장소 커�
 |------|------|---------------|
 | applicationId | **`com.woodpeckerai.readingdiary`로 변경** | `com.example` (`app/build.gradle.kts:14`) — Play는 `com.example` 접두를 받지 않는다 |
 | 코드 패키지·`namespace` | **`com.example` 유지**(power-of-habit 선례) | `namespace = "com.example"` (`app/build.gradle.kts:10`) |
-| 앱 이름 | **«독서 다이어리»** | `app/src/main/res/values/strings.xml` `app_name` |
+| 앱 이름 | **«독서 다이어리»** → **개정 2026-11-25(사용자): «문장서랍»** | `app/src/main/res/values/strings.xml` `app_name` |
 
 - applicationId는 첫 업로드 후 **영구히 바꿀 수 없다.** 변경은 첫 AAB 업로드 전에 끝낸다(→ [STAGE2-PLAN ⑤](../STAGE2-PLAN-2026-11.md)).
 - applicationId가 바뀌면 기기에서는 **다른 앱**이다. 오너 기기에 깔린 `com.example` 설치본의 기록은 새 앱으로 넘어가지 않는다(두 앱이 나란히 깔림).

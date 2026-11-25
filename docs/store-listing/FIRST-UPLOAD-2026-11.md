@@ -42,8 +42,9 @@ cd ~\reading-diary; & "C:\Program Files\Android\Android Studio\jbr\bin\keytool.e
 
 ## 3. 콘솔에서 앱 만들기 — 10분
 
-play.google.com/console › «앱 만들기» → 답안지 §4-1의 이름 · 패키지 이름 · 언어 · 앱 · 무료 · 연락 메일 → 선언 2개 · Play 앱 서명 약관 → «앱 만들기».
+play.google.com/console › «앱 만들기» → 답안지 §4-1의 이름(`문장서랍 - 밑줄이 지식으로 이어지는 독서 노트`) · 패키지 이름 · 언어 · 앱 · 무료 · 연락 메일 → 선언 2개 · Play 앱 서명 약관 → «앱 만들기».
 패키지 이름은 바꾸거나 다시 쓸 수 없다(9859152 «can't be deleted or re-used»).
+- 옛 이름으로 이미 만들었으면 다시 만들지 않는다 — 앱 이름은 나중에 등록정보에서 바꿀 수 있다(패키지만 못 바꾼다).
 - **됐는지:** 앱 이름 아래가 글자 그대로 `com.woodpeckerai.readingdiary`이고 기본 언어가 한국어다(기본값은 영어라 놓치기 쉽다).
 
 ## 4. 카카오 키 정하기 — 10분
@@ -54,8 +55,8 @@ play.google.com/console › «앱 만들기» → 답안지 §4-1의 이름 · �
 ## 5. 처리방침 게시 — 끝남(2026-11-25) · 확인 1분
 
 사용자 «게시해도 됨»(2026-11-25) 뒤 워커가 `gh-pages` 가지(처리방침 한 파일)를 올렸고, GitHub가 Pages를 스스로 켰다(Settings를 누르지 않았다). 시행일은 게시한 날 2026-11-25.
-- **됐는지:** `https://coldstoneheo-rgb.github.io/reading-diary/privacy-policy.html`이 시크릿 창에서 열리고 **시행일 · «운영: 딱따구리AI» · 문의 메일**이 보인다.
-- 3항 두 문장(#77)과 운영 주체 표기 «딱따구리AI(WoodpeckerAI)»(표기는 LC 가정 — 답할 때 함께 확인)를 고친 판이 준비돼 있다 — 게시본에는 사용자 «다시 게시해도 됨» 뒤에 올린다(10단계 전 권고).
+- **됐는지:** `https://coldstoneheo-rgb.github.io/reading-diary/privacy-policy.html`이 시크릿 창에서 열리고 **시행일 · «운영: 딱따구리AI» · 문의 메일**이 보인다. (지금 게시본의 제목은 옛 이름 «독서 다이어리 개인정보처리방침»이다 — 재게시 전까지 정상)
+- 3항 두 문장(#77)과 운영 주체 표기 «딱따구리AI(WoodpeckerAI)»(표기는 LC 가정 — 답할 때 함께 확인) · 제목과 앱 이름 «문장서랍»(#81)을 고친 판이 준비돼 있다 — 게시본에는 사용자 «다시 게시해도 됨» 뒤에 올린다(10단계 **전에** 끝내기를 권고 — 게시본의 앱 이름 · 운영 주체가 등록정보와 다르면 심사에서 같은 앱인지 맞춰 보기 어렵다).
 - 방침을 고칠 때: 원본 `docs/privacy/privacy-policy.html`(시행일도) → `gh-pages` 사본 → 앱 업데이트 순서.
 
 ## 6. 등록정보 + 그림 — 15분
@@ -70,7 +71,7 @@ play.google.com/console › «앱 만들기» → 답안지 §4-1의 이름 · �
 
 ## 8. 서명 빌드 — 15분
 
-시작하기 전에 LC에 «워커 창이 쉬는지»를 묻는다. 답안지 §6에서 `cd ~/reading-diary`로 시작하는 블록, 그다음 `unset …`로 시작하는 블록을 **한 블록씩** Git Bash 창에서.
+시작하기 전에 LC에 «워커 창이 쉬는지»를 묻고 **LC가 그때 알려 주는 main SHA**를 받는다(앱 이름 변경 #81이 들어간 뒤여야 한다). 답안지 §6에서 `cd ~/reading-diary`로 시작하는 블록, 그다음 `unset …`로 시작하는 블록을 **한 블록씩** Git Bash 창에서.
 - **됐는지:** `BUILD SUCCESSFUL`이 나오고 `app/build/outputs/bundle/release/app-release.aab`가 방금 시각으로 있다. 첫 블록의 커밋이 시작 전에 LC가 알려 준 main SHA와 같다. (선택) `keytool -printcert -jarfile`로 AAB의 서명이 1단계 키인지 본다.
 
 ## 9. 구글 그룹 만들기 — 5분

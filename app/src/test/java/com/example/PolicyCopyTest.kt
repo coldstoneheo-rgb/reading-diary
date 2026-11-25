@@ -45,7 +45,7 @@ class PolicyCopyTest {
     assertFalse("placeholder left in the policy", policy.contains("["))
     assertTrue(Regex("시행일: <strong>[0-9]{4}-[0-9]{2}-[0-9]{2}<").containsMatchIn(policy))
     assertTrue(policy.contains("<h1>문장서랍 개인정보처리방침</h1>"))
-    assertFalse("old app name left in the policy", policy.contains("독서 다이어리"))
+    assertFalse("old app name left in the policy", Regex("독서 ?다이어리").containsMatchIn(policy))
     assertTrue(policy.contains("운영: <strong>딱따구리AI(WoodpeckerAI)</strong>"))
   }
 
