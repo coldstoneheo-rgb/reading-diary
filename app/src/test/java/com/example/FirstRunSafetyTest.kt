@@ -7,6 +7,7 @@ import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
@@ -163,9 +164,12 @@ class FirstRunSafetyTest {
     vm.updateBookProgress(id, 50) { moved = true }
     pump { moved }
     done = false
+    val beforeSave = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
     vm.saveBook(id = id, title = "고친 제목", author = "지은이", totalPages = 100, currentPage = 100, coverUrl = "", bookcaseId = 2, status = "COMPLETED") { done = true }
     pump { done }
-    assertFalse("2026-01-05" == runBlocking { db.bookDao().getBookByIdOneShot(id) }!!.endDate)
+    // null도 통과하지 않게 «오늘»을 단언한다(자정을 걸치면 어느 쪽이든 오늘).
+    val today = { java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) }
+    assertTrue(runBlocking { db.bookDao().getBookByIdOneShot(id) }!!.endDate in setOf(beforeSave, today()))
   }
 
   @Test
@@ -191,6 +195,35 @@ class FirstRunSafetyTest {
     assertEquals(0 to 1, confirmed to dismissed)
     composeTestRule.onNodeWithTag("delete_bookcase_confirm").performClick()
     assertEquals(1, confirmed)
+  }
+
+  /** 서랍의 휴지통 → 확인 창 → 삭제까지 실제 배선. 휴지통이 바로 지우게 되돌리면 실패한다. */
+  @Test
+  fun drawerTrash_asksBeforeDeletingTheBookcase() {
+    val case = runBlocking { db.bookcaseDao().insert(com.example.data.Bookcase(name = "여행")) }.toInt()
+    val book = runBlocking {
+      db.bookDao().insert(Book(title = "여행 책", author = "지은이", totalPages = 100, bookcaseId = case, status = "READING")).toInt()
+    }
+    val vm = viewModel()
+    fun caseExists() = runBlocking { db.bookcaseDao().getAllBookcasesOneShot() }.any { it.id == case }
+    composeTestRule.setContent { MyApplicationTheme { MainAppEntry(vm) } }
+    pump { vm.bookcases.value.any { it.id == case } && vm.books.value.any { it.id == book } }
+    composeTestRule.onNodeWithTag("drawer_menu_button").performClick()
+    pump { composeTestRule.onAllNodesWithContentDescription("'여행' 책장 삭제").fetchSemanticsNodes().isNotEmpty() }
+
+    composeTestRule.onNodeWithContentDescription("'여행' 책장 삭제").performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+    assertTrue(shown("'여행' 책장을 삭제할까요?"))
+    assertTrue(shown("책 1권"))
+    settle()
+    assertTrue("확인 전에는 지우지 않는다", caseExists())
+    composeTestRule.onNodeWithText("취소").performClick()
+    settle()
+    assertTrue("취소하면 남는다", caseExists())
+
+    composeTestRule.onNodeWithContentDescription("'여행' 책장 삭제").performClick()
+    composeTestRule.onNodeWithTag("delete_bookcase_confirm").performClick()
+    pump { !caseExists() }
   }
 
   @Test

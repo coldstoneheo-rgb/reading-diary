@@ -224,8 +224,10 @@ class OcrDiaryPhotoScreenTest {
     restoration.emulateSavedInstanceStateRestore()
 
     composeTestRule.waitUntil(10_000) { composeTestRule.onAllNodesWithText("고치던 메모").fetchSemanticsNodes().isNotEmpty() }
-    composeTestRule.onNodeWithTag("diary_photo_1").assertDoesNotExist()
+    // 사진 구역은 Room 조회가 끝나야 다시 그려진다. 메모 글만 기다리면 조회가 늦을 때 실패하고, 구역이 없는 채로 «둘째 사진 없음»이 헛통과한다.
+    awaitSection()
     composeTestRule.onNodeWithText("이 기록의 사진 (1/10)").assertExists()
+    composeTestRule.onNodeWithTag("diary_photo_1").assertDoesNotExist()
   }
 
   /** 프로세스가 새로 떠도(ViewModel 교체) 화면 위치와 함께 복원되므로 같은 폼의 입력은 이어지고, 다른 책의 폼에는 섞이지 않는다. */
