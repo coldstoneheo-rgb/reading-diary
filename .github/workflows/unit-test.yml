@@ -1,0 +1,29 @@
+# 단위 시험만(서명 · 릴리스 빌드 없음). 스크린샷 비교는 하지 않는다 — UI 변경의 verifyRoborazziDebug는 여전히 로컬 게이트다.
+# 비밀 값 0 — .env 없이 .env.example 기본값으로 돈다.
+name: unit-test
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: unit-test-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: '9.4.1'
+      # --rerun: 시험이 File(...)로 직접 읽는 docs · src/release · schemas는 태스크 입력이 아니라서, 캐시가 이 시험을 건너뛰면 거짓 초록이 된다.
+      - run: gradle :app:testDebugUnitTest --rerun --no-daemon --max-workers=2
