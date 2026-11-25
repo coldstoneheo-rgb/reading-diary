@@ -9,7 +9,7 @@
 
 | 물음 | 원문 | 출처 |
 |---|---|---|
-| **이 요건이 우리 계정에 적용되나** | «personal accounts created after November 13, 2023» · «do not apply to developers with personal accounts created before November 13, 2023» → **계정 종류와 만든 날을 사용자가 확인**(옛 개인 계정 · 조직 계정이면 §2 전체가 필요 없다) | 14151465 · 9859152 |
+| **이 요건이 우리 계정에 적용되나** | «personal accounts created after November 13, 2023» · «do not apply to developers with personal accounts created before November 13, 2023» → **계정 종류와 만든 날을 사용자가 확인**(옛 개인 계정 · 조직 계정이면 12명 · 14일 · 접근 신청이 없어지고 앱 설정 · 프로덕션 검토만 남는다) | 14151465 · 9859152 |
 | 프로덕션 접근 요건 | «At least 12 testers must be opted in to your closed test when you apply for production access, and they must have been opted in continuously for the preceding 14 days.» | 14151465 |
 | 나갔다 들어온 사람 | «Testers who opt in, test for fewer than 14 days, and then opt out do not count … the 14 days must be consecutive» | 14151465 |
 | 수만 채우면 되나 | «Reasons for required continued testing include having fewer than 12 opted-in testers or insufficient tester engagement during the testing period.» | 14151465 |
@@ -41,8 +41,9 @@
 | 12-25 | 접근 승인 → 프로덕션 출시를 검토로 보냄(관리형 게시 켬) | 사용자 | 검토 ≤ 7일 |
 | **01-01** | «게시» | 사용자 | |
 
-- LC 어림과 다른 곳: 비공개 트랙 **첫 검토**가 어림에 없었다. 11-30에 보내고 검토가 7일 걸리면 옵트인 12-07 → 신청 12-21 → 승인 12-28 → 공개 최악 01-04.
+- LC 어림과 다른 곳: 비공개 트랙 **첫 검토**가 어림에 없었다. 11-30에 보내고 검토가 7일 걸리면 옵트인 12-07 → 신청 12-21 → 승인 12-28 → 검토마다 7일이면 공개 01-04.
 - 여유가 0인 표다(반려 후 재제출 · 추가 테스트 요구 · 링크가 퍼지는 몇 시간은 0으로 잡았다). 검토가 실제로 1~3일이면 그만큼 여유가 된다(보장은 없다).
+- 관리형 게시가 프로덕션 첫 출시에서 안 되면: 검토를 통과한 날이 곧 공개일이다(그때는 12-25보다 늦게 보내 날짜를 맞추지 않는다 — 일찍 공개되는 편이 낫다).
 - 01-01을 놓치면: 접근 승인 뒤 바로 프로덕션 검토를 보내고 통과하는 날 공개한다(그 사이 비공개 테스트는 계속). 날짜를 앞당길 수 있는 손잡이는 «첫 제출을 하루라도 빨리»뿐이다.
 - 가장 먼저 밀리는 단계 = 앱 설정 · 첫 제출. 그때 버릴 것 = 첫 빌드의 기능(칩 화면 · 검출기 보정은 테스트 중 올려도 된다). 14일은 줄일 수 없다.
 - 첫 검토가 도는 동안, 그리고 12-25 ~ 01-01 프로덕션 검토가 도는 동안 새 빌드나 등록정보 변경을 보내지 않는다(줄 뒤로 밀릴 수 있다).
@@ -64,7 +65,7 @@
 **사용자가 고를 것(3) + 필수 확인(1):**
 1. **형광펜** — 제품 목적지 문장에는 있지만 앱에 연결돼 있지 않고 기준 사진도 0장이다. 권고: 1.0에서는 «밑줄»만 말하고 형광펜은 1.0 뒤.
 2. **첫 빌드에 #67을 넣을까** — 권고: 11-26에 눈 확인이 되면 넣고, 아니면 테스트 중 2번째 빌드로.
-3. **타겟 연령** — 답안지는 «18세 이상만». 청소년 독자도 받으려면 13~15 · 16~17도 고른다(아동용 정책은 13세 미만을 고를 때). 권고: 첫 제출은 18세 이상, 공개 뒤 넓히기.
+3. **타겟 연령** — 답안지는 «18세 이상만». 청소년 독자도 받으려면 13~15 · 16~17도 고르는데, 9867159는 이 나이도 나라에 따라 아동으로 볼 수 있다고 한다. 권고: 첫 제출은 18세 이상, 공개 뒤 넓히기.
 - **필수(ADR-005 §4 «비공개 테스트로 넓힐 때 다시 결정»): 카카오 REST 키를 앱에 넣은 채 12~18명에게 줄지.** 확인 3건 = ① 약관이 앱 안 내장 키를 허용하는가 ② 이 키가 책 검색 말고 다른 API에 쓰이는가 ③ 한도 초과 응답 코드. 권고: 릴리스 전용 키를 새로 만들어 쓰고(11-11 REPORT «키»), 키가 막혀도 Google Books로 넘어가는 지금 동작을 유지. 확인 없이 가려면 사용자가 «그대로»라고 정한다.
 
 ## 4. 콘솔 답안지(그대로 옮겨 적기)
@@ -117,9 +118,9 @@ N2-1(카카오에서 고른 책의 ISBN이 Google로 감)은 «사용자가 예�
 INTERNAL-TEST §5-2는 ML Kit 몫을 «[사용자 확인]»으로 비워 두었다 — 2026-11-25에 Google 공개 문서를 읽어 위 두 줄로 채웠다(«기기 ID 아니요»는 틀린 답이 된다). 바코드 스캐너 SDK만의 공개 문서는 따로 찾지 않았다(같은 ML Kit 계열로 보고 한 줄로 묶음).
 
 ### 4-4. 그림
-| 그림 | 규격(9866151) | 파일(사용자 PC) |
+| 그림 | 규격(9866151) | 파일(사용자 PC `D:\사진\reading-diary\store-20261125\`) |
 |---|---|---|
-| 앱 아이콘 | 512×512 32비트 PNG(알파) ≤ 1024KB | `icon-512.png`(사용자 PC, 폴더는 LC 메시지) |
+| 앱 아이콘 | 512×512 32비트 PNG(알파) ≤ 1024KB | `icon-512.png` |
 | 그래픽 이미지 | 1024×500 JPEG 또는 24비트 PNG(투명 없음) | `feature-1024x500.png` |
 | 휴대전화 스크린샷 | 2~8장 · 9:16 · 한 변 320~3840px · 장당 8MB · PNG는 24비트(투명 없음) | (SHOTS) |
 
@@ -143,15 +144,19 @@ INTERNAL-TEST §5-2는 ML Kit 몫을 «[사용자 확인]»으로 비워 두었�
 사용자 절차(**Git Bash 창에서 직접** — 이 대화의 `!`로는 비밀번호를 물을 수 없다. 아래는 워커가 실행해 보지 않았다):
 
 ```
-cd ~/reading-diary && git checkout main && git pull --ff-only
-unset KAKAO_REST_API_KEY            # 셸 값이 있으면 .env보다 먼저 앱에 박힌다
-IFS= read -rsp "키스토어 비밀번호: " STORE_PASSWORD; echo; export STORE_PASSWORD KEY_PASSWORD="$STORE_PASSWORD" JAVA_HOME="/c/Program Files/Android/Android Studio/jbr"
-~/.gradle/wrapper/dists/gradle-9.4.1-bin/*/gradle-9.4.1/bin/gradle :app:bundleRelease --no-daemon --no-configuration-cache; unset STORE_PASSWORD KEY_PASSWORD
+cd ~/reading-diary && git checkout main && git pull --ff-only && git log -1 --oneline
 ```
 
-- 키 비밀번호 = 키스토어 비밀번호(아래 방식으로 만들면 따로 없다). 키를 레포 밖에 두었으면 셋째 줄 앞에 `export KEYSTORE_PATH="/c/…/my-upload-key.jks"`.
+```
+unset KAKAO_REST_API_KEY; IFS= read -rsp "키스토어 비밀번호: " STORE_PASSWORD && echo && export STORE_PASSWORD KEY_PASSWORD="$STORE_PASSWORD" JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" && ~/.gradle/wrapper/dists/gradle-9.4.1-bin/*/gradle-9.4.1/bin/gradle :app:bundleRelease --no-daemon --no-configuration-cache; unset STORE_PASSWORD KEY_PASSWORD
+```
+
+- **한 블록씩** 붙여 넣는다(둘을 함께 붙이면 다음 줄이 비밀번호로 들어갈 수 있다). 첫 블록이 실패하거나 마지막 커밋이 기대와 다르면 멈춘다.
+- `unset KAKAO_REST_API_KEY`: 셸에 값이 있으면 `.env`보다 먼저 앱에 박힌다.
+
+- 키 비밀번호 = 키스토어 비밀번호(아래 방식으로 만들면 따로 없다). 키를 레포 밖에 두었으면 둘째 블록 앞에 `export KEYSTORE_PATH="/c/…/my-upload-key.jks"`.
 - `--no-daemon --no-configuration-cache`는 비밀번호가 상주 프로세스나 `.gradle` 캐시에 남지 않게 하려는 것이다.
-- 결과 = `app/build/outputs/bundle/release/app-release.aab`. 올리기 전에 앱에서 책 검색 1회(카카오 키가 빈 채로도 경고 없이 빌드된다).
+- 결과 = `app/build/outputs/bundle/release/app-release.aab`. 비공개 트랙에서 설치한 뒤 첫 확인으로 책 검색 1회(카카오 키가 빈 채로도 경고 없이 빌드된다 — 그때는 Google Books로만 검색된다).
 
 키가 없으면 먼저 **PowerShell**에서(Git Bash 창은 keytool 비밀번호를 화면에 보일 수 있다):
 
