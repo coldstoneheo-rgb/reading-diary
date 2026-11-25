@@ -42,6 +42,32 @@ class HonestCopyTest {
     assertTrue("fake backup/restore copy found:\n" + offenders.joinToString("\n"), offenders.isEmpty())
   }
 
+  /** 저장 코드 없이 «저장되었습니다»를 띄우던 이미지 저장 버튼과, 글만 보내면서 이미지라고 부르던 문구. 실제 이미지 저장을 만드는 PR에서만 줄인다. */
+  @Test
+  fun noFakeImageSaveOrImageShareCopy() {
+    val forbidden = listOf("기기 갤러리로 성공적으로 저장", "이미지 저장", "이미지 카드로 SNS", "공유 다이얼로그를 호출")
+    val offenders = mainSources().flatMap { file ->
+      val text = file.readText()
+      forbidden.filter { text.contains(it) }.map { "${file.path}: \"$it\"" }
+    }
+    assertTrue("fake image save/share copy found:\n" + offenders.joinToString("\n"), offenders.isEmpty())
+  }
+
+  /** 글자 인식 모델은 설치할 때 미리 받게 선언한다(첫 인식이 모델 내려받기로 실패하지 않게). */
+  @Test
+  fun manifest_declaresInstallTimeKoreanOcrModel() {
+    val manifest = File("src/main/AndroidManifest.xml").readText()
+    assertTrue(Regex("com\\.google\\.mlkit\\.vision\\.DEPENDENCIES\"\\s+android:value=\"[^\"]*ocr_korean").containsMatchIn(manifest))
+  }
+
+  /** 안드로이드 기본 로봇 아이콘으로 되돌아가지 않게 한다. */
+  @Test
+  fun launcherIcon_isNotTheDefaultTemplate() {
+    val drawables = File("src/main/res/drawable")
+    assertFalse(File(drawables, "ic_launcher_background.xml").readText().contains("#3DDC84", ignoreCase = true))
+    assertFalse(File(drawables, "ic_launcher_foreground.xml").readText().contains("M31,63.928"))
+  }
+
   /** ADR-003 실행 7: 도서 검색 안내가 존재하지 않는 키 입력 화면으로 보내면 안 된다(오너 결정: 키 입력 UI 없음, ADR-005 §4). */
   @Test
   fun noDeadEndKeySetupCopyInProductionSources() {

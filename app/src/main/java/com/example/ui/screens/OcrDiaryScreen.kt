@@ -1038,6 +1038,8 @@ fun OcrDiaryScreen(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text("틀 안 글자 읽기", fontWeight = FontWeight.Bold)
                                 }
+                                // 토스트는 두 줄에서 잘리고 곧 사라진다. 실패 이유와 다음에 할 일은 버튼 아래에 남겨 둔다.
+                                (ocrState as? OcrState.Error)?.let { OcrErrorText(it.message) }
                             }
                         }
                     }
@@ -1252,7 +1254,7 @@ fun OcrDiaryScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "✨ 감성 이미지 카드로 SNS 공유하기", 
+                        text = "구절 공유하기", 
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.labelLarge
                     )
@@ -1332,7 +1334,7 @@ fun OcrDiaryScreen(
                                  verticalAlignment = Alignment.CenterVertically
                              ) {
                                  Text(
-                                     text = "📖 감성 구절 이미지 카드",
+                                     text = "📖 구절 공유",
                                      style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                      color = MaterialTheme.colorScheme.onSurface
                                  )
@@ -1498,17 +1500,16 @@ fun OcrDiaryScreen(
                                              type = "text/plain"
                                              putExtra(
                                                  android.content.Intent.EXTRA_TEXT,
-                                                 "✨ [북 다이어리 밑줄 구절 공유] ✨\n\n" +
+                                                 "[독서 다이어리] 밑줄 구절\n\n" +
                                                          "\"$extractedText\"\n\n" +
                                                          "📚 도서: 『${currentBook.title}』\n" +
                                                          "✍️ 저자: ${currentBook.author}\n" +
                                                          "📖 페이지: ${if (pageStr.isNotEmpty()) "${pageStr}쪽" else "선택 안 함"}\n\n" +
-                                                         "#독서기록 #북스타그램 #독서펜기록 #동양화책장"
+                                                         "#독서기록 #북스타그램"
                                              )
                                          }
-                                         context.startActivity(android.content.Intent.createChooser(shareIntent, "감성 구절 공유하기"))
+                                         context.startActivity(android.content.Intent.createChooser(shareIntent, "구절 공유하기"))
                                          showShareCardDialog = false
-                                         Toast.makeText(context, "📸 SNS 공유 다이얼로그를 호출했습니다!", Toast.LENGTH_SHORT).show()
                                      },
                                      modifier = Modifier.weight(1f),
                                      shape = RoundedCornerShape(12.dp),
@@ -1518,22 +1519,7 @@ fun OcrDiaryScreen(
                                  ) {
                                      Icon(imageVector = Icons.Default.Send, contentDescription = null, modifier = Modifier.size(16.dp))
                                      Spacer(modifier = Modifier.width(6.dp))
-                                     Text("SNS 공유", fontWeight = FontWeight.Bold)
-                                 }
-
-                                 // Save Image local simulator Button
-                                 OutlinedButton(
-                                     onClick = {
-                                         Toast.makeText(context, "💾 [${activePalette.name}] 테마의 감성 카드 이미지가 기기 갤러리로 성공적으로 저장되었습니다!", Toast.LENGTH_LONG).show()
-                                         showShareCardDialog = false
-                                     },
-                                     modifier = Modifier.weight(1f),
-                                     shape = RoundedCornerShape(12.dp),
-                                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                                 ) {
-                                     Icon(imageVector = Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
-                                     Spacer(modifier = Modifier.width(6.dp))
-                                     Text("이미지 저장", fontWeight = FontWeight.Bold)
+                                     Text("글로 공유", fontWeight = FontWeight.Bold)
                                  }
                              }
                         }
@@ -1713,4 +1699,18 @@ fun autoSelectPalette(text: String): Int {
         t.contains("부") || t.contains("성공") || t.contains("돈") || t.contains("지혜") || t.contains("배움") || t.contains("독서") || t.contains("시간") || t.contains("생각") || t.contains("서재") -> 3 // 아늑한 서재
         else -> 0 // 포근한 노을
     }
+}
+
+/** 글자 인식 실패 안내(모델 준비 중 · 인터넷 필요 등). 다시 누르면 새 인식이 시작되며 사라진다. */
+@Composable
+internal fun OcrErrorText(message: String) {
+    Text(
+        text = message,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .testTag("ocr_error")
+    )
 }
