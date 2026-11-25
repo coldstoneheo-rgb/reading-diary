@@ -44,6 +44,8 @@ class PolicyCopyTest {
     val policy = File("../docs/privacy/privacy-policy.html").readText()
     assertFalse("placeholder left in the policy", policy.contains("["))
     assertTrue(Regex("시행일: <strong>[0-9]{4}-[0-9]{2}-[0-9]{2}<").containsMatchIn(policy))
+    assertTrue(policy.contains("<h1>문장서랍 개인정보처리방침</h1>"))
+    assertFalse("old app name left in the policy", policy.contains("독서 다이어리"))
     assertTrue(policy.contains("운영: <strong>딱따구리AI(WoodpeckerAI)</strong>"))
   }
 
@@ -60,7 +62,7 @@ class PolicyCopyTest {
 
   @Test
   fun terms_useCurrentAppNameAndMentionSearchTransfer() {
-    assertTrue(TERMS_SUMMARY.contains("'독서 다이어리'"))
+    assertTrue(TERMS_SUMMARY.contains("'문장서랍'"))
     assertTrue(TERMS_SUMMARY.contains("검색어"))
     // 처리방침 4항(자동 백업)·7항 단서(Google 구성요소의 진단 통계)를 약관에서도 빼지 않는다
     assertTrue(TERMS_SUMMARY.contains("자동 백업"))

@@ -147,7 +147,7 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = "독서 다이어리",
+                            text = "문장서랍",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, fontSize = 16.sp),
                             color = MaterialTheme.colorScheme.onSurface,
                             lineHeight = 18.sp
@@ -295,7 +295,7 @@ fun MainAppEntry(viewModel: ReadingViewModel) {
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        text = "⚙️ 독서 다이어리 유틸리티",
+                        text = "⚙️ 문장서랍 유틸리티",
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)

@@ -72,6 +72,6 @@ class BackupSectionTest {
 
   @Test
   fun suggestedFileNameIsZip() {
-    assertTrue(BackupFileNames.suggested(0L).matches(Regex("독서다이어리-백업-\\d{8}-\\d{4}\\.zip")))
+    assertTrue(BackupFileNames.suggested(0L).matches(Regex("문장서랍-백업-\\d{8}-\\d{4}\\.zip")))
   }
 }

@@ -88,7 +88,7 @@ fun BookDetailScreen(
         AlertDialog(
             onDismissRequest = { showDeleteAlert = false },
             title = { Text("도서 삭제", fontWeight = FontWeight.Bold) },
-            text = { Text("'${currentBook.title}'을 내 목록에서 영구히 삭제할까요? 기록해 둔 모든 독서 다이어리도 함께 삭제됩니다.") },
+            text = { Text("'${currentBook.title}'을 내 목록에서 영구히 삭제할까요? 기록해 둔 모든 독서 기록도 함께 삭제됩니다.") },
             confirmButton = {
                 TextButton(
                     onClick = {

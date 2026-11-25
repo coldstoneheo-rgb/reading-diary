@@ -867,7 +867,7 @@ class ReadingViewModel @JvmOverloads constructor(
 
     private fun rejectMessage(reason: BackupArchive.Reason?): String = when (reason) {
         BackupArchive.Reason.NEWER_VERSION -> "이 백업 파일은 더 새 버전의 앱에서 만들어졌어요. 앱을 업데이트한 뒤 다시 시도해 주세요."
-        BackupArchive.Reason.NOT_ZIP, BackupArchive.Reason.NO_MANIFEST -> "독서 다이어리 백업 파일이 아니에요."
+        BackupArchive.Reason.NOT_ZIP, BackupArchive.Reason.NO_MANIFEST -> "문장서랍 백업 파일이 아니에요."
         BackupArchive.Reason.IO_ERROR -> "파일을 읽거나 임시로 풀지 못했어요(저장 공간·연결을 확인해 주세요). 백업 파일은 지우지 말고 그대로 두세요."
         BackupArchive.Reason.UNSAFE_PATH, BackupArchive.Reason.UNKNOWN_ENTRY -> "백업 파일에 허용되지 않는 항목이 있어 복원하지 않았어요."
         else -> "백업 파일이 손상되었거나 읽을 수 없어요."
