@@ -133,7 +133,7 @@ fun OcrDiaryScreen(
     var cameraStartedAt by rememberSaveable(key = "$formKey/cameraStartedAt") { mutableStateOf(0L) }
 
     fun clearShownPhoto() {
-        viewModel.resetOcrState() // 앞 사진의 진행 중 인식 · 칩 · 실패 안내를 버린다(뒤늦게 새 사진 · 빈 화면에 뜨지 않게)
+        viewModel.resetOcrState() // 앞 사진의 진행 중 인식 · 칩 · 실패 안내를 버린다(뒤늦게 새 사진 · 빈 화면에 뜨지 않게). 정밀 분석(유료 요청)은 제외 — 결과는 확인 뒤에만 들어간다
         activeImageUrl = null
         isImageTaken = false
         isCroppedReady = false
