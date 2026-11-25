@@ -18,7 +18,7 @@
 | 태그(선택) | 독서, 노트, 도서 관리 | 콘솔 태그 목록에서 가장 가까운 것 선택 |
 | 광고 포함 | 아니요 | |
 | 연락처 이메일 | (오너 입력) | 공개된다. 개인 메일 대신 앱 전용 주소 권장 |
-| 개인정보처리방침 URL | **`https://<오너 배포 위치>/privacy-policy.html`** (자리) | 원본: [docs/privacy/privacy-policy.html](../privacy/privacy-policy.html). 배포는 오너(§7) |
+| 개인정보처리방침 URL | https://coldstoneheo-rgb.github.io/reading-diary/privacy-policy.html | 원본: [docs/privacy/privacy-policy.html](../privacy/privacy-policy.html). 게시 2026-11-25(CLOSED-TEST §5) |
 
 ## 2. 설명 문안
 
@@ -164,7 +164,7 @@ Google이 공개한 ML Kit/코드 스캐너 데이터 공개 문서를 오너가
 | U1 | **업로드 키스토어 생성·보관** (`my-upload-key.jks`, alias `upload`) | AAB 서명 | `app/build.gradle.kts:28-35`가 `KEYSTORE_PATH`·`STORE_PASSWORD`·`KEY_PASSWORD`를 읽는다. Play 앱 서명 사용 권장. 비밀번호를 저장소·대화에 쓰지 않는다 |
 | U2 | **Play Console 앱 생성**(앱 이름 «독서 다이어리», 무료, 앱) + 개발자 계정 확인 | 모든 콘솔 작업 | |
 | U3 | **앱 아이콘 512×512** 제작(+ 런처 적응형 아이콘 교체 여부 결정) | 스토어 등록정보 | §3. AI 사용 시 선언 |
-| U4 | **처리방침 배포** — `docs/privacy/privacy-policy.html`을 공개 URL로(예: GitHub Pages) 올리고 §1 URL 자리 채우기 | 데이터 안전·등록정보 | 연락처 이메일·시행일 자리 채우기 |
+| U4 | **처리방침 배포** — 끝남(2026-11-25, GitHub Pages · 주소는 §1) | 데이터 안전·등록정보 | |
 | U5 | **테스터 ≤5명 이메일 목록 등록** + 옵트인 링크 배포(§6 안내문) | 설치 | |
 | U6 | 데이터 안전 폼 제출(§5, [사용자 확인] 3건 결정) · 콘텐츠 등급 설문 · 타겟 연령 | 출시 검토 | |
 | U7 | 스토어 부제 입력(2026-11-03 결정됨) | 등록정보 | «밑줄이 책과 책을 잇고, 떠오른 문장을 사진과 함께 되찾는 독서 다이어리»(§2) |

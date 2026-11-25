@@ -1,13 +1,13 @@
 {
-  "as_of": "2026-11-25T17:10:00+09:00",
+  "as_of": "2026-11-25T17:55:00+09:00",
   "phase": "새해 공개 준비 — 첫 비공개 제출 11-27 목표(docs/store-listing/CLOSED-TEST-2026-11.md)",
-  "current_task": "처리방침 게시(사용자 «게시해도 됨» 대기) → 주소 1줄 PR",
+  "current_task": "처리방침 게시 끝(2026-11-25 17:43 HTTP 200 · gh-pages a00424b) → 앱 안 주소 PR 머지",
   "waiting_on": [
-    "사용자: docs/store-listing/FIRST-UPLOAD-2026-11.md 1~11단계 · 처리방침 «게시해도 됨»(LC에) · 카카오 키 결정",
-    "순서: ① 사용자 «게시해도 됨» ② 워커 gh-pages ③ Settings › Pages → 주소 200 → PRIVACY_POLICY_URL 1줄 PR — 그 뒤에만 bundleRelease"
+    "사용자: docs/store-listing/FIRST-UPLOAD-2026-11.md 1~11단계(5는 끝남, 주소 확인만) · 카카오 키 결정(① / ②)",
+    "앱 안 주소 PR이 main에 든 뒤에만 사용자 bundleRelease(8단계 직전에 LC가 알려 주는 main SHA)"
   ],
   "next_actions": [
-    "처리방침 게시 + PRIVACY_POLICY_URL 1줄 PR → 사용자 bundleRelease → 비공개 제출(11-27)",
+    "주소 PR 머지 → 사용자 bundleRelease → 비공개 제출(11-26 저녁, 늦어도 11-27)",
     "테스트 중 앞쪽: 칩 «문장 바꾸기» 되돌리기",
     "테스트 중 앞쪽: 새 사진을 고르면 진행 중 인식 취소",
     "테스트 중 목록(REPORT): 띄어쓰기 검색 · 쪽수 모름 · 키보드 · 테마 저장 · 상태바 · 시험 공백"
