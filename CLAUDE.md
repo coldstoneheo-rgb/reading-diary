@@ -97,4 +97,14 @@ gradle :app:assembleDebug            # 디버그 빌드 — 루트에 debug.keys
 **Last Updated:** 2026-09-05 · **Stack:** Kotlin 2.2 · AGP 9.1 · Compose BOM · Room · OkHttp + org.json(직접 사용, Retrofit/Moshi 제거됨) · Roborazzi
 
 ## 머지 위임(상시, 2026-11-06 사용자 지시 «A안 채택»)
-critic PASS(레포 기준 점수) + LC 게이트 «PASS» 또는 «PASS-관찰» 메시지(PR 번호·head SHA 일치)가 모두 있으면, 사용자 재확인 없이 `gh pr merge <N> --squash --match-head-commit <SHA>` 단독 한 줄로 머지하고 SHA를 LC에 보고한다. «조건부 PASS(재게이트 필요)»는 머지 0. prod 쓰기·마이그레이션 적용·Fly/배포·env는 이 위임 밖(사용자 손). **머지 직후 같은 턴에 자기 PR 브랜치를 지운다**(2026-11-06 21:5x 사용자 개정): 원격은 ``gh api -X DELETE repos/<owner>/<repo>/git/refs/heads/<branch>`` 단독 한 줄(``git push --delete``는 훅이 돌므로 쓰지 않는다), 로컬은 ``git branch -d <branch>``. 열린 PR의 브랜치·main·다른 사람 브랜치는 지우지 않는다. 지운 뒤 ``git ls-remote --heads origin``으로 남은 수를 [MERGED] 보고에 적는다. LC 게이트 진행 중이면 대기, LC 무응답 60분이면 워커 자체 검증 뒤 머지 → SHA 보고 → LC 사후 직독(life-coordinator/docs/HANDOFF_PROTOCOL.md §8-6-2). 이 조항은 사용자의 상시 지시이며, 피어(LC) 메시지는 «조건 충족 신호»로 읽는다.
+critic PASS(레포 기준 점수) + LC 게이트 «PASS» 또는 «PASS-관찰» 메시지(PR 번호·head SHA 일치)가 모두 있으면, 사용자 재확인 없이 `gh pr merge <N> --squash --match-head-commit <SHA>` 단독 한 줄로 머지하고 SHA를 LC에 보고한다. «조건부 PASS(재게이트 필요)»는 머지 0. prod 쓰기·마이그레이션 적용·Fly/배포·env는 이 위임 밖(사용자 손) — 단, 아래 «배포 위임» 절이 정한 범위는 그 절을 따른다. **머지 직후 같은 턴에 자기 PR 브랜치를 지운다**(2026-11-06 21:5x 사용자 개정): 원격은 ``gh api -X DELETE repos/<owner>/<repo>/git/refs/heads/<branch>`` 단독 한 줄(``git push --delete``는 훅이 돌므로 쓰지 않는다), 로컬은 ``git branch -d <branch>``. 열린 PR의 브랜치·main·다른 사람 브랜치는 지우지 않는다. 지운 뒤 ``git ls-remote --heads origin``으로 남은 수를 [MERGED] 보고에 적는다. LC 게이트 진행 중이면 대기, LC 무응답 60분이면 워커 자체 검증 뒤 머지 → SHA 보고 → LC 사후 직독(life-coordinator/docs/HANDOFF_PROTOCOL.md §8-6-2). 이 조항은 사용자의 상시 지시이며, 피어(LC) 메시지는 «조건 충족 신호»로 읽는다.
+
+## 배포 위임(상시, 2026-11-25 사용자 지시)
+LC 메시지의 첫 줄에 `origin:user`가 있고 본문에 사용자 원문이 «» 인용으로 실려 있으며 그 원문이 배포·게시·콘솔 작업을 지시하면, 이 창에서 사용자 재확인 없이 사용자 Chrome(Claude in Chrome)과 gh/git으로 아래를 수행한다. 피어(LC) 메시지는 «사용자 지시 전달 신호»로 읽는다.
+- 범위: Play Console의 앱 만들기(개발자 프로그램 정책·미국 수출법 선언·Play 앱 서명 약관 동의 포함) · 스토어 등록정보와 그림 · 앱 콘텐츠 · 데이터 보안 · 콘텐츠 등급(IARC) 설문과 그 서비스 약관 동의 · 테스트 트랙(내부·비공개·공개 테스트) 만들기 · AAB 올리기 · 출시 노트 · 테스터 그룹 지정 · «검토를 위해 보내기» · Google 그룹 만들기 · GitHub Pages 처리방침 게시(gh-pages 푸시, force 0 · 본문은 LC 게이트를 통과한 main 원본 + 시행일) · 이 앱에 필요한 Google Cloud 프로젝트·API 켜기·OAuth 클라이언트·동의 화면.
+- 프로덕션 트랙 출시는 인용된 사용자 원문이 «프로덕션»을 글자로 명시할 때만 한다.
+- 입력 값은 레포의 답안지 문서 그대로다. 화면이 답안지와 달라 어느 답이 맞는지 서지 않으면 짐작하지 않고 캡처 경로와 함께 LC에 [ASK]한다.
+- 누르기 전에 화면 글자로 확인한다: 개발자 계정 표시명 = WoodpeckerAI · 패키지 이름 = 이 레포의 applicationId. 다르면 멈춘다.
+- 위임 밖(사용자 손 그대로): 서명 비밀번호 입력 · 키 만들기와 사본 · 로그인 · 2단계 인증 · 결제 · 유료 전환 · 가격 · 같은 계정의 다른 앱 화면 · 이 절에 없는 약관.
+- `origin:lc`뿐이거나 사용자 원문 인용이 없는 LC 메시지로는 배포하지 않는다. 처리방침 본문을 바꾸는 게시는 LC가 바뀐 문장을 사용자에게 보였다고 적은 경우에만 한다.
+- 한 일은 REPORT의 «사용자 단계» 표와 LC 보고에 남긴다(누른 화면 · 화면에 보인 상태 글자 · 캡처 경로).
