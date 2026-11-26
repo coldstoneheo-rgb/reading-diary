@@ -309,3 +309,18 @@ signals:
 여유 0의 줄이다. 그래서 완성도와 나란히 콘솔에 옮겨 적을 답 · 그림 · 처리방침을 갖췄다. 앱에서는 처음 쓰는 사람의 기록이 사라지거나 다른 책에
 섞이던 길을 막았고, 저장하지 않으면서 «저장되었습니다»라고 말하던 버튼을 없앴다. 밑줄 검출기는 놓침 81 → 66으로 줄었고 잘못 켜지는 칩은 늘지 않았다.
 실기기 확인은 0이다 — 카메라 · 모델 내려받기 · 키보드 · 상태바는 첫 비공개 빌드에서 처음 확인된다.
+
+---
+date: 2026-11-26
+agent: local worker (TASK-2026-1126 rd-privacy-publish-first-upload-support · TASK-2026-1125 rd-habit-console-takeover, Opus 5.5)
+scope: docs · 콘솔 — 처리방침 재게시(gh-pages 491a0dc) · 앱 이름 «문장서랍»(#81) · Play Console 등록 · 구글 그룹 · 비공개 테스트 Alpha 검토 제출 · 배포 위임 절(#83) · 첫 올리기 기록(#82 · #84)
+signals:
+  synergy: "콘솔 답안지(CLOSED-TEST · FIRST-UPLOAD)를 미리 써 둔 덕에 콘솔 입력은 붙여 넣기였고, 답안지에 없던 문항만 표로 남겼다 — 다음 앱(habit)에 그대로 쓸 틀"
+  monetization: "0 — 무료 앱 · 광고 ID 0 · 결제 화면 0"
+  learning: "도구 한도는 문서에 없다: Chrome 도구 첨부 상한 10.4MB < AAB 13.9MB라 파일 고르기만 사람 손이 됐다. 원인은 R8 꺼짐(압축 dex 13.16MB) — 빌드 설정이 운영 손을 정한다"
+  idea: "AAB 크기를 CI에서 재고 10MB를 넘으면 표시 — 업로드를 워커가 끝까지 할 수 있는지가 PR 단계에서 보인다"
+---
+
+**의미.** 새해 공개의 달력을 막던 «첫 비공개 제출»이 11-26에 끝났다(목표 11-27보다 하루 앞). 등록정보 · 앱 콘텐츠 · 데이터 보안 · 등급 · 테스터 그룹 · 서명 빌드 · 검토 제출이 한 날에 이어졌고,
+사람 손은 reCAPTCHA · 서명 비밀번호 · AAB 파일 고르기 셋이었다. 남은 것은 Google 검토와 실기기 첫 확인이다 — 카메라 · 모델 내려받기 · 키보드는 아직 실기기 0이다.
+REPORT `docs/handoffs/TASK-2026-1126-rd-privacy-publish-first-upload-support-REPORT.md`.
