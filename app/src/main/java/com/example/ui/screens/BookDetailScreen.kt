@@ -274,12 +274,12 @@ fun BookDetailScreen(
             )
         },
         floatingActionButton = {
-            // 시작 전에는 기록 쓰기를 열지 않는다(«읽기 시작» 카드만).
+            // 시작 전에는 기록하기를 열지 않는다(«읽기 시작» 카드만).
             if (started) {
                 ExtendedFloatingActionButton(
                     onClick = { viewModel.navigateTo(Screen.AddDiary(currentBook.id)) },
                     icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = { Text("기록 쓰기", fontWeight = FontWeight.Bold) },
+                    text = { Text("기록하기", fontWeight = FontWeight.Bold) },
                     modifier = Modifier.testTag("add_diary_button")
                 )
             }

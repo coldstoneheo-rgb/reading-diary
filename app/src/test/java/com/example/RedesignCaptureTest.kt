@@ -120,7 +120,7 @@ class RedesignCaptureTest {
     composeTestRule.setContent { MyApplicationTheme { BookDetailScreen(viewModel = vm) } }
     composeTestRule.waitUntil(10_000) { has("book_detail_title") }
     shot("detail-records-1")
-    // 아래로 내린 장면: 기록 쓰기가 FAB(R3)가 된 뒤에는 목록 끝(마지막 기록)까지 내린다.
+    // 아래로 내린 장면: 기록하기가 FAB(R3)가 된 뒤에는 목록 끝(마지막 기록)까지 내린다.
     val lastTag = composeTestRule.onAllNodes(androidx.compose.ui.test.SemanticsMatcher("diary") { n ->
       n.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.matches(Regex("diary_item_\\d+")) == true
     }).fetchSemanticsNodes().lastOrNull()?.config?.get(androidx.compose.ui.semantics.SemanticsProperties.TestTag)

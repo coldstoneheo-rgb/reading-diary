@@ -190,8 +190,8 @@ class BookDetailDensityTest {
     val pageText = byTag("progress_page_text").rect()
     assertEquals("96 / 320 쪽", byTag("progress_page_text").config[SemanticsProperties.Text].joinToString { it.text })
     assertTrue("슬라이더 $slider · 쪽 $pageText 가 한 줄이 아니다", slider.top < pageText.bottom && pageText.top < slider.bottom)
-    // FAB는 아이콘 + 글자 «기록 쓰기»(확장형) 하나.
-    assertTrue(composeTestRule.onAllNodesWithText("기록 쓰기", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+    // FAB는 아이콘 + 글자 «기록하기»(확장형) 하나.
+    assertTrue(composeTestRule.onAllNodesWithText("기록하기", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
   }
 
   // ── 보정 4: 카드 아이콘 48dp 대상 + 한국어 낭독 이름 · 48dp 미만 누르는 대상 0 ──
@@ -275,8 +275,8 @@ class BookDetailDensityTest {
   fun notStartedBook_hasNoFabAndNoProgress() {
     open(newBook(), cards = 0)
     pump { has("start_reading_button") }
-    assertFalse("시작 전에는 FAB(기록 쓰기)가 없다", has("add_diary_button"))
-    assertTrue(composeTestRule.onAllNodesWithText("기록 쓰기", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+    assertFalse("시작 전에는 FAB(기록하기)가 없다", has("add_diary_button"))
+    assertTrue(composeTestRule.onAllNodesWithText("기록하기", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
     assertFalse("시작 전에는 진척도가 없다", has("progress_slider"))
     assertFalse(has("progress_page_text"))
     assertTrue("48dp 미만: ${smallTargets()}", smallTargets().isEmpty())
