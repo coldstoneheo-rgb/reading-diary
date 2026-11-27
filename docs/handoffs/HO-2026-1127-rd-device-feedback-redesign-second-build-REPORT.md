@@ -9,13 +9,13 @@
 1. **미리보기 APK로 같은 사진 한 번 + 상자 덤프 공유**(조건 3 측정의 유일한 길 — 에뮬레이터 이미지 설치는 자동 분류기가 막았다). APK는 Play 앱과 나란히 깔리고(`…readingdiary.preview` · «문장서랍 미리보기») 새 동작(밑줄 어절로 시작하는 칸 · 접힌 원문 · 6~12줄 편집창 · 읽기 시작)을 바로 보여 준다. 단계는 LC에 보낸 6줄 메시지 그대로.
 2. **R8 번들 크기 재기**: 에이전트의 릴리스 번들 빌드는 서명 없는 측정 빌드까지 분류기가 막는다. 사용자 1줄(PR `chore/r8-release-check` 머지 뒤): `! gradle :app:bundleReleaseR8Check --no-configuration-cache` → `app/build/outputs/bundle/releaseR8Check/*.aab` 바이트 수.
 3. `/effort status` 1줄(슬래시 명령 — 에이전트가 실행할 수 없다).
-4. 저장 버튼 자리 갈림(계획서 §7): (가) 아래 고정(권고 · 한 손) / (나) 상단 바 ✓.
+4. 저장 버튼 자리 = LC 판정 «상단 바 글자 버튼 저장»(계획서 §7) — 사용자가 뒤집을 수 있다.
 
 ## 체크리스트(완료 조건)
 
 - [x] 0. effort 정본 §4 — 이미 적용: `.claude/settings.json:33-37` medium · `.claude/agents/critic.md:6` high · 수집 정의 파일 없음. `/effort status`는 사용자 손.
 - [~] 1. 사실표 — 코드 값 · 캡처(스크린샷 시험 411×891dp, LC 10:xx 지시로 에뮬레이터 대신) 끝 → 계획서 §1. 사용자 사진: 570자 · 켜진 12 · 맞음 2 · 과선택 ≥3 · 나머지 미확정(상자 덤프 대기).
-- [~] 2. 재설계 계획서 `docs/design/REDESIGN-2026-11-density.md` — critic 1차 6/10 → 지적 반영 · 2차 채점 전. before 7장 · after(조건 3·4·5) 7장 = 레포 밖 열람 폴더.
+- [x] 2. 재설계 계획서(LC «계획 가» 418f30a · 보정 6 = 계획서 §7-1) `docs/design/REDESIGN-2026-11-density.md` — critic 1차 6/10 → 지적 반영 · 2차 채점 전. before 7장 · after(조건 3·4·5) 7장 = 레포 밖 열람 폴더.
 - [~] 3. 추출 기본값 — 브랜치 `fix/underline-words-first`(로컬). 271 기준 **205/3/66 · 정밀도 98.6% 그대로**(측정 표 diff 0 — 검출기 무변경). 과선택 · 놓침 수는 상자 덤프 뒤. critic 6/10.
 - [~] 4. 읽기 시작 — 브랜치 `feat/start-reading`(로컬 · Room 스키마 무변경 v3). critic 6/10.
 - [~] 5. 편집창 — 브랜치 `fix/editor-grows`(로컬). 500자에서 **4 → 12줄**(`ExtractedTextEditorSizeTest`), 짧은 글 6줄. 키보드 캡처는 에뮬레이터 없이 불가 → 미리보기 APK 실기기 확인으로. critic 6/10.
@@ -37,6 +37,10 @@
 막힌 것(우회 0): 에뮬레이터 이미지 설치 · debug.keystore 복사 · 릴리스형 번들 빌드(서명 · 무서명 모두) — 자동 분류기 거부.
 
 ## 다음 창 인계
+
+**에뮬레이터가 있다**(LC가 사용자 지시로 설치 · 13:5x 부팅 확인): AVD `lc_pixel8_api36`(API 36 · Play 서비스 · 1080×2400 · 데이터 `D:\Android\avd\`). 띄우기 `%LOCALAPPDATA%\Android\Sdk\emulator\emulator.exe -avd lc_pixel8_api36 -no-boot-anim -no-audio -gpu swiftshader_indirect`(`-gpu auto`는 멈춘다) · 부팅 약 100초 · 2코어라 gradle과 같이 돌리지 않는다. 미리보기 APK 3f5e621이 깔려 있다.
+→ 상자 덤프는 다음 창이 에뮬레이터에서 직접 뜬다: 사용자 사진을 `adb push`(레포 밖 원본 · 레포에는 개수만) → 미리보기 앱에서 덤프 → 레포 밖 폴더에 `user-20261127` 자료로 넣고 `GoldenMeasureTest`로 맞음/과선택/놓침 개수. 사용자 폰 덤프는 «있으면 좋음». 키보드 올라온 편집창 캡처(조건 5)도 에뮬레이터에서.
+재설계 구현(조건 6)은 «계획 가»를 받았다 — 계획서 §7-1 보정 6이 통과 기준. 순서: 조건 3 → 5 → 4 → R8 PR 먼저 연 뒤 R1 → R2 → R3.
 
 브랜치 · 워크트리(모두 로컬 · 푸시 0):
 | 브랜치 | 워크트리 | 남은 일(critic 1차 지적) |
