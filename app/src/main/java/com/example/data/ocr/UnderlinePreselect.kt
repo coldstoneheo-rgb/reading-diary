@@ -70,18 +70,23 @@ object UnderlinePreselect {
     }
 
     /**
-     * [kept] 어절을 글줄로 묶는다(세로 중심이 줄 중앙값에서 글자 높이 절반 안). 줄 아래 끝은 밑줄과 합쳐져 부푼 상자를
-     * 피하려고 «위 끝 중앙값 + 높이 30백분위»로 잡는다. 엔진의 줄 묶음은 쓰지 않는다 — 측정(기준 자료)과 같은 값을 내기 위해.
+     * [kept] 어절을 글줄로 묶는다. 왼쪽에서 오른쪽으로 어절을 훑으며, 세로 중심이 **바로 왼쪽 이웃 어절**(그 줄의 마지막 어절)에서
+     * 두 상자 가운데 낮은 쪽 높이의 절반 안인 줄 가운데, 가로로 가장 가까운(그다음 세로로 가까운) 줄에 잇는다. 낮은 쪽 높이를 쓰는
+     * 까닭: 여백의 키 큰 손글씨 상자가 넓은 허용폭으로 본문 어절을 끌어오지 않게. 가로 거리를 먼저 보는 까닭: 줄 머리 왼쪽의 작은
+     * 표시 상자처럼 멀리 남은 줄 끝이 본문 줄을 반으로 가르지 않게. 줄 전체의 중앙값과 견주지 않는 까닭: 쪽이 휘어 줄이 기울면 한 줄의
+     * 양 끝 높이 차가 글자 높이를 넘고, 그러면 줄이 조각나 그 조각의 위 끝이 윗줄의 밑줄 띠를 막는다(사용자 틀 측정 2/5/4의 원인).
+     * 줄 아래 끝은 밑줄과 합쳐져 부푼 상자를 피하려고 «위 끝 중앙값 + 높이 30백분위»로 잡는다. 줄 순서는 세로 중심 중앙값 순.
+     * 엔진의 줄 묶음은 쓰지 않는다 — 측정(기준 자료)과 같은 값을 내기 위해.
      */
     fun clusterLines(words: List<Box>, kept: List<Int> = words.indices.toList()): List<Line> {
         fun cy(i: Int) = (words[i].top + words[i].bottom) / 2.0
-        val sorted = kept.sortedBy { cy(it) }
         val groups = mutableListOf<MutableList<Int>>()
-        for (i in sorted) {
-            val g = groups.lastOrNull()
-            if (g != null && cy(i) - medianD(g.map { cy(it) }) < 0.5 * median(g.map { words[it].height })) g += i
-            else groups += mutableListOf(i)
+        for (i in kept.sortedWith(compareBy({ words[it].left }, { cy(it) }))) {
+            val best = groups.filter { g -> kotlin.math.abs(cy(i) - cy(g.last())) < 0.5 * minOf(words[g.last()].height, words[i].height) }
+                .minWithOrNull(compareBy({ g -> (words[i].left - words[g.last()].right).coerceAtLeast(0) }, { g -> kotlin.math.abs(cy(i) - cy(g.last())) }))
+            if (best != null) best += i else groups += mutableListOf(i)
         }
+        groups.sortBy { g -> medianD(g.map { cy(it) }) }
         return groups.map { g ->
             val ws = g.sortedBy { words[it].left }
             val top = median(ws.map { words[it].top })
