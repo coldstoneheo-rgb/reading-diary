@@ -7,6 +7,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -378,6 +381,8 @@ fun StatisticsScreen(
                             column.map { dateStr -> Pair(dateStr, activityMap[dateStr] ?: 0) }
                         }
                     }
+                    // 요일 글자 줄 높이로 쓸 잰 칸 높이(px). 폭이 바뀌면 다시 잰다.
+                    var cellHeightPx by remember(LocalConfiguration.current.screenWidthDp) { mutableIntStateOf(0) }
                     // 오늘 뒤 같은 주 칸은 아직 오지 않은 날이라 누름 동작(«기록이 없습니다» 토스트)을 달지 않는다.
                     val todayStr = remember(daysGrid) { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()) }
 
@@ -389,18 +394,24 @@ fun StatisticsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         // Days Indicator labels (S, M, T, W, T, F, S)
+                        // 글자 줄 높이 = 잰 칸 높이(칸은 열 폭만큼 정사각형이라 고정 13dp면 «토»가 금요일 줄 옆에 왔다).
                         Column(
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                             modifier = Modifier.padding(end = 4.dp)
                         ) {
                             val dayLabels = listOf("일", "", "화", "", "목", "", "토")
+                            val labelRowHeight = if (cellHeightPx > 0) with(LocalDensity.current) { cellHeightPx.toDp() } else 13.dp
                             repeat(7) { i ->
-                                Text(
-                                    text = dayLabels[i],
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
-                                    modifier = Modifier.height(13.dp)
-                                )
+                                Box(
+                                    modifier = Modifier.height(labelRowHeight),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    Text(
+                                        text = dayLabels[i],
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+                                    )
+                                }
                             }
                         }
 
@@ -434,6 +445,7 @@ fun StatisticsScreen(
                                             modifier = Modifier
                                                 .aspectRatio(1f)
                                                 .fillMaxWidth()
+                                                .onSizeChanged { if (it.height > cellHeightPx) cellHeightPx = it.height } // 열 폭이 1px씩 달라 가장 큰 칸(= 격자 줄 높이)을 쓴다
                                                 .clip(RoundedCornerShape(2.dp))
                                                 .background(color)
                                                 .then(if (isGrassDayTappable(dateStr, todayStr)) Modifier.clickable {
