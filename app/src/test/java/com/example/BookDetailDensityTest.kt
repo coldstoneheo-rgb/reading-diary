@@ -19,6 +19,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.test.core.app.ApplicationProvider
@@ -314,6 +315,24 @@ class BookDetailDensityTest {
 
   @Test fun fontScale130() = fontScale_noClipNoOverlap(1.3f, "book_detail_font130")
   @Test fun fontScale200() = fontScale_noClipNoOverlap(2f, "book_detail_font200")
+
+  /** critic #98 중요 1: 쪽 입력 줄을 연 상태도 글꼴 2.0배에서 잘림 · 겹침 0 · 48dp 하한. */
+  @Test
+  fun fontScale200_pageInputOpen() {
+    open(startedBook(), fontScale = 2f, cards = 1)
+    composeTestRule.onNodeWithTag("progress_page_text").performClick()
+    pump { has("progress_page_input") }
+    composeTestRule.onNodeWithTag("progress_page_input").performScrollTo()
+    idle()
+    composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/book_detail_page_input_font200.png")
+    val screenW = composeTestRule.onRoot().fetchSemanticsNode().size.width
+    assertNoOverlap("글꼴 2.0배 쪽 입력", mapOf("칸" to byTag("progress_page_input"), "취소" to byTag("progress_page_cancel"), "저장" to byTag("progress_page_save")))
+    for (tag in listOf("progress_page_input", "progress_page_cancel", "progress_page_save")) {
+      assertTrue("글꼴 2.0배: $tag 가 화면 밖", byTag(tag).rect().right <= screenW + 0.5f)
+    }
+    noTextOverflows("글꼴 2.0배 쪽 입력")
+    assertTrue(smallTargets().toString(), smallTargets().isEmpty())
+  }
 
   // ── 보정 5: 밝은(1) + 어두운(Dark 9) 테마 기준 이미지 ──
 

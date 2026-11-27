@@ -1,5 +1,9 @@
 package com.example.ui.screens
 
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
@@ -73,7 +77,7 @@ fun BookDetailScreen(
     var showMenu by remember { mutableStateOf(false) }
     var showDeleteAlert by remember { mutableStateOf(false) }
     var showBookcaseTransferDialog by remember { mutableStateOf(false) }
-    var showPageDialog by remember { mutableStateOf(false) }
+    var showPageInput by remember { mutableStateOf(false) }
     val photosByDiary by viewModel.recallPhotos.collectAsState()
 
     // Backup state for slider page modification
@@ -393,19 +397,19 @@ fun BookDetailScreen(
                             modifier = Modifier
                                 .heightIn(min = 48.dp)
                                 .clip(RoundedCornerShape(6.dp))
-                                .clickable(onClickLabel = "쪽 수 직접 넣기") { showPageDialog = true }
+                                .clickable(onClickLabel = "쪽 수 직접 넣기") { showPageInput = true }
                                 .wrapContentHeight(Alignment.CenterVertically)
                                 .padding(horizontal = 4.dp)
                                 .testTag("progress_page_text")
                         )
                     }
-                    if (showPageDialog) {
+                    if (showPageInput) {
                         PageInputRow(
                             totalPages = currentBook.totalPages,
                             initialPage = sliderPage.toInt(),
-                            onDismiss = { showPageDialog = false },
+                            onDismiss = { showPageInput = false },
                             onSave = { page ->
-                                showPageDialog = false
+                                showPageInput = false
                                 sliderPage = page.toFloat()
                                 viewModel.updateBookProgress(currentBook.id, page)
                             }
@@ -523,28 +527,30 @@ fun BookDetailScreen(
  */
 @Composable
 private fun PageInputRow(totalPages: Int, initialPage: Int, onDismiss: () -> Unit, onSave: (Int) -> Unit) {
-    var text by remember { mutableStateOf(initialPage.toString()) }
-    val page = text.toIntOrNull()
+    // 열자마자 칸에 커서를 두고 지금 값을 모두 고른 채로 연다 — 바로 새 숫자를 치면 바뀐다.
+    var value by remember { mutableStateOf(TextFieldValue(initialPage.toString(), TextRange(0, initialPage.toString().length))) }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    val page = value.text.toIntOrNull()
     val valid = page != null && page in 0..totalPages
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    // 큰 글꼴에서도 잘리지 않게 칸은 한 줄 전체, 버튼은 그 아래 줄 오른쪽(critic #98 중요 1).
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
         OutlinedTextField(
-            value = text,
-            onValueChange = { v -> text = v.filter { it.isDigit() }.take(6) },
+            value = value,
+            onValueChange = { v -> value = v.copy(text = v.text.filter { it.isDigit() }.take(6)) },
             singleLine = true,
             label = { Text("읽은 쪽 (0 ~ $totalPages)") },
             suffix = { Text("/ $totalPages 쪽") },
             isError = !valid,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { if (valid) onSave(page!!) }),
-            modifier = Modifier.weight(1f).testTag("progress_page_input")
+            modifier = Modifier.fillMaxWidth().focusRequester(focus).testTag("progress_page_input")
         )
-        TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp).testTag("progress_page_cancel")) { Text("취소") }
-        TextButton(onClick = { onSave(page!!) }, enabled = valid, modifier = Modifier.heightIn(min = 48.dp).testTag("progress_page_save")) {
-            Text("저장", fontWeight = FontWeight.Bold)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp).testTag("progress_page_cancel")) { Text("취소") }
+            TextButton(onClick = { onSave(page!!) }, enabled = valid, modifier = Modifier.heightIn(min = 48.dp).testTag("progress_page_save")) {
+                Text("저장", fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
@@ -660,7 +666,9 @@ fun DiaryItemCard(
                         )
                     }
                 }
-                photos.firstOrNull()?.file?.let { file ->
+                // 기기에 없는 사진 파일은 건너뛰고 있는 것만 보인다(«+N»도 있는 사진만 센다).
+                val shown = photos.mapNotNull { it.file }
+                shown.firstOrNull()?.let { file ->
                     Box {
                         AsyncImage(
                             model = file,
@@ -671,9 +679,9 @@ fun DiaryItemCard(
                                 .clip(RoundedCornerShape(6.dp))
                                 .testTag("diary_photo_${diary.id}")
                         )
-                        if (photos.size > 1) {
+                        if (shown.size > 1) {
                             Text(
-                                text = "+${photos.size - 1}",
+                                text = "+${shown.size - 1}",
                                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, fontWeight = FontWeight.Bold),
                                 color = Color.White,
                                 modifier = Modifier
