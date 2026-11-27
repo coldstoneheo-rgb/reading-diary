@@ -1218,8 +1218,9 @@ fun OcrDiaryScreen(
                     modifier = Modifier.padding(top = 10.dp)
                 )
 
-                // 원문 전체(접힘): 밑줄 어절로 편집창이 시작됐을 때만. 펼쳐 읽거나 편집창을 전체 글로 되돌린다.
-                if (preselect?.any { it.selected } == true && ocrFullText.isNotEmpty()) {
+                // 원문 전체(접힘): 편집창 글이 마지막 인식의 전체 글과 다를 때(밑줄 어절로 시작 · 사용자가 고침). 펼쳐 읽거나 편집창을 전체 글로 되돌린다.
+                // 미리 선택 값(ViewModel)에 묶지 않는다 — 프로세스 재생성 · 사진 회전으로 값이 비어도 원문은 남는다(ocrFullText는 rememberSaveable).
+                if (ocrFullText.isNotEmpty() && extractedText != ocrFullText) {
                     OcrFullTextSection(
                         fullText = ocrFullText,
                         expanded = showOcrFullText,

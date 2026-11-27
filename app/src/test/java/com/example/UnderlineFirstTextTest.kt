@@ -10,6 +10,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.AppDatabase
 import com.example.data.Book
@@ -23,6 +24,7 @@ import com.example.data.ocr.UnderlinePreselect
 import com.example.ui.screens.OcrDiaryScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.ReadingViewModel
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -77,9 +79,12 @@ class UnderlineFirstTextTest {
     .firstOrNull()?.config?.let { c -> if (androidx.compose.ui.semantics.SemanticsProperties.EditableText in c) c[androidx.compose.ui.semantics.SemanticsProperties.EditableText].text else null }.orEmpty()
 
   /** 새 기록 화면에서 인식을 돌린다. [selected] = 어절 순번마다 미리 선택 값. */
-  private fun recognize(selected: (Int) -> Boolean): ReadingViewModel {
+  private fun recognize(gate: CompletableDeferred<Unit>? = null, selected: (Int) -> Boolean): ReadingViewModel {
     val vm = ReadingViewModel(app, FixedExtractor(full), FixedExtractor(full), FakeDiaryPhotoStore()) { false }
-    vm.preselectRunner = { _, lines -> lines.single().words.mapIndexed { i, w -> UnderlinePreselect.Word(w.text, 0, selected(i)) } }
+    vm.preselectRunner = { _, lines ->
+      gate?.await()
+      lines.single().words.mapIndexed { i, w -> UnderlinePreselect.Word(w.text, 0, selected(i)) }
+    }
     composeTestRule.setContent { MyApplicationTheme { OcrDiaryScreen(viewModel = vm, bookId = bookId) } }
     pump { composeTestRule.onAllNodesWithTag("diary_extracted_text_input").fetchSemanticsNodes().isNotEmpty() }
     composeTestRule.runOnUiThread { vm.processUnderlineOcr(Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)) }
@@ -105,5 +110,31 @@ class UnderlineFirstTextTest {
     repeat(10) { shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(20) }
     assertTrue(fieldText() == full)
     composeTestRule.onAllNodesWithTag("ocr_full_text_toggle").assertCountEquals(0)
+  }
+
+  @Test
+  fun foldedFullText_staysWhenThePreselectValueIsGone() {
+    // 프로세스 재생성 · 사진 회전으로 ViewModel의 미리 선택 값이 비어도 편집창 글과 원문은 화면 상태로 남는다 — 접힌 원문도 남아야 한다.
+    val vm = recognize { it == 1 || it == 2 }
+    pump { fieldText() == "부는 언덕에" }
+    composeTestRule.runOnUiThread { vm.clearUnderlinePreselect() }
+    pump { vm.underlinePreselect.value == null }
+    composeTestRule.waitForIdle()
+    composeTestRule.onAllNodesWithTag("ocr_full_text_toggle").assertCountEquals(1)
+    assertTrue(fieldText() == "부는 언덕에")
+  }
+
+  @Test
+  fun textEditedBeforeThePreselectArrives_isNotOverwritten() {
+    // 미리 선택이 늦게 오면(큰 사진) 사용자가 먼저 편집창을 고칠 수 있다 — 늦게 온 밑줄 어절이 그 글을 덮지 않는다.
+    val gate = CompletableDeferred<Unit>()
+    val vm = recognize(gate) { it == 1 || it == 2 }
+    pump { fieldText() == full }
+    composeTestRule.onNodeWithTag("diary_extracted_text_input").performScrollTo().performTextReplacement("내가 고친 글")
+    pump { fieldText() == "내가 고친 글" }
+    gate.complete(Unit)
+    pump { vm.underlinePreselect.value != null }
+    repeat(10) { shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(20) }
+    assertTrue(fieldText() == "내가 고친 글")
   }
 }
