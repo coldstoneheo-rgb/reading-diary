@@ -66,7 +66,7 @@ main = a127601(#94). 열린 PR은 #78(draft)뿐이다. 아래 순서로 이어 �
 1. **R1 PR 올리기**
    - 워크트리: `.claude/worktrees/agent-a9fc4acfc8f5d1679`, 가지 `feat/r1-record-screen-density` @ 026eaea.
    - 전체 `verifyRoborazziDebug` 결과를 확인한다. `FirstRunSafetyTest`의 «UncaughtExceptionsBeforeTest»가 되풀이되면, 앞 시험이 남긴 예외의 출처를 찾는다. 새 스낵바 코루틴을 먼저 의심한다. main에서도 같은 일이 나는지도 견준다.
-   - 통과하면 푸시하고 PR을 연다. 본문 초안은 이 창 스크래치 `r1-body.md`에 있다. 스크래치가 지워졌으면 critic 보고 요약으로 다시 쓴다. 들어갈 것: 계획서 §6 표 · 기준 이미지 12장 · 후속 6건 · 서재 판정을 뗀 까닭.
+   - 통과하면 푸시하고 PR을 연다. 본문 초안은 `.claude/worktrees/r1-pr-body.draft.md`(git 밖)에 있다. 들어갈 것: 계획서 §6 표 · 기준 이미지 12장 · 후속 6건 · 서재 판정을 뗀 까닭.
    - critic 7/10 PASS를 받은 상태에서 LC 게이트로 간다.
 2. **서재 판정 PR**
    - 가지: `fix/reading-status-started-main` 023bccf, 워크트리 `.claude/worktrees/status-started`.
