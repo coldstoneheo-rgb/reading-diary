@@ -11,6 +11,8 @@ import android.os.Bundle
 import android.os.Looper
 import android.os.Parcel
 import android.provider.MediaStore
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -119,14 +121,15 @@ class CameraProcessDeathTest {
   }
 
   private fun textShown(text: String) = composeTestRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
+  private fun descShown(label: String) = composeTestRule.onAllNodesWithContentDescription(label).fetchSemanticsNodes().isNotEmpty()
 
   /** 책 상세 → 기록 화면 → «사진 촬영» 누름까지. */
   private fun openCamera(controller: ActivityController<MainActivity>): CameraRequest {
     val model = vm(controller.get())
     model.navigateTo(Screen.BookDetail(bookId))
     model.navigateTo(Screen.AddDiary(bookId))
-    settle { textShown("사진 촬영") }
-    composeTestRule.onNodeWithText("사진 촬영").performScrollTo().performClick()
+    settle { descShown("사진 촬영") }
+    composeTestRule.onNodeWithContentDescription("사진 촬영").performClick()
     composeTestRule.waitForIdle()
     shadowOf(Looper.getMainLooper()).idle()
     val started = shadowOf(controller.get()).nextStartedActivityForResult
@@ -190,7 +193,7 @@ class CameraProcessDeathTest {
 
     assertTrue("재생성 파괴가 카메라가 쓸 임시 파일을 지우면 안 된다", tempFileSurvivedDestroy)
     assertEquals(Screen.AddDiary(bookId), vm(second.get()).currentScreenState.value)
-    settle { textShown("자르기 확정하기") }
+    settle { textShown("자르기 확정") }
     assertNotEquals(CANCELED_TOAST, ShadowToast.getTextOfLatestToast())
     composeTestRule.onNodeWithTag("camera_crop_card").captureRoboImage("src/test/screenshots/camera_restored_crop_step.png")
   }
@@ -212,7 +215,7 @@ class CameraProcessDeathTest {
     val second = killAndRestore(first, openCamera(first), Activity.RESULT_CANCELED)
 
     assertEquals(Screen.AddDiary(bookId), vm(second.get()).currentScreenState.value)
-    settle { textShown("자르기 확정하기") }
+    settle { textShown("자르기 확정") }
   }
 
   @Test
@@ -221,9 +224,9 @@ class CameraProcessDeathTest {
     val second = killAndRestore(first, openCamera(first), Activity.RESULT_CANCELED) { }
 
     assertEquals(Screen.AddDiary(bookId), vm(second.get()).currentScreenState.value)
-    settle { textShown("사진 촬영") }
+    settle { descShown("사진 촬영") }
     assertEquals(CANCELED_TOAST, ShadowToast.getTextOfLatestToast())
-    assertFalse(textShown("자르기 확정하기"))
+    assertFalse(textShown("자르기 확정"))
   }
 
   @Test
@@ -235,9 +238,9 @@ class CameraProcessDeathTest {
     }
 
     assertEquals(Screen.AddDiary(bookId), vm(second.get()).currentScreenState.value)
-    settle { textShown("사진 촬영") }
+    settle { descShown("사진 촬영") }
     assertEquals(CANCELED_TOAST, ShadowToast.getTextOfLatestToast())
-    assertFalse(textShown("자르기 확정하기"))
+    assertFalse(textShown("자르기 확정"))
   }
 
   /** 받기 전과 없음의 구분은 NavigationRestoreTest.loadedBooks_startsUnknown_notEmpty가 지킨다. */
@@ -245,7 +248,7 @@ class CameraProcessDeathTest {
   fun missingBook_showsMessage_andWayBack() {
     val first = start()
     val second = killAndRestore(first, openCamera(first), Activity.RESULT_OK)
-    settle { textShown("자르기 확정하기") }
+    settle { textShown("자르기 확정") }
     vm(second.get()).navigateTo(Screen.AddDiary(987_654))
     settle { textShown("돌아가기") }
     assertTrue("정말 없는 책이면 안내하고 나갈 길을 준다", textShown("해당 책을 일치시킬 수 없습니다."))

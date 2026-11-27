@@ -106,7 +106,7 @@ class DiaryDraftRestoreTest {
   }
 
   private fun clickSave() =
-    composeTestRule.onNodeWithTag("save_diary_submit_button").performScrollTo().performClick()
+    composeTestRule.onNodeWithTag("save_diary_submit_button").performClick()
 
   /** 저장이 커밋 앞에서 기다리게 한다. private이라 리플렉션으로 잡는다. */
   private fun holdSaves() {

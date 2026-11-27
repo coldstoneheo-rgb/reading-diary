@@ -20,6 +20,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.AppDatabase
 import com.example.data.Book
@@ -71,13 +74,29 @@ class FirstRunSafetyTest {
     )
   }
 
-  private fun viewModel(text: String = "쓰지 않음") = ReadingViewModel(app, FixedExtractor(text), FixedExtractor(text), FakeDiaryPhotoStore()) { false }
+  /**
+   * 시험마다 만든 ViewModel을 담아 두고 끝에 비운다(onCleared → viewModelScope 취소).
+   * 비우지 않으면 그 ViewModel의 Room Flow 수집(예: loadBookDetail의 getBookById)이 살아 있다가
+   * 다음 시험의 [newInstall]이 DB를 닫는 순간 «connection pool has been closed»로 터지고,
+   * 그 예외가 다음 시험의 UncaughtExceptionsBeforeTest로 보고된다.
+   */
+  private val viewModels = ViewModelStore()
+
+  private fun viewModel(text: String = "쓰지 않음"): ReadingViewModel {
+    val factory = object : ViewModelProvider.Factory {
+      @Suppress("UNCHECKED_CAST")
+      override fun <T : ViewModel> create(modelClass: Class<T>): T =
+        ReadingViewModel(app, FixedExtractor(text), FixedExtractor(text), FakeDiaryPhotoStore()) { false } as T
+    }
+    return ViewModelProvider(viewModels, factory)["vm${viewModels.keys().size}", ReadingViewModel::class.java]
+  }
 
   private val collectors = mutableListOf<Job>()
 
   @After
   fun tearDown() {
     collectors.forEach { it.cancel() }
+    viewModels.clear() // DB를 닫기 전에 수집을 먼저 끊는다.
     newInstall()
   }
 
@@ -309,26 +328,31 @@ class FirstRunSafetyTest {
     val bookId = vm.books.value.single().id
     pump { composeTestRule.onAllNodesWithTag("book_card_$bookId").fetchSemanticsNodes().isNotEmpty() }
     composeTestRule.onNodeWithTag("book_card_$bookId").performClick()
+    // 새 책은 «읽기 시작»을 눌러야 기록하기가 열린다(HO-2026-1127 조건 4).
+    pump { composeTestRule.onAllNodesWithTag("start_reading_button").fetchSemanticsNodes().isNotEmpty() }
+    assertTrue(composeTestRule.onAllNodesWithTag("add_diary_button").fetchSemanticsNodes().isEmpty())
+    composeTestRule.onNodeWithTag("start_reading_button").performScrollTo().performClick()
     pump { composeTestRule.onAllNodesWithTag("add_diary_button").fetchSemanticsNodes().isNotEmpty() }
     composeTestRule.onAllNodesWithTag("add_diary_button").onFirst().performClick()
     pump { composeTestRule.onAllNodesWithTag("diary_page_input").fetchSemanticsNodes().isNotEmpty() }
 
     // 3) 인식(사진 · ML Kit만 가짜) → 결과가 편집창에 들어온다 → 고친다
     composeTestRule.runOnUiThread { vm.processUnderlineOcr(Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)) }
-    pump { shown("바람이 부는 언덕에 나무가 서 있다") }
-    // 밑줄 어절 칩: 미리 켜져 있지만 버튼을 눌러야 문장이 바뀐다. 잘못 켜진 «부는»은 끄고 놓친 «나무가»는 켠다.
+    // 밑줄 어절 칩이 뜨고, 편집창은 켜진 어절만으로 시작한다(전체 글은 접힌 «원문 전체»). 칩을 고친 뒤에는 버튼을 눌러야 문장이 바뀐다.
     pump { composeTestRule.onAllNodesWithTag("underline_preselect_panel").fetchSemanticsNodes().isNotEmpty() }
+    pump { shown("바람이 부는 언덕에") && !shown("바람이 부는 언덕에 나무가") }
+    // 잘못 켜진 «부는»은 끄고 놓친 «나무가»는 켠다.
     composeTestRule.onNodeWithTag("preselect_word_0").assertIsSelected()
     composeTestRule.onNodeWithTag("preselect_word_3").assertIsNotSelected()
     composeTestRule.onNodeWithTag("preselect_word_1").performScrollTo().performClick()
     composeTestRule.onNodeWithTag("preselect_word_3").performScrollTo().performClick()
     composeTestRule.waitForIdle()
-    assertTrue(shown("바람이 부는 언덕에 나무가 서 있다"))
+    assertTrue(shown("바람이 부는 언덕에") && !shown("바람이 언덕에 나무가"))
     composeTestRule.onNodeWithTag("preselect_apply_button").performScrollTo().performClick()
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithTag("diary_extracted_text_input").assertTextContains("바람이 언덕에 나무가")
     composeTestRule.onNodeWithTag("diary_page_input").performScrollTo().performTextReplacement("7")
-    composeTestRule.onNodeWithTag("save_diary_submit_button").performScrollTo().performClick()
+    composeTestRule.onNodeWithTag("save_diary_submit_button").performClick()
     pump { vm.currentScreenState.value == Screen.BookDetail(bookId) }
     assertEquals("칩으로 만든 문장이 그대로 저장된다", listOf("바람이 언덕에 나무가"), runBlocking { db.diaryDao().getAllDiaries().first() }.map { it.selectedText })
 

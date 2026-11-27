@@ -7,6 +7,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -23,6 +26,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -372,30 +377,14 @@ fun StatisticsScreen(
                     }
 
                     val daysGrid = remember(activityMap) {
-                        val list = mutableListOf<List<Pair<String, Int>>>()
-                        val calendar = Calendar.getInstance()
-                        // Find the start date: 105 days ago, adjusted to start on Sunday/Monday
-                        calendar.add(Calendar.DAY_OF_YEAR, -104)
-                        val startDayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
-                        calendar.add(Calendar.DAY_OF_YEAR, -(startDayOfWeek - 1)) //Align to first row
-
-                        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                        
-                        // Create 15 columns
-                        for (col in 0 until 15) {
-                            val columnDays = mutableListOf<Pair<String, Int>>()
-                            // 7 rows per week
-                            for (row in 0 until 7) {
-                                val curDate = calendar.time
-                                val dateStr = sdf.format(curDate)
-                                val count = activityMap[dateStr] ?: 0
-                                columnDays.add(Pair(dateStr, count))
-                                calendar.add(Calendar.DAY_OF_YEAR, 1)
-                            }
-                            list.add(columnDays)
+                        grassGridDates(Calendar.getInstance()).map { column ->
+                            column.map { dateStr -> Pair(dateStr, activityMap[dateStr] ?: 0) }
                         }
-                        list
                     }
+                    // 요일 글자 줄 높이로 쓸 잰 칸 높이(px). 폭이 바뀌면 다시 잰다.
+                    var cellHeightPx by remember(LocalConfiguration.current.screenWidthDp) { mutableIntStateOf(0) }
+                    // 오늘 뒤 같은 주 칸은 아직 오지 않은 날이라 누름 동작(«기록이 없습니다» 토스트)을 달지 않는다.
+                    val todayStr = remember(daysGrid) { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()) }
 
                     // Render the Grass Calendar
                     Row(
@@ -405,25 +394,39 @@ fun StatisticsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         // Days Indicator labels (S, M, T, W, T, F, S)
+                        // 글자 줄 높이 = 잰 칸 높이(칸은 열 폭만큼 정사각형이라 고정 13dp면 «토»가 금요일 줄 옆에 왔다).
                         Column(
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                             modifier = Modifier.padding(end = 4.dp)
                         ) {
                             val dayLabels = listOf("일", "", "화", "", "목", "", "토")
+                            val labelRowHeight = if (cellHeightPx > 0) with(LocalDensity.current) { cellHeightPx.toDp() } else 13.dp
                             repeat(7) { i ->
-                                Text(
-                                    text = dayLabels[i],
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
-                                    modifier = Modifier.height(13.dp)
-                                )
+                                Box(
+                                    modifier = Modifier.height(labelRowHeight),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    Text(
+                                        text = dayLabels[i],
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+                                    )
+                                }
                             }
                         }
 
                         // Grass blocks grid row index iteration (0..6)
+                        // 낭독기에는 칸 105개를 하나씩 읽히지 않고 묶음 설명 하나로 읽힌다(칸 누름은 같은 날짜 · 개수를 토스트로 보일 뿐이다).
+                        val recordedDays = remember(daysGrid) { daysGrid.sumOf { col -> col.count { it.second > 0 } } }
+                        val recordedCount = remember(daysGrid) { daysGrid.sumOf { col -> col.sumOf { it.second } } }
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("reading_activity_grid")
+                                .clearAndSetSemantics {
+                                    contentDescription = "최근 ${daysGrid.size}주 독서 잔디: 기록한 날 ${recordedDays}일 · 기록 ${recordedCount}개"
+                                }
                         ) {
                             daysGrid.forEach { column ->
                                 Column(
@@ -442,9 +445,10 @@ fun StatisticsScreen(
                                             modifier = Modifier
                                                 .aspectRatio(1f)
                                                 .fillMaxWidth()
+                                                .onSizeChanged { if (it.height > cellHeightPx) cellHeightPx = it.height } // 열 폭이 1px씩 달라 가장 큰 칸(= 격자 줄 높이)을 쓴다
                                                 .clip(RoundedCornerShape(2.dp))
                                                 .background(color)
-                                                .clickable {
+                                                .then(if (isGrassDayTappable(dateStr, todayStr)) Modifier.clickable {
                                                     val formattedDate = try {
                                                         val orig = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateStr)
                                                         SimpleDateFormat("M월 d일", Locale.KOREA).format(orig)
@@ -456,7 +460,7 @@ fun StatisticsScreen(
                                                     } else {
                                                         Toast.makeText(context, "$formattedDate: 기록이 없습니다.", Toast.LENGTH_SHORT).show()
                                                     }
-                                                }
+                                                } else Modifier)
                                         )
                                     }
                                 }
@@ -690,3 +694,20 @@ fun StatisticsScreen(
         }
     }
 }
+
+/**
+ * 독서 잔디의 날짜 칸: 15열(주) × 7행(일 ~ 토). 마지막 열 = 오늘이 든 주라서 어느 요일이든 오늘이 격자 안에 든다
+ * (예전 계산은 «오늘 − 104일»이 든 주의 일요일에서 105일을 세어, 토요일이 아니면 오늘 포함 최근 1 ~ 6일이 빠졌다).
+ * 날짜 글자는 기록 집계(activityMap)와 같은 "yyyy-MM-dd" · 기본 로캘이다. 오늘 뒤 같은 주 칸은 기록 0으로 보인다.
+ */
+internal fun grassGridDates(today: Calendar): List<List<String>> {
+    val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    val c = today.clone() as Calendar
+    c.add(Calendar.DAY_OF_YEAR, -(c.get(Calendar.DAY_OF_WEEK) - Calendar.SUNDAY) - 14 * 7)
+    return List(15) {
+        List(7) { sdf.format(c.time).also { c.add(Calendar.DAY_OF_YEAR, 1) } }
+    }
+}
+
+/** 잔디 칸을 누를 수 있는가: 오늘까지만(둘 다 grassGridDates와 같은 "yyyy-MM-dd" 글자라 글자 순서 = 날짜 순서). */
+internal fun isGrassDayTappable(dateStr: String, todayStr: String): Boolean = dateStr <= todayStr

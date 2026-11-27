@@ -76,7 +76,33 @@ object UnderlineDetector {
          * 앱 쪽 여유는 약 5px(더 크게 찍은 사진은 H가 60을 넘어 다시 평균된다).
          * 1픽셀 모드에서도 띠 양 끝 1행은 읽지 않는다(3행 평균용 여백) — 앱 해상도에서 K1a 띠 확장은 사실상 0이다(기준 자료 11장: 원본 192/7/79 불변 · 앱 174 → 188어절). 0 = 늘 3픽셀.
          */
-        val smoothMinHeight: Int = 60
+        val smoothMinHeight: Int = 60,
+        /**
+         * 열별 종이 밝기(HO-2026-1127 검출기 수리): «어둡다»를 띠 전체 종이(중앙값) 대신 **그 열 둘레의 종이**에 대해 잰다.
+         * 열마다 띠 안 세로 [localPaperQuantile] 분위(밑줄 · 표시 획은 띠 높이의 일부라 이 분위는 종이)를 구하고,
+         * 가로 ±[localPaperRadiusRatio] × H 안에서 그 값들의 중앙값을 그 열의 종이로 쓴다.
+         * 한계: 띠 양 끝에서는 창이 한쪽으로 잘려 종이를 안쪽(약 1.25H 안) 값으로 잡는다 — 조명 기울기가 매우 가파르면 줄 끝 여유가 줄어든다.
+         * 비용: 줄마다 열 × 창 정렬(앱 해상도에서 줄당 수천 번). 기본 디스패처에서 돈다 — 기기에서 느리면 256칸 히스토그램 이동 중앙값으로 바꾼다. 조명이 줄 왼쪽 → 오른쪽으로 기울어 띠 끝이 어두운 사진에서 줄 끝 어절이
+         * 밑줄로 켜지던 과선택을 막는다. 0 = 끔(띠 전체 중앙값 하나 — 수리 전 동작).
+         */
+        val localPaperRadiusRatio: Double = 3.0,
+        /** 열별 종이의 세로 분위(0.5 = 중앙값). 띠가 낮아 밑줄 · 표시 획이 띠 높이의 큰 몫을 차지해도 종이를 고르도록 높일 수 있다. */
+        val localPaperQuantile: Double = 0.75,
+        /**
+         * 둘레 표시(동그라미 · 네모)의 윗변 거르기(HO-2026-1127 추기 4 · 사용자 기준 «둘레 안 어절은 켜짐, 윗변 때문에 켜진 윗줄은 과선택»).
+         * 둘레를 다음 줄 어절에 치면 윗변이 이 줄 아래 띠에 들어와 밑줄처럼 읽힌다. 모양으로 가른다: 구간의 획과 이어진 어두운 픽셀
+         * (8방향 연결)이 **양 끝 둘 다**에서 띠 바닥을 지나 다음 줄 안으로 [enclosureDepthRatio]만큼 내려가고, 구간 가운데 획은 바닥에서 떨어져 있으면 둘레의
+         * 윗변으로 보고 버린다. 밑줄은 양 끝이 띠 안에서 끝난다. 위치(띠 안 높이)만으로 거르는 규칙은 271 기준 맞음을 192로 떨어뜨려 폐기됐다.
+         * 한계: 이어진 잉크가 끝 구역 «안에서» 내려갈 필요는 없다(다음 줄 글자를 타고 가로로 번진 경로도 센다). 구간이 2 × 끝 구역보다
+         * 짧으면 두 끝 구역이 겹쳐 깊은 픽셀 하나로 양쪽이 맞는다. 사진 아래 끝 가까이(깊이 행이 사진 밖)나 다음 줄이 없는 줄에서는 거르지 않는다.
+         * 바닥 구역 0.12H는 재지 않은 값이다(끝 구역 × 옆변 깊이만 쟀다 — GoldenMeasure 변형).
+         * 0 = 끔. 값 = 끝 구역 폭(× H) — 구간 끝에서 안팎으로 이만큼을 본다(둘레의 가파른 옆변은 «가는 획» 조건에서 빠져 구간 밖에 있다).
+         */
+        val enclosureEndRatio: Double = 0.6,
+        /** 띠 바닥 구역 높이(× H): 구간 가운데 획이 이 구역 안이면(다음 줄에 붙은 밑줄) 둘레로 보지 않는다. */
+        val enclosureBottomRatio: Double = 0.12,
+        /** 옆변 깊이(× H): 구간 획과 이어진 잉크가 양 끝 구역에서 띠 바닥보다 이만큼 더 아래(다음 줄 안)까지 내려가야 둘레로 본다. */
+        val enclosureDepthRatio: Double = 0.4
     )
 
     /** [lineIndex]번 줄 아래에서 찾은 밑줄 구간(가로 픽셀 [left, right)). */
@@ -126,25 +152,78 @@ object UnderlineDetector {
             val slope = slopes?.get(idx) ?: 0.0
             val cx = (line.left + line.right) / 2.0
             val smooth = h >= params.smoothMinHeight
+            val colPaper = if (params.localPaperRadiusRatio > 0) localPaper(gray, width, height, x0, x1, y0, y1, slope, cx, (params.localPaperRadiusRatio * h).toInt().coerceAtLeast(1), params.localPaperQuantile) else null
             val dark = BooleanArray(x1 - x0)
             val seed = BooleanArray(x1 - x0)
+            val minY = IntArray(x1 - x0)
+            // 띠 안 한 점의 값(기울기를 따라 옮긴 행 · 세로 3픽셀 평균은 줄 높이 ≥ smoothMinHeight일 때만 — 종이 결·잡티 한 점을 획으로
+            // 잡지 않는다). 사진 밖으로 옮겨지면 종이(255)로 본다. 기운 줄: 반올림은 짝수 쪽 — 측정 포트와 같은 값.
+            fun value(x: Int, y: Int): Double {
+                val off = if (slope == 0.0) 0 else Math.rint((x - cx) * slope).toInt()
+                val yy = y + off
+                return if (yy < 1 || yy > height - 2) 255.0
+                else if (!smooth) gray[yy * width + x].toDouble()
+                else (gray[(yy - 1) * width + x] + gray[yy * width + x] + gray[(yy + 1) * width + x]) / 3.0
+            }
+            fun paperAt(x: Int): Double = colPaper?.get(x - x0)?.toDouble() ?: paper.toDouble()
             for (x in x0 until x1) {
+                val pp = paperAt(x)
                 var min = Double.MAX_VALUE
                 var thick = 0
-                // 기운 줄: 띠를 줄 가운데에서 벗어난 만큼 위아래로 옮겨 읽는다(반올림은 짝수 쪽 — 측정 포트와 같은 값).
-                val off = if (slope == 0.0) 0 else Math.rint((x - cx) * slope).toInt()
                 for (y in (y0 + 1) until (y1 - 1)) {
-                    val yy = y + off
-                    // 세로 3픽셀 평균(줄 높이 ≥ smoothMinHeight일 때만) — 종이 결·잡티 한 점을 획으로 잡지 않는다.
-                    // 사진 밖으로 옮겨지면 종이(255)로 본다.
-                    val v = if (yy < 1 || yy > height - 2) 255.0
-                    else if (!smooth) gray[yy * width + x].toDouble()
-                    else (gray[(yy - 1) * width + x] + gray[yy * width + x] + gray[(yy + 1) * width + x]) / 3.0
-                    if (v < min) min = v
-                    if ((paper - v) / deltaText >= params.darkRatio) thick++
+                    val v = value(x, y)
+                    if (v < min) { min = v; minY[x - x0] = y }
+                    if ((pp - v) / deltaText >= params.darkRatio) thick++
                 }
-                dark[x - x0] = (paper - min) / deltaText >= params.darkRatio && thick <= maxThick
-                seed[x - x0] = dark[x - x0] && (paper - min) / deltaText >= params.seedRatio
+                dark[x - x0] = (pp - min) / deltaText >= params.darkRatio && thick <= maxThick
+                seed[x - x0] = dark[x - x0] && (pp - min) / deltaText >= params.seedRatio
+            }
+
+            // 둘레 윗변([Params.enclosureEndRatio]): 구간 획에서 8방향으로 이어진 어두운 픽셀이 양 끝 구역 둘 다에서 다음 줄 안으로
+            // 깊이 내려가고, 구간 가운데 획(중앙값 행)은 띠 바닥 구역 위에 있으면 참.
+            fun enclosureTop(s: Int, l: Int): Boolean {
+                if (params.enclosureEndRatio <= 0) return false
+                val endW = (params.enclosureEndRatio * h).toInt().coerceAtLeast(1)
+                val ya = y0 + 1
+                val yb = y1 - 1 // 띠에서 읽는 행 [ya, yb)
+                val zone = (params.enclosureBottomRatio * h).toInt().coerceAtLeast(1)
+                val mids = (s + (l - s) / 4..l - (l - s) / 4).filter { dark[it] }.map { minY[it] }.sorted()
+                if (mids.isEmpty() || mids[mids.size / 2] >= yb - zone) return false
+                // 옆변은 띠 바닥에서 끝나지 않고 다음 줄 안으로 깊이 내려간다(네모 아래 변 모서리의 짧은 삐침 · 다음 줄 글자 윗부분과 가른다).
+                val deep = yb + (params.enclosureDepthRatio * h).toInt().coerceAtLeast(1)
+                val yc = minOf(height - 1, deep + 1)
+                if (deep >= yc) return false
+                val ca = maxOf(0, s - endW)
+                val cb = minOf(dark.size - 1, l + endW)
+                val rows = yc - ya
+                val seen = BooleanArray((cb - ca + 1) * rows)
+                fun isInk(i: Int, y: Int): Boolean = (paperAt(x0 + i) - value(x0 + i, y)) / deltaText >= params.darkRatio
+                val queue = ArrayDeque<Int>()
+                for (i in s..l) if (dark[i]) {
+                    val k = (i - ca) * rows + (minY[i] - ya)
+                    if (!seen[k]) { seen[k] = true; queue.add(k) }
+                }
+                var leftHit = false
+                var rightHit = false
+                while (queue.isNotEmpty() && !(leftHit && rightHit)) {
+                    val k = queue.removeFirst()
+                    val i = k / rows + ca
+                    val y = k % rows + ya
+                    if (y >= deep) {
+                        if (i <= s + endW) leftHit = true
+                        if (i >= l - endW) rightHit = true
+                    }
+                    for (di in -1..1) for (dy in -1..1) {
+                        val ni = i + di
+                        val ny = y + dy
+                        if (ni < ca || ni > cb || ny < ya || ny >= yc) continue
+                        val nk = (ni - ca) * rows + (ny - ya)
+                        if (seen[nk]) continue
+                        seen[nk] = true
+                        if (isInk(ni, ny)) queue.add(nk)
+                    }
+                }
+                return leftHit && rightHit
             }
 
             val gap = params.gapRatio * h
@@ -154,7 +233,7 @@ object UnderlineDetector {
             fun flush() {
                 if (start < 0 || last - start + 1 < minLen) return
                 val seeds = (start..last).count { seed[it] }
-                if (seeds >= params.seedFraction * (last - start + 1)) runs += Run(idx, x0 + start, x0 + last + 1)
+                if (seeds >= params.seedFraction * (last - start + 1) && !enclosureTop(start, last)) runs += Run(idx, x0 + start, x0 + last + 1)
             }
             for (i in dark.indices) {
                 if (!dark[i]) continue
@@ -242,6 +321,32 @@ object UnderlineDetector {
     fun toGray(argb: IntArray): IntArray = IntArray(argb.size) {
         val p = argb[it]
         (((p shr 16) and 0xFF) * 299 + ((p shr 8) and 0xFF) * 587 + (p and 0xFF) * 114) / 1000
+    }
+
+    /**
+     * 열별 종이 밝기([Params.localPaperRadiusRatio]): 열마다 띠 안(기울기를 따라 옮긴 행) 세로 [q] 분위 → 가로 ±[radius] 열의 중앙값.
+     * 사진 밖으로 옮겨진 행은 건너뛴다(값이 하나도 없으면 255).
+     */
+    private fun localPaper(gray: IntArray, width: Int, height: Int, x0: Int, x1: Int, y0: Int, y1: Int, slope: Double, cx: Double, radius: Int, q: Double): IntArray {
+        require(q in 0.0..1.0) { "localPaperQuantile" }
+        val col = IntArray(x1 - x0)
+        val buf = IntArray(maxOf(1, y1 - y0))
+        for (x in x0 until x1) {
+            val off = if (slope == 0.0) 0 else Math.rint((x - cx) * slope).toInt()
+            var n = 0
+            for (y in y0 until y1) {
+                val yy = y + off
+                if (yy in 0 until height) buf[n++] = gray[yy * width + x]
+            }
+            col[x - x0] = if (n == 0) 255 else buf.copyOf(n).also { it.sort() }[((n - 1) * q).toInt()]
+        }
+        val out = IntArray(col.size)
+        for (i in col.indices) {
+            val a = maxOf(0, i - radius)
+            val b = minOf(col.size, i + radius + 1)
+            out[i] = col.copyOfRange(a, b).also { it.sort() }[(b - a - 1) / 2]
+        }
+        return out
     }
 
     private fun sample(gray: IntArray, width: Int, l: Int, t: Int, r: Int, b: Int, step: Int): IntArray {

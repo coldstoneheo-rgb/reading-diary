@@ -12,6 +12,7 @@ import androidx.activity.result.ActivityResultRegistry
 import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.semantics.getOrNull
 import com.github.takahirom.roborazzi.captureRoboImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -19,6 +20,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextReplacement
 import androidx.core.app.ActivityOptionsCompat
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.AppDatabase
@@ -118,11 +120,34 @@ class RedesignCaptureTest {
     composeTestRule.setContent { MyApplicationTheme { BookDetailScreen(viewModel = vm) } }
     composeTestRule.waitUntil(10_000) { has("book_detail_title") }
     shot("detail-records-1")
-    composeTestRule.onAllNodesWithTag("add_diary_button").fetchSemanticsNodes().firstOrNull()?.let {
-      composeTestRule.onNodeWithTag("add_diary_button").performScrollTo()
-    }
+    // 아래로 내린 장면: 기록하기가 FAB(R3)가 된 뒤에는 목록 끝(마지막 기록)까지 내린다.
+    val lastTag = composeTestRule.onAllNodes(androidx.compose.ui.test.SemanticsMatcher("diary") { n ->
+      n.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.matches(Regex("diary_item_\\d+")) == true
+    }).fetchSemanticsNodes().lastOrNull()?.config?.get(androidx.compose.ui.semantics.SemanticsProperties.TestTag)
+    if (lastTag != null) composeTestRule.onNodeWithTag(lastTag).performScrollTo()
     shot("detail-records-2")
   }
+
+  // ── R3 장면: 기록 3건 상세(밝은 · Dark · 글꼴 1.3 · 2.0) ──
+
+  private fun r3Detail(name: String, themeId: Int, fontScale: Float) {
+    val id = book("READING", 96, "2026-11-20 09:00")
+    runBlocking {
+      db.diaryDao().insert(Diary(bookId = id, page = 45, selectedText = sampleBody, notes = "짧은 메모 한 줄", createdAt = 1_795_700_000_000L))
+      db.diaryDao().insert(Diary(bookId = id, page = 72, selectedText = "창문 너머로 들어온 빛이 책상 위의 종이를 천천히 데웠다.", notes = "", createdAt = 1_795_720_000_000L))
+      db.diaryDao().insert(Diary(bookId = id, page = 96, selectedText = "길 끝에는 오래된 집이 한 채 있다", notes = "집 안을 상상해 본다", createdAt = 1_795_748_760_000L))
+    }
+    val vm = vm()
+    composeTestRule.runOnUiThread { vm.navigateTo(Screen.BookDetail(id)) }
+    composeTestRule.setContent { RecordScreenHarness.Frame(themeId, fontScale) { BookDetailScreen(viewModel = vm) } }
+    composeTestRule.waitUntil(10_000) { has("book_detail_title") && has("diary_list_header") }
+    shot(name)
+  }
+
+  @Test fun r3_detail_light() { if (out != null) r3Detail("r3-detail-light", RecordScreenHarness.LIGHT, 1f) }
+  @Test fun r3_detail_dark() { if (out != null) r3Detail("r3-detail-dark", RecordScreenHarness.DARK, 1f) }
+  @Test fun r3_detail_font130() { if (out != null) r3Detail("r3-detail-font130", RecordScreenHarness.LIGHT, 1.3f) }
+  @Test fun r3_detail_font200() { if (out != null) r3Detail("r3-detail-font200", RecordScreenHarness.LIGHT, 2f) }
 
   /** 견본 쪽 그림(회색 바탕에 글줄 막대) — 자르기 단계용. */
   private fun pagePhoto(): Uri {
@@ -158,11 +183,108 @@ class RedesignCaptureTest {
     shot("write-1-top")
     // 갤러리 버튼: 지금 화면은 글자 «사진 선택», 재설계 뒤에는 같은 이름의 아이콘(contentDescription).
     composeTestRule.onNode(androidx.compose.ui.test.hasText("사진 선택").or(androidx.compose.ui.test.hasContentDescription("사진 선택")), useUnmergedTree = false)
-      .performScrollTo().performClick()
+      .performClick()
     composeTestRule.waitUntil(10_000) { has("camera_crop_card") }
     composeTestRule.onNodeWithTag("camera_crop_card").performScrollTo()
     shot("write-2-crop")
   }
+
+  // ── R1 장면(before/after 짝): 첫 화면(밝은 · Dark · 글꼴 1.3 · 2.0) · 인식 뒤 편집창(밝은 · Dark) · 키보드 ──
+
+  /** 새 기록의 첫 화면. */
+  private fun r1Top(name: String, themeId: Int, fontScale: Float) {
+    val id = book("READING", 96, "2026-11-20")
+    val vm = vm()
+    composeTestRule.setContent { RecordScreenHarness.Frame(themeId, fontScale) { OcrDiaryScreen(viewModel = vm, bookId = id, diaryId = null) } }
+    composeTestRule.waitUntil(10_000) { has("diary_page_input") }
+    shot(name)
+  }
+
+  @Test fun r1_top_light() { if (out != null) r1Top("r1-top-light", RecordScreenHarness.LIGHT, 1f) }
+  @Test fun r1_top_dark() { if (out != null) r1Top("r1-top-dark", RecordScreenHarness.DARK, 1f) }
+  @Test fun r1_top_font130() { if (out != null) r1Top("r1-top-font130", RecordScreenHarness.LIGHT, 1.3f) }
+  @Test fun r1_top_font200() { if (out != null) r1Top("r1-top-font200", RecordScreenHarness.LIGHT, 2f) }
+
+  /** 인식 뒤(밑줄 어절 칩 · 편집창). 고치기 화면에 미리 선택을 넣어 만든다. */
+  private fun r1Text(name: String, themeId: Int, fontScale: Float) {
+    val id = book("READING", 96, "2026-11-20")
+    val full = sampleBody.repeat(6).take(570)
+    val diaryId = runBlocking { db.diaryDao().insert(Diary(bookId = id, page = 47, selectedText = full, notes = "", createdAt = 1_795_748_760_000L)).toInt() }
+    val vm = vm()
+    composeTestRule.setContent { RecordScreenHarness.Frame(themeId, fontScale) { OcrDiaryScreen(viewModel = vm, bookId = id, diaryId = diaryId) } }
+    composeTestRule.waitUntil(10_000) { has("diary_extracted_text_input") }
+    idle()
+    vm.underlinePreselect.value = full.split(" ").filter { it.isNotBlank() }.take(24).mapIndexed { i, w -> UnderlinePreselect.Word(w, i / 8, i in 2..4 || i in 17..19) }
+    idle()
+    composeTestRule.onNodeWithTag("diary_extracted_text_input").performScrollTo()
+    shot(name)
+  }
+
+  @Test fun r1_text_light() { if (out != null) r1Text("r1-text-light", RecordScreenHarness.LIGHT, 1f) }
+  @Test fun r1_text_dark() { if (out != null) r1Text("r1-text-dark", RecordScreenHarness.DARK, 1f) }
+  @Test fun r1_text_font200() { if (out != null) r1Text("r1-text-font200", RecordScreenHarness.LIGHT, 2f) }
+
+  /** 메모 칸에 쓰는 중 키보드가 올라온 장면(회색 판 = 키보드 자리). */
+  @Test
+  fun r1_keyboard() {
+    if (out == null) return
+    val id = book("READING", 96, "2026-11-20")
+    val vm = vm()
+    var view: android.view.View? = null
+    composeTestRule.setContent {
+      RecordScreenHarness.Frame(imeDp = RecordScreenHarness.IME_DP, onView = { view = it }) { OcrDiaryScreen(viewModel = vm, bookId = id, diaryId = null) }
+    }
+    composeTestRule.waitUntil(10_000) { has("diary_page_input") }
+    composeTestRule.onNodeWithTag("diary_page_input").performScrollTo().performTextReplacement("47")
+    composeTestRule.onNodeWithTag("diary_extracted_text_input").performScrollTo().performTextReplacement("바람이 부는 언덕에 나무가 서 있다")
+    composeTestRule.onNodeWithTag("diary_notes_input").performScrollTo().performClick()
+    val px = (RecordScreenHarness.IME_DP * app.resources.displayMetrics.density).toInt()
+    composeTestRule.runOnUiThread { RecordScreenHarness.sendIme(view!!, px) }
+    idle()
+    composeTestRule.onNodeWithTag("diary_notes_input").performScrollTo()
+    shot("r1-keyboard")
+  }
+
+  // ── R2 장면: 자르기 단계(밝은 · Dark · 글꼴 1.3 · 2.0 · 틀 조정 열림 · 확정 뒤). before 짝은 write-2-crop. ──
+
+  private fun r2Crop(name: String, themeId: Int, fontScale: Float, openAdjust: Boolean = false, confirm: Boolean = false) {
+    val id = book("READING", 96, "2026-11-20")
+    val vm = vm()
+    val uri = pagePhoto()
+    val registryOwner = object : ActivityResultRegistryOwner {
+      override val activityResultRegistry = object : ActivityResultRegistry() {
+        override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
+          dispatchResult(requestCode, uri)
+        }
+      }
+    }
+    composeTestRule.setContent {
+      CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner) {
+        RecordScreenHarness.Frame(themeId, fontScale) { OcrDiaryScreen(viewModel = vm, bookId = id, diaryId = null) }
+      }
+    }
+    composeTestRule.waitUntil(10_000) { has("diary_page_input") }
+    composeTestRule.onNode(androidx.compose.ui.test.hasContentDescription("사진 선택")).performClick()
+    composeTestRule.waitUntil(10_000) { has("camera_crop_card") }
+    idle()
+    if (openAdjust) {
+      composeTestRule.onNodeWithTag("crop_adjust_toggle").performScrollTo().performClick()
+      composeTestRule.waitUntil(10_000) { has("crop_adjust_panel") }
+      composeTestRule.onNodeWithTag("crop_adjust_panel").performScrollTo()
+    }
+    if (confirm) {
+      composeTestRule.onNodeWithTag("crop_confirm_button").performScrollTo().performClick()
+      composeTestRule.waitUntil(10_000) { has("ocr_button") }
+    }
+    shot(name)
+  }
+
+  @Test fun r2_crop_light() { if (out != null) r2Crop("r2-crop-light", RecordScreenHarness.LIGHT, 1f) }
+  @Test fun r2_crop_dark() { if (out != null) r2Crop("r2-crop-dark", RecordScreenHarness.DARK, 1f) }
+  @Test fun r2_crop_font130() { if (out != null) r2Crop("r2-crop-font130", RecordScreenHarness.LIGHT, 1.3f) }
+  @Test fun r2_crop_font200() { if (out != null) r2Crop("r2-crop-font200", RecordScreenHarness.LIGHT, 2f) }
+  @Test fun r2_crop_adjust() { if (out != null) r2Crop("r2-crop-adjust", RecordScreenHarness.LIGHT, 1f, openAdjust = true) }
+  @Test fun r2_crop_confirmed() { if (out != null) r2Crop("r2-crop-confirmed", RecordScreenHarness.LIGHT, 1f, confirm = true) }
 
   @Test
   fun write_afterRecognition_withPreselect() {
@@ -179,7 +301,8 @@ class RedesignCaptureTest {
     idle()
     composeTestRule.onNodeWithTag("diary_extracted_text_input").performScrollTo()
     shot("write-3-text")
-    composeTestRule.onNodeWithTag("save_diary_submit_button").performScrollTo()
+    // 저장이 상단 바로 옮겨 간 뒤에도 같은 장면(화면 맨 아래 = 메모 칸)을 찍는다.
+    composeTestRule.onNodeWithTag("diary_notes_input").performScrollTo()
     shot("write-4-bottom")
   }
 }
