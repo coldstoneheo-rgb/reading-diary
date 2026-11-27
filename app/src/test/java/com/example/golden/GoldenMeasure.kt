@@ -58,8 +58,15 @@ object GoldenMeasure {
     val APP_WORD_PARAMS: List<Pair<String, UnderlineDetector.Params>> = listOf(
         "직전 기본값(한 단계 0.28)" to SINGLE_028,
         "한 단계 0.23" to SINGLE_028.copy(darkRatio = 0.23),
-        "지금 기본값 · 세로 3픽셀 평균 늘" to UnderlineDetector.Params(smoothMinHeight = 0)
-    ) + listOf(0.25, 0.24, 0.23, 0.22, 0.21).flatMap { d ->
+        "지금 기본값 · 세로 3픽셀 평균 늘" to UnderlineDetector.Params(smoothMinHeight = 0),
+        // 검출기 수리(HO-2026-1127): 열별 종이 밝기(창 반경 × 세로 분위)
+        "수리 전(띠 전체 종이)" to UnderlineDetector.Params(localPaperRadiusRatio = 0.0)
+    ) + listOf(1.5, 3.0).flatMap { r ->
+        listOf(0.5, 0.75, 0.9).map { q ->
+            val p = UnderlineDetector.Params(localPaperRadiusRatio = r, localPaperQuantile = q)
+            "열별 종이 ±${r}H · 세로 분위 $q${if (p == UnderlineDetector.Params()) " = 지금 기본값" else ""}" to p
+        }
+    } + listOf(0.25, 0.24, 0.23, 0.22, 0.21).flatMap { d ->
         listOf(0.15, 0.2, 0.25, 0.3).map { sf ->
             val p = UnderlineDetector.Params(darkRatio = d, seedFraction = sf)
             "두 단계 $d · 뚜렷한 열 $sf${if (p == UnderlineDetector.Params()) " = 지금 기본값" else ""}" to p

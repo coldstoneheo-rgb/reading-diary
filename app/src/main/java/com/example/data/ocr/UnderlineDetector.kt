@@ -76,7 +76,18 @@ object UnderlineDetector {
          * 앱 쪽 여유는 약 5px(더 크게 찍은 사진은 H가 60을 넘어 다시 평균된다).
          * 1픽셀 모드에서도 띠 양 끝 1행은 읽지 않는다(3행 평균용 여백) — 앱 해상도에서 K1a 띠 확장은 사실상 0이다(기준 자료 11장: 원본 192/7/79 불변 · 앱 174 → 188어절). 0 = 늘 3픽셀.
          */
-        val smoothMinHeight: Int = 60
+        val smoothMinHeight: Int = 60,
+        /**
+         * 열별 종이 밝기(HO-2026-1127 검출기 수리): «어둡다»를 띠 전체 종이(중앙값) 대신 **그 열 둘레의 종이**에 대해 잰다.
+         * 열마다 띠 안 세로 [localPaperQuantile] 분위(밑줄 · 표시 획은 띠 높이의 일부라 이 분위는 종이)를 구하고,
+         * 가로 ±[localPaperRadiusRatio] × H 안에서 그 값들의 중앙값을 그 열의 종이로 쓴다.
+         * 한계: 띠 양 끝에서는 창이 한쪽으로 잘려 종이를 안쪽(약 1.25H 안) 값으로 잡는다 — 조명 기울기가 매우 가파르면 줄 끝 여유가 줄어든다.
+         * 비용: 줄마다 열 × 창 정렬(앱 해상도에서 줄당 수천 번). 기본 디스패처에서 돈다 — 기기에서 느리면 256칸 히스토그램 이동 중앙값으로 바꾼다. 조명이 줄 왼쪽 → 오른쪽으로 기울어 띠 끝이 어두운 사진에서 줄 끝 어절이
+         * 밑줄로 켜지던 과선택을 막는다. 0 = 끔(띠 전체 중앙값 하나 — 수리 전 동작).
+         */
+        val localPaperRadiusRatio: Double = 3.0,
+        /** 열별 종이의 세로 분위(0.5 = 중앙값). 띠가 낮아 밑줄 · 표시 획이 띠 높이의 큰 몫을 차지해도 종이를 고르도록 높일 수 있다. */
+        val localPaperQuantile: Double = 0.75
     )
 
     /** [lineIndex]번 줄 아래에서 찾은 밑줄 구간(가로 픽셀 [left, right)). */
@@ -126,9 +137,11 @@ object UnderlineDetector {
             val slope = slopes?.get(idx) ?: 0.0
             val cx = (line.left + line.right) / 2.0
             val smooth = h >= params.smoothMinHeight
+            val colPaper = if (params.localPaperRadiusRatio > 0) localPaper(gray, width, height, x0, x1, y0, y1, slope, cx, (params.localPaperRadiusRatio * h).toInt().coerceAtLeast(1), params.localPaperQuantile) else null
             val dark = BooleanArray(x1 - x0)
             val seed = BooleanArray(x1 - x0)
             for (x in x0 until x1) {
+                val pp = colPaper?.get(x - x0)?.toDouble() ?: paper.toDouble()
                 var min = Double.MAX_VALUE
                 var thick = 0
                 // 기운 줄: 띠를 줄 가운데에서 벗어난 만큼 위아래로 옮겨 읽는다(반올림은 짝수 쪽 — 측정 포트와 같은 값).
@@ -141,10 +154,10 @@ object UnderlineDetector {
                     else if (!smooth) gray[yy * width + x].toDouble()
                     else (gray[(yy - 1) * width + x] + gray[yy * width + x] + gray[(yy + 1) * width + x]) / 3.0
                     if (v < min) min = v
-                    if ((paper - v) / deltaText >= params.darkRatio) thick++
+                    if ((pp - v) / deltaText >= params.darkRatio) thick++
                 }
-                dark[x - x0] = (paper - min) / deltaText >= params.darkRatio && thick <= maxThick
-                seed[x - x0] = dark[x - x0] && (paper - min) / deltaText >= params.seedRatio
+                dark[x - x0] = (pp - min) / deltaText >= params.darkRatio && thick <= maxThick
+                seed[x - x0] = dark[x - x0] && (pp - min) / deltaText >= params.seedRatio
             }
 
             val gap = params.gapRatio * h
@@ -242,6 +255,32 @@ object UnderlineDetector {
     fun toGray(argb: IntArray): IntArray = IntArray(argb.size) {
         val p = argb[it]
         (((p shr 16) and 0xFF) * 299 + ((p shr 8) and 0xFF) * 587 + (p and 0xFF) * 114) / 1000
+    }
+
+    /**
+     * 열별 종이 밝기([Params.localPaperRadiusRatio]): 열마다 띠 안(기울기를 따라 옮긴 행) 세로 [q] 분위 → 가로 ±[radius] 열의 중앙값.
+     * 사진 밖으로 옮겨진 행은 건너뛴다(값이 하나도 없으면 255).
+     */
+    private fun localPaper(gray: IntArray, width: Int, height: Int, x0: Int, x1: Int, y0: Int, y1: Int, slope: Double, cx: Double, radius: Int, q: Double): IntArray {
+        require(q in 0.0..1.0) { "localPaperQuantile" }
+        val col = IntArray(x1 - x0)
+        val buf = IntArray(maxOf(1, y1 - y0))
+        for (x in x0 until x1) {
+            val off = if (slope == 0.0) 0 else Math.rint((x - cx) * slope).toInt()
+            var n = 0
+            for (y in y0 until y1) {
+                val yy = y + off
+                if (yy in 0 until height) buf[n++] = gray[yy * width + x]
+            }
+            col[x - x0] = if (n == 0) 255 else buf.copyOf(n).also { it.sort() }[((n - 1) * q).toInt()]
+        }
+        val out = IntArray(col.size)
+        for (i in col.indices) {
+            val a = maxOf(0, i - radius)
+            val b = minOf(col.size, i + radius + 1)
+            out[i] = col.copyOfRange(a, b).also { it.sort() }[(b - a - 1) / 2]
+        }
+        return out
     }
 
     private fun sample(gray: IntArray, width: Int, l: Int, t: Int, r: Int, b: Int, step: Int): IntArray {

@@ -340,4 +340,33 @@ class UnderlineDetectorTest {
     )
     assertArrayEquals(booleanArrayOf(true, false, false), UnderlineDetector.highlightedWords(argb, w, h, words))
   }
+
+  // ---------- 열별 종이 밝기(HO-2026-1127 검출기 수리) ----------
+
+  /**
+   * 지어낸 합성 견본: 종이 밝기가 왼쪽 230 → 오른쪽 110으로 기운 사진(조명 기울기) + 띠 전체에 옅은 자국(그 자리 종이보다 18 어두움 — 수리 뒤 문턱까지 여유를 두려고 옅게 —
+   * 뒷장 비침 · 종이 결) + 첫 어절에만 진짜 펜 밑줄. 띠 전체 중앙값 하나로 재면 어두운 오른쪽에서 옅은 자국이 밑줄 문턱을 넘어
+   * 줄 끝 어절이 켜진다(수리 전 동작 = localPaperRadiusRatio 0). 열별 종이로 재면 첫 어절만 켜진다.
+   */
+  @Test
+  fun tiltedLighting_doesNotLightTheLineEndWords() {
+    fun shade(x: Int) = 230 - 120 * x / w
+    val img = IntArray(w * h) { shade(it % w) }
+    (line1Words + line2Words).forEach { glyphWord(img, it) }
+    for (x in 50 until 390) for (t in 0 until 3) img[(95 + t) * w + x] = shade(x) - 18
+    for (x in 50 until 150) for (t in 0 until 3) img[(88 + t) * w + x] = 60
+    val words = line1Words + line2Words
+    val lineOf = listOf(0, 0, 0, 1, 1, 1)
+
+    val before = UnderlineDetector.Params(localPaperRadiusRatio = 0.0)
+    val old = UnderlineDetector.underlinedWords(words, lineOf, UnderlineDetector.detect(img, w, h, listOf(line1, line2), before, slopes = null))
+    assertTrue("수리 전에는 줄 끝 어절이 켜진다(이 견본이 고장을 재현하는지): ${old.toList()}", old[2])
+
+    val runs = UnderlineDetector.detect(img, w, h, listOf(line1, line2), slopes = null)
+    assertArrayEquals(
+      "runs=$runs",
+      booleanArrayOf(true, false, false, false, false, false),
+      UnderlineDetector.underlinedWords(words, lineOf, runs)
+    )
+  }
 }
