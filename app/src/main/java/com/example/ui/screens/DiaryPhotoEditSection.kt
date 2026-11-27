@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.ui.viewmodel.PhotoDrafts
 
@@ -84,7 +85,7 @@ fun DiaryPhotoEditSection(
                             } else {
                                 Text(
                                     PHOTO_NOT_ON_DEVICE,
-                                    style = MaterialTheme.typography.labelSmall,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 13.sp, lineHeight = 18.sp),
                                     textAlign = TextAlign.Center,
                                     modifier = Modifier.padding(8.dp)
                                 )

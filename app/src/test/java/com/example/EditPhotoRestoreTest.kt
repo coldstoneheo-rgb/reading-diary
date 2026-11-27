@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Looper
 import android.os.Parcel
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -161,12 +162,12 @@ class EditPhotoRestoreTest {
 
   /** 사진 칸이 아니라 화면 위쪽 촬영·선택 영역에 띄운 사진. 저장 때 함께 보관된다. */
   private fun showPhotoOnScreen(controller: ActivityController<MainActivity>) {
-    composeTestRule.onAllNodesWithText("사진 선택").onFirst().performScrollTo().performClick()
+    composeTestRule.onNodeWithContentDescription("사진 선택").performClick()
     deliverGalleryResult(controller)
   }
 
   private fun clickSave() =
-    composeTestRule.onNodeWithTag("save_diary_submit_button").performScrollTo().performClick()
+    composeTestRule.onNodeWithTag("save_diary_submit_button").performClick()
 
   /** 저장이 커밋 앞에서 기다리게 한다. private이라 리플렉션으로 잡는다. */
   private fun holdSaves() {

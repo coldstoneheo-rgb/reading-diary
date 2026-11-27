@@ -63,7 +63,7 @@ fun UnderlinePreselectPanel(
             )
             Text(
                 text = "어절을 눌러 켜고 끌 수 있어요. 버튼을 누르기 전에는 위 문장이 바뀌지 않아요.",
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp, lineHeight = 18.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -77,7 +77,7 @@ fun UnderlinePreselectPanel(
                         FilterChip(
                             selected = chosen[i],
                             onClick = { onToggle(i) },
-                            label = { Text(w.text, fontSize = 12.sp) },
+                            label = { Text(w.text, fontSize = 14.sp) },
                             // 켜짐을 색만이 아니라 체크 표시로도 보인다.
                             leadingIcon = if (chosen[i]) {
                                 { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
@@ -93,7 +93,7 @@ fun UnderlinePreselectPanel(
                 enabled = chosen.any { it },
                 modifier = Modifier.fillMaxWidth().testTag("preselect_apply_button")
             ) {
-                Text("고른 어절로 문장 바꾸기", fontSize = 12.sp)
+                Text("고른 어절로 문장 바꾸기", fontSize = 14.sp)
             }
         }
     }

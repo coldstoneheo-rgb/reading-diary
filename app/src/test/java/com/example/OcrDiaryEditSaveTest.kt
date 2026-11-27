@@ -65,7 +65,7 @@ class OcrDiaryEditSaveTest {
     composeTestRule.onNodeWithTag("ocr_button").assertDoesNotExist()
 
     composeTestRule.onNodeWithTag("diary_extracted_text_input").performScrollTo().performTextReplacement("고친 문장")
-    composeTestRule.onNodeWithTag("save_diary_submit_button").performScrollTo().assertIsDisplayed().performClick()
+    composeTestRule.onNodeWithTag("save_diary_submit_button").assertIsDisplayed().performClick()
 
     composeTestRule.waitUntil(10_000) {
       runBlocking { db.diaryDao().getAllDiaries().first() }.any { it.id == diaryId && it.selectedText == "고친 문장" }

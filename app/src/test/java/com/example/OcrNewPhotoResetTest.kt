@@ -10,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContract
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
@@ -88,14 +89,14 @@ class OcrNewPhotoResetTest {
     }
 
     // 첫 사진: 반전을 켜고 왼쪽 끝을 30%로 옮긴다.
-    composeTestRule.onNodeWithText("사진 선택").performScrollTo().performClick()
+    composeTestRule.onNodeWithContentDescription("사진 선택").performClick()
     composeTestRule.onNodeWithText("좌우 반전").performScrollTo().performClick()
     composeTestRule.onNodeWithText("좌우 반전").assertIsSelected()
     composeTestRule.onAllNodes(slider).onFirst().performScrollTo().performSemanticsAction(SemanticsActions.SetProgress) { it(0.3f) }
     composeTestRule.onNodeWithText("좌측 끝: 30%").assertExists()
 
     // 새 사진: 반전 꺼짐 · 틀 = 사진 전체.
-    composeTestRule.onNodeWithText("사진 선택").performScrollTo().performClick()
+    composeTestRule.onNodeWithContentDescription("사진 선택").performClick()
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithText("좌우 반전").performScrollTo().assertIsNotSelected()
     composeTestRule.onNodeWithText("좌측 끝: 0%").assertExists()
@@ -120,7 +121,7 @@ class OcrNewPhotoResetTest {
     }
     fun errors() = composeTestRule.onAllNodesWithTag("ocr_error").fetchSemanticsNodes().size
 
-    composeTestRule.onNodeWithText("사진 선택").performScrollTo().performClick()
+    composeTestRule.onNodeWithContentDescription("사진 선택").performClick()
     composeTestRule.onNodeWithText("자르기 확정하기", substring = true).performScrollTo().performClick()
     composeTestRule.waitForIdle()
     check(errors() == 0)
@@ -128,7 +129,7 @@ class OcrNewPhotoResetTest {
     composeTestRule.waitUntil(10_000) { org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle(); errors() == 1 }
     composeTestRule.onNodeWithText("모델을 준비하는 중이에요").assertExists()
 
-    composeTestRule.onNodeWithText("사진 선택").performScrollTo().performClick()
+    composeTestRule.onNodeWithContentDescription("사진 선택").performClick()
     composeTestRule.waitForIdle()
     check(errors() == 0) { "새 사진을 고른 즉시 지워져야 한다(자르기 확정이 대신 지우면 안 된다)" }
     composeTestRule.onNodeWithText("자르기 확정하기", substring = true).performScrollTo().performClick()

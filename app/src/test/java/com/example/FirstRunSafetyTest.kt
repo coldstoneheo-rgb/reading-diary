@@ -333,7 +333,7 @@ class FirstRunSafetyTest {
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithTag("diary_extracted_text_input").assertTextContains("바람이 언덕에 나무가")
     composeTestRule.onNodeWithTag("diary_page_input").performScrollTo().performTextReplacement("7")
-    composeTestRule.onNodeWithTag("save_diary_submit_button").performScrollTo().performClick()
+    composeTestRule.onNodeWithTag("save_diary_submit_button").performClick()
     pump { vm.currentScreenState.value == Screen.BookDetail(bookId) }
     assertEquals("칩으로 만든 문장이 그대로 저장된다", listOf("바람이 언덕에 나무가"), runBlocking { db.diaryDao().getAllDiaries().first() }.map { it.selectedText })
 

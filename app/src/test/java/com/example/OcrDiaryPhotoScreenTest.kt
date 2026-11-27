@@ -9,6 +9,7 @@ import androidx.activity.result.ActivityResultRegistry
 import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -109,7 +110,7 @@ class OcrDiaryPhotoScreenTest {
   }
 
   private fun saveAndAwait(condition: () -> Boolean) {
-    composeTestRule.onNodeWithTag("save_diary_submit_button").performScrollTo().assertIsDisplayed().performClick()
+    composeTestRule.onNodeWithTag("save_diary_submit_button").assertIsDisplayed().performClick()
     composeTestRule.waitUntil(10_000, condition)
   }
 
@@ -127,7 +128,7 @@ class OcrDiaryPhotoScreenTest {
   @Test
   fun newRecord_keepsPickedPhoto_withoutCheckbox() {
     open(diaryId = null)
-    composeTestRule.onNodeWithText("사진 선택").performScrollTo().performClick()
+    composeTestRule.onNodeWithContentDescription("사진 선택").performClick()
     composeTestRule.onNodeWithTag("diary_page_input").performScrollTo().performTextReplacement("12")
     composeTestRule.onNodeWithTag("diary_extracted_text_input").performScrollTo().performTextReplacement("직접 쓴 문장")
 
