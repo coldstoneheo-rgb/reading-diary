@@ -374,29 +374,9 @@ fun StatisticsScreen(
                     }
 
                     val daysGrid = remember(activityMap) {
-                        val list = mutableListOf<List<Pair<String, Int>>>()
-                        val calendar = Calendar.getInstance()
-                        // Find the start date: 105 days ago, adjusted to start on Sunday/Monday
-                        calendar.add(Calendar.DAY_OF_YEAR, -104)
-                        val startDayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
-                        calendar.add(Calendar.DAY_OF_YEAR, -(startDayOfWeek - 1)) //Align to first row
-
-                        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                        
-                        // Create 15 columns
-                        for (col in 0 until 15) {
-                            val columnDays = mutableListOf<Pair<String, Int>>()
-                            // 7 rows per week
-                            for (row in 0 until 7) {
-                                val curDate = calendar.time
-                                val dateStr = sdf.format(curDate)
-                                val count = activityMap[dateStr] ?: 0
-                                columnDays.add(Pair(dateStr, count))
-                                calendar.add(Calendar.DAY_OF_YEAR, 1)
-                            }
-                            list.add(columnDays)
+                        grassGridDates(Calendar.getInstance()).map { column ->
+                            column.map { dateStr -> Pair(dateStr, activityMap[dateStr] ?: 0) }
                         }
-                        list
                     }
 
                     // Render the Grass Calendar
@@ -698,5 +678,19 @@ fun StatisticsScreen(
                 }
             }
         }
+    }
+}
+
+/**
+ * 독서 잔디의 날짜 칸: 15열(주) × 7행(일 ~ 토). 마지막 열 = 오늘이 든 주라서 어느 요일이든 오늘이 격자 안에 든다
+ * (예전 계산은 «오늘 − 104일»이 든 주의 일요일에서 105일을 세어, 토요일이 아니면 오늘 포함 최근 1 ~ 6일이 빠졌다).
+ * 날짜 글자는 기록 집계(activityMap)와 같은 "yyyy-MM-dd" · 기본 로캘이다. 오늘 뒤 같은 주 칸은 기록 0으로 보인다.
+ */
+internal fun grassGridDates(today: Calendar): List<List<String>> {
+    val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    val c = today.clone() as Calendar
+    c.add(Calendar.DAY_OF_YEAR, -(c.get(Calendar.DAY_OF_WEEK) - Calendar.SUNDAY) - 14 * 7)
+    return List(15) {
+        List(7) { sdf.format(c.time).also { c.add(Calendar.DAY_OF_YEAR, 1) } }
     }
 }
