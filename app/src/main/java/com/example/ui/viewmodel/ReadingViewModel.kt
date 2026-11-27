@@ -557,12 +557,41 @@ class ReadingViewModel @JvmOverloads constructor(
                     status = newStatus,
                     // 이미 완독한 책을 끝 쪽에 다시 놓아도 완독일은 그대로다.
                     endDate = if (newPage >= book.totalPages && book.status != "COMPLETED") java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else book.endDate,
-                    startDate = if (book.startDate.isEmpty() && newPage > 0) java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else book.startDate
+                    startDate = if (book.startDate.isEmpty() && newPage > 0) com.example.data.ReadingStart.format(System.currentTimeMillis()) else book.startDate
                 )
                 repository.updateBook(updated)
                 showIfActive(updated)
                 onComplete()
             }
+        }
+    }
+
+    /**
+     * «읽기 시작»: 누른 시각을 시작 값으로 적고 «읽는 중»으로 둔다(완독한 책의 상태는 건드리지 않는다).
+     * 이미 시작 값이 있으면 덮지 않는다 — 고치는 것은 [updateReadingStart].
+     */
+    fun startReading(bookId: Int, atMillis: Long = System.currentTimeMillis(), onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            val book = repository.getBookByIdOneShot(bookId) ?: return@launch
+            if (book.startDate.isNotBlank()) { onComplete(); return@launch }
+            val updated = book.copy(
+                status = if (book.status == "COMPLETED") book.status else "READING",
+                startDate = com.example.data.ReadingStart.format(atMillis)
+            )
+            repository.updateBook(updated)
+            showIfActive(updated)
+            onComplete()
+        }
+    }
+
+    /** 시작 날짜 · 시각 고치기(분 단위). 상태 · 쪽은 그대로. */
+    fun updateReadingStart(bookId: Int, atMillis: Long, onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            val book = repository.getBookByIdOneShot(bookId) ?: return@launch
+            val updated = book.copy(startDate = com.example.data.ReadingStart.format(atMillis))
+            repository.updateBook(updated)
+            showIfActive(updated)
+            onComplete()
         }
     }
 
@@ -626,7 +655,7 @@ class ReadingViewModel @JvmOverloads constructor(
                         coverUrl = coverUrl,
                         bookcaseId = resolvedBookcaseId,
                         status = status,
-                        startDate = if (currentPage > 0) java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else ""
+                        startDate = if (currentPage > 0) com.example.data.ReadingStart.format(System.currentTimeMillis()) else ""
                     )
                 )
             } else {
