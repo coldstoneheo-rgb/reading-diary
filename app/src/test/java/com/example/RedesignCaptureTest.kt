@@ -12,6 +12,7 @@ import androidx.activity.result.ActivityResultRegistry
 import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.semantics.getOrNull
 import com.github.takahirom.roborazzi.captureRoboImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -119,11 +120,34 @@ class RedesignCaptureTest {
     composeTestRule.setContent { MyApplicationTheme { BookDetailScreen(viewModel = vm) } }
     composeTestRule.waitUntil(10_000) { has("book_detail_title") }
     shot("detail-records-1")
-    composeTestRule.onAllNodesWithTag("add_diary_button").fetchSemanticsNodes().firstOrNull()?.let {
-      composeTestRule.onNodeWithTag("add_diary_button").performScrollTo()
-    }
+    // 아래로 내린 장면: 기록하기가 FAB(R3)가 된 뒤에는 목록 끝(마지막 기록)까지 내린다.
+    val lastTag = composeTestRule.onAllNodes(androidx.compose.ui.test.SemanticsMatcher("diary") { n ->
+      n.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.matches(Regex("diary_item_\\d+")) == true
+    }).fetchSemanticsNodes().lastOrNull()?.config?.get(androidx.compose.ui.semantics.SemanticsProperties.TestTag)
+    if (lastTag != null) composeTestRule.onNodeWithTag(lastTag).performScrollTo()
     shot("detail-records-2")
   }
+
+  // ── R3 장면: 기록 3건 상세(밝은 · Dark · 글꼴 1.3 · 2.0) ──
+
+  private fun r3Detail(name: String, themeId: Int, fontScale: Float) {
+    val id = book("READING", 96, "2026-11-20 09:00")
+    runBlocking {
+      db.diaryDao().insert(Diary(bookId = id, page = 45, selectedText = sampleBody, notes = "짧은 메모 한 줄", createdAt = 1_795_700_000_000L))
+      db.diaryDao().insert(Diary(bookId = id, page = 72, selectedText = "창문 너머로 들어온 빛이 책상 위의 종이를 천천히 데웠다.", notes = "", createdAt = 1_795_720_000_000L))
+      db.diaryDao().insert(Diary(bookId = id, page = 96, selectedText = "길 끝에는 오래된 집이 한 채 있다", notes = "집 안을 상상해 본다", createdAt = 1_795_748_760_000L))
+    }
+    val vm = vm()
+    composeTestRule.runOnUiThread { vm.navigateTo(Screen.BookDetail(id)) }
+    composeTestRule.setContent { RecordScreenHarness.Frame(themeId, fontScale) { BookDetailScreen(viewModel = vm) } }
+    composeTestRule.waitUntil(10_000) { has("book_detail_title") && has("diary_list_header") }
+    shot(name)
+  }
+
+  @Test fun r3_detail_light() { if (out != null) r3Detail("r3-detail-light", RecordScreenHarness.LIGHT, 1f) }
+  @Test fun r3_detail_dark() { if (out != null) r3Detail("r3-detail-dark", RecordScreenHarness.DARK, 1f) }
+  @Test fun r3_detail_font130() { if (out != null) r3Detail("r3-detail-font130", RecordScreenHarness.LIGHT, 1.3f) }
+  @Test fun r3_detail_font200() { if (out != null) r3Detail("r3-detail-font200", RecordScreenHarness.LIGHT, 2f) }
 
   /** 견본 쪽 그림(회색 바탕에 글줄 막대) — 자르기 단계용. */
   private fun pagePhoto(): Uri {
