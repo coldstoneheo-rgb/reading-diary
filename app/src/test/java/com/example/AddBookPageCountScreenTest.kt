@@ -98,6 +98,17 @@ class AddBookPageCountScreenTest {
   private fun assertNoFabricatedPages() =
     assertTrue(composeTestRule.onAllNodesWithText("250").fetchSemanticsNodes().isEmpty())
 
+  /** 검색으로 여는 화면의 제목(옛 «도서 검색하여 추가기»는 글자 빠짐 · 2026-11-28 r8Debug에서 봄). */
+  @Test
+  fun searchScreenTitle_hasNoDroppedSyllable() {
+    val vm = ReadingViewModel(ApplicationProvider.getApplicationContext<Application>(), NoCallExtractor, NoCallExtractor, FakeDiaryPhotoStore()) { false }
+    composeTestRule.setContent {
+      MyApplicationTheme { AddEditBookScreen(viewModel = vm, startWithSearch = true, bookSearchClient = client(noHits, noHits), kakaoKeyProvider = { "test-key" }) }
+    }
+    awaitText("도서 검색해서 추가")
+    assertTrue(composeTestRule.onAllNodesWithText("추가기", substring = true).fetchSemanticsNodes().isEmpty())
+  }
+
   @Test
   fun kakaoPick_fillsPagesFromGoogleByIsbn_withOneLookup() {
     pickResult(kakaoHit, """{"items":[{"volumeInfo":{"title":"녹색절벽","pageCount":274}}]}""")

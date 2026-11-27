@@ -188,7 +188,7 @@ fun AddEditBookScreen(
             TopAppBar(
                 title = { 
                     Text(
-                        text = if (bookId != null) "도서 정보 수정" else if (isSearchActive) "도서 검색하여 추가기" else "새 도서 정보 입력",
+                        text = if (bookId != null) "도서 정보 수정" else if (isSearchActive) "도서 검색해서 추가" else "새 도서 정보 입력",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     ) 
