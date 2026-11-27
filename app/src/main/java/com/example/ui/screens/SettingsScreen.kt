@@ -21,6 +21,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
@@ -476,7 +478,9 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                             checked = geminiPhotoConsent,
                             onCheckedChange = { viewModel.setGeminiPhotoConsent(it) },
                             enabled = geminiKeyRegistered,
+                            // 옆 글은 따로 있는 Text라 체크박스 자체엔 이름이 없었다 — 낭독 이름을 붙인다.
                             modifier = Modifier.testTag("gemini_consent_checkbox")
+                                .semantics { contentDescription = "정밀 분석 사진 전송 동의" }
                         )
                         Text(
                             text = "정밀 분석을 실행할 때마다 선택한 페이지 사진이 Google Gemini로 전송되는 것에 동의합니다.",

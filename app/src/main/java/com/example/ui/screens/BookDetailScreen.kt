@@ -271,7 +271,8 @@ fun BookDetailScreen(
                     onClick = { viewModel.navigateTo(Screen.AddDiary(currentBook.id)) },
                     icon = { Icon(Icons.Default.Add, contentDescription = null) },
                     text = { Text("기록하기", fontWeight = FontWeight.Bold) },
-                    modifier = Modifier.testTag("add_diary_button")
+                    // 글자 칸은 M3가 낭독에서 지워 둔다(r8Debug · debug 덤프 모두 이름 빈 값) — 버튼에 이름을 직접 붙인다.
+                    modifier = Modifier.testTag("add_diary_button").semantics { contentDescription = "기록하기" }
                 )
             }
         }

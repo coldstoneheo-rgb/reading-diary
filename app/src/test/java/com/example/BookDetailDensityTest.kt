@@ -225,6 +225,17 @@ class BookDetailDensityTest {
     assertEquals("확인 전에는 지우지 않는다", 3, diaryCards().size)
   }
 
+  /** 2026-11-28 r8Debug 덤프: «기록하기» 버튼이 화면엔 보이나 낭독 이름이 비어 있었다. 합쳐진 노드에 이름 + 누름 동작. */
+  @Test
+  fun recordFab_hasASpokenName() {
+    open(startedBook())
+    val fab = byTag("add_diary_button")
+    val names = fab.config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text } +
+      fab.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty()
+    assertTrue("기록하기 버튼 낭독 이름: $names", names.any { it == "기록하기" })
+    assertTrue("누름 동작", SemanticsActions.OnClick in fab.config)
+  }
+
   // ── 보정 2: «96 / 320 쪽»을 누르면 쪽 수를 직접 넣는다 ──
 
   @Test
