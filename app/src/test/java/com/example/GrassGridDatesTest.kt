@@ -1,6 +1,8 @@
 package com.example
 
 import com.example.ui.screens.grassGridDates
+import com.example.ui.screens.isGrassDayTappable
+import org.junit.Assert.assertFalse
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -46,5 +48,15 @@ class GrassGridDatesTest {
       assertEquals(fmt.format(c.time), s)
       c.add(Calendar.DAY_OF_YEAR, 1)
     }
+  }
+
+  /** 오늘 뒤 같은 주 칸은 누를 수 없다(«기록이 없습니다» 토스트가 아직 오지 않은 날에 뜨지 않게 · LC #100 관찰 1). */
+  @Test
+  fun onlyDaysUpToTodayAreTappable() {
+    val today = "2026-11-25" // 수요일 → 목 · 금 · 토 3칸이 미래
+    val last = grassGridDates(day(today)).last()
+    assertEquals(listOf(true, true, true, true, false, false, false), last.map { isGrassDayTappable(it, today) })
+    assertTrue(isGrassDayTappable("2025-12-31", "2026-01-01"))
+    assertFalse(isGrassDayTappable("2026-01-02", "2026-01-01"))
   }
 }
