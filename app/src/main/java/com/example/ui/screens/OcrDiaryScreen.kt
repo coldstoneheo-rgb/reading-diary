@@ -138,6 +138,8 @@ fun OcrDiaryScreen(
     fun clearShownPhoto() {
         viewModel.clearUnderlinePreselect() // 앞 사진의 미리 선택 칩이 새 사진 · 빈 화면에 남지 않게
         viewModel.clearOcrError() // 앞 사진의 실패 안내가 새 사진 아래에 남지 않게
+        ocrFullText = "" // 앞 사진의 «원문 전체»가 새 사진 · 빈 화면에 남지 않게(편집창 글은 전처럼 남는다)
+        showOcrFullText = false
         activeImageUrl = null
         isImageTaken = false
         isCroppedReady = false
@@ -1289,6 +1291,7 @@ fun OcrDiaryScreen(
                             TextButton(
                                 onClick = {
                                     extractedText = result.text
+                                    ocrFullText = "" // 정밀 결과로 바꾸면 온디바이스 원문을 «원문 전체»로 남기지 않는다(덜 정확한 판독이 원문처럼 보이지 않게)
                                     viewModel.clearOcrError()
                                     viewModel.resetPreciseOcrState()
                                 },

@@ -11,6 +11,14 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.onNodeWithText
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.result.ActivityResultRegistry
+import androidx.activity.result.ActivityResultRegistryOwner
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.core.app.ActivityOptionsCompat
+import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.AppDatabase
 import com.example.data.Book
@@ -85,7 +93,19 @@ class UnderlineFirstTextTest {
       gate?.await()
       lines.single().words.mapIndexed { i, w -> UnderlinePreselect.Word(w.text, 0, selected(i)) }
     }
-    composeTestRule.setContent { MyApplicationTheme { OcrDiaryScreen(viewModel = vm, bookId = bookId) } }
+    // «사진 선택»을 누르면 다른 사진이 고른 것으로 돌아온다(사진 바꾸기 경로 시험용).
+    val registryOwner = object : ActivityResultRegistryOwner {
+      override val activityResultRegistry = object : ActivityResultRegistry() {
+        override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
+          dispatchResult(requestCode, Uri.parse("content://photos/another"))
+        }
+      }
+    }
+    composeTestRule.setContent {
+      CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner) {
+        MyApplicationTheme { OcrDiaryScreen(viewModel = vm, bookId = bookId) }
+      }
+    }
     pump { composeTestRule.onAllNodesWithTag("diary_extracted_text_input").fetchSemanticsNodes().isNotEmpty() }
     composeTestRule.runOnUiThread { vm.processUnderlineOcr(Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)) }
     return vm
@@ -136,5 +156,16 @@ class UnderlineFirstTextTest {
     pump { vm.underlinePreselect.value != null }
     repeat(10) { shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(20) }
     assertTrue(fieldText() == "내가 고친 글")
+  }
+
+  @Test
+  fun pickingAnotherPhoto_dropsTheOldFullText_butKeepsTheEditorText() {
+    // 앞 사진의 «원문 전체»가 새 사진 화면에 남으면 «편집창을 원문 전체로 바꾸기»가 다른 사진의 글을 넣는다.
+    recognize { it == 1 || it == 2 }
+    pump { fieldText() == "부는 언덕에" }
+    composeTestRule.onAllNodesWithTag("ocr_full_text_toggle").assertCountEquals(1)
+    composeTestRule.onNodeWithText("사진 선택").performScrollTo().performClick()
+    pump { composeTestRule.onAllNodesWithTag("ocr_full_text_toggle").fetchSemanticsNodes().isEmpty() }
+    assertTrue(fieldText() == "부는 언덕에")
   }
 }
