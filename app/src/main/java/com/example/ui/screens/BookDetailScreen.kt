@@ -553,7 +553,8 @@ fun BookDetailScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "책 페이지를 찍어 구절이 있는 부분을 잘라 내면 글자를 읽어 와 다이어리를 적을 수 있어요.",
+                            text = if (started) "책 페이지를 찍어 구절이 있는 부분을 잘라 내면 글자를 읽어 와 다이어리를 적을 수 있어요."
+                                else "«읽기 시작»을 누르면 기록을 적을 수 있어요.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
                             textAlign = TextAlign.Center

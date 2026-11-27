@@ -101,6 +101,15 @@ class ReadingStartTest {
     assertEquals("완독일이 오늘이면 지금", now, ReadingStart.latestAllowed(now, "2026-11-27"))
   }
 
+  @Test
+  fun latestAllowed_followsTheCalendarOnDaylightSavingDays() {
+    // 일광절약시간이 있는 시간대: 봄 전환일은 23시간 · 가을 전환일은 25시간. 그날 끝 = 다음 날 0시 − 1ms.
+    TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"))
+    val far = ReadingStart.parse("2030-01-01 00:00")!!
+    assertEquals(ReadingStart.parse("2026-03-09")!! - 1, ReadingStart.latestAllowed(far, "2026-03-08"))
+    assertEquals(ReadingStart.parse("2026-11-02")!! - 1, ReadingStart.latestAllowed(far, "2026-11-01"))
+  }
+
   // ---------- 화면 + ViewModel ----------
 
   private fun pump(condition: () -> Boolean) {
@@ -230,5 +239,16 @@ class ReadingStartTest {
     detail(id)
     pump { has("start_reading_button") }
     composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/book_detail_start_reading.png")
+  }
+
+  @Test
+  fun startReading_onACompletedBook_keepsTheStatus_andDoesNotGoPastTheCompletionDay() {
+    val id = runBlocking { db.bookDao().insert(book(status = "COMPLETED", page = 100, end = "2026-11-20")).toInt() }
+    val vm = detail(id)
+    var done = false
+    composeTestRule.runOnUiThread { vm.startReading(id, ReadingStart.parse("2026-11-27 12:06")!!) { done = true } }
+    pump { done }
+    assertEquals("COMPLETED", stored(id).status)
+    assertTrue(stored(id).startDate, ReadingStart.parse(stored(id).startDate)!! <= ReadingStart.parse("2026-11-21")!!)
   }
 }

@@ -580,7 +580,8 @@ class ReadingViewModel @JvmOverloads constructor(
             if (book.startDate.isNotBlank()) { onComplete(); return@launch }
             val updated = book.copy(
                 status = if (book.status == "COMPLETED") book.status else "READING",
-                startDate = com.example.data.ReadingStart.format(atMillis)
+                // 완독한 책이면 시작이 완독일보다 늦지 않게(updateReadingStart와 같은 불변식).
+                startDate = com.example.data.ReadingStart.format(minOf(atMillis, com.example.data.ReadingStart.latestAllowed(atMillis, book.endDate)))
             )
             repository.updateBook(updated)
             showIfActive(updated)

@@ -10,7 +10,7 @@ import java.util.Locale
  * 시작 시각은 Room 스키마를 바꾸지 않고 기존 `Book.startDate` 문자열에 담는다:
  * - 새 값 = `yyyy-MM-dd HH:mm`(읽기 시작을 누른 시각 · 사용자가 고친 시각)
  * - 옛 값 = `yyyy-MM-dd`(이전 앱이 진척도를 처음 움직인 날에 적은 값) — 시각 모름으로 그대로 읽는다.
- * `startDate`를 읽는 곳은 화면 표시뿐이라(통계 · 내보내기 · 백업은 문자열 그대로 옮긴다) 두 꼴이 섞여도 계산이 깨지지 않는다.
+ * `startDate`는 상세 화면 표시와 백업(DB 통째) 외에는 읽지 않는다(통계 · 내보내기는 쓰지 않는다) — 두 꼴이 섞여도 계산이 깨지지 않는다.
  *
  * 옮김 규칙(이미 있는 책): 아래 넷 중 하나라도 맞으면 «이미 읽기 시작한 책»으로 본다 — 사용자가 다시 누를 일이 없다.
  * 시작 날짜가 있음 · 완독 · 읽은 쪽 > 0 · 기록이 1개 이상. 넷 다 아니면(«읽고 있는 책»으로 등록만 하고 손대지 않은 책 포함)
@@ -46,7 +46,8 @@ object ReadingStart {
      */
     fun latestAllowed(nowMillis: Long, endDate: String?): Long {
         val end = endDate?.let { parse(it) } ?: return nowMillis
-        val endOfDay = if (hasTime(endDate)) end else end + 24L * 60 * 60 * 1000 - 1
+        // 그날 끝 = 다음 날 0시 − 1ms(달력으로 더한다 — 일광절약시간이 있는 날은 23 · 25시간이다).
+        val endOfDay = if (hasTime(endDate)) end else java.util.Calendar.getInstance().apply { timeInMillis = end; add(java.util.Calendar.DAY_OF_MONTH, 1) }.timeInMillis - 1
         return minOf(nowMillis, endOfDay)
     }
 
