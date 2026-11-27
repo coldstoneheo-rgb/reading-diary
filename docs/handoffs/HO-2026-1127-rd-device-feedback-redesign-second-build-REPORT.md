@@ -41,7 +41,17 @@
 - [~] #96 재수리: 3660a7d(critic 2차 7/10 PASS · verify 505/0) → 그 중요 1(기록 있는 책 폼 «다음에 읽을 책» 회귀)과 경미 2 · 3 · 6 고침 **5300051** · ReadingStartTest 23/23 · 전체 verify 507 · 실패 0 · 건너뜀 1 · exit 0(중간 1회 실패 = 상세 캡처가 책장 목록 로드 전에 찍힘 → 도우미가 기다리게 고침) → LC 게이트 요청.
 - [x] #96 LC PASS-관찰 → **머지 3c913fd**(관찰 5: 출시 노트 1줄 · 알려진 한계 · 후속 시험 3).
 - [x] R2 = **PR #97** critic 7/10 PASS → 중요 1(반전 켜짐 대비) · 경미 4 고침 553d3d2 · verify 545/0 · LC PASS-관찰(본문 3곳 고침) → **머지 d8bc52b**. 관찰 7: 계획서 «기록 쓰기»(R3에 실음) · after-r2 재캡처(head SHA) · 반전 켜짐 원 대비 약 1.9:1 · 사진 지우기 문구 · 사진 상자 비율 시험 · 낡은 주석 · 글꼴 캡처 흔들림.
-- [~] R3 = **PR #98** head d99d0c1 · verify 559/0(main d8bc52b 위) · 쪽 입력을 대화상자 → 줄 안 입력(대화상자를 닫으면 AppNotIdle) · critic 중.
+- [~] R3 = **PR #98** head 44d9e5f · verify 560 · 실패 0 · 건너뜀 1 · exit 0(main d8bc52b 위) · critic 8/10 PASS(d99d0c1) → 중요 1(쪽 입력 줄 2.0배) · 경미 3건 고침 · 쪽 입력은 대화상자 → 줄 안 입력(대화상자를 닫으면 AppNotIdle · 원인 후속) · **LC(65) 게이트 요청 02:1x**.
+
+### 다음 창 인계(6번째 창 → 7번째 창 · 2026-11-28 02:1x · 앞 «6→7» 절을 대신함)
+
+main = d8bc52b(#95 R1 · #96 서재 · #97 R2). 열린 PR = #98(R3 · 게이트 대기) · #78(draft · 빌드에서 뺌).
+1. #98 게이트 PASS면 위임 규칙대로 머지(`--match-head-commit 44d9e5fe6cf030c6d1981f3b033ee0b06fbbe038`) → 원격 가지 삭제(`gh api -X DELETE`) → 로컬 `git branch -d`.
+2. **순회 캡처 표(조건 5)**: 머지 뒤 main head 워크트리에서 `RD_CAPTURE_OUT='D:\사진\reading-diary\tour-20261128\<head 7자리>'`로 `:app:recordRoborazziDebug --tests com.example.RedesignCaptureTest --rerun` → 파일 · 화면 · 상태 · head SHA 표를 REPORT에. after-r2 · after-r3는 고침 전 head에서 찍혔다(LC 관찰) — 이 캡처가 대신한다.
+3. **에뮬레이터 묶음(조건 6)**: gradle 0인 상태에서. 본 폴더(키 있음)에서 main head를 detached로 `:app:assembleR8Debug` → `lc_pixel8_api36`(swiftshader_indirect · 부팅 약 100초)에 설치 → 9항목 전부(앱 열림 · 키 저장 재시작 · 사진 → 글자 읽기 · 책 검색 · 백업 → 복원 · 바코드(카메라 미리보기 보이게 · 안 보이면 logcat 1줄) · 기록 1건 저장 · 글로 공유 · 문구 회상과 기억 서랍) + LC 보강(기록하기 화면 진짜 키보드 1.0 · 2.0배 · «기록하기 → 뒤로 → 다시» 키보드). 항목마다 head SHA · 캡처 경로. 끝나면 본 폴더를 main으로 되돌린다.
+4. 구성표 확정(위 초안 · #98 넣음) · «2번째 빌드 준비 끝» 1줄 · REPORT 맨 위 «LC가 사용자에게 올릴 것» · WORKLOG 블록 · AGENT_STATUS.
+5. 후속 목록: #95 관찰 1~6 · #96 관찰 2 · 4 · 5 · #97 관찰 2~7 · #98 경미 4 · 7 · R1 critic 후속 (a)~(f) · 툴팁 12sp · 2.0배 글자 수 줄 · 추기 4 · 5 · 6의 8번 목록 · 워크트리 잔여(agent-a9fc… · shelf-start · r2-crop · 긴 경로).
+- 규칙: gradle 동시 1개(잠금 폴더 `gradle-rd.lock` · 걸기 전 RAM ≥ 3GB) · 강제 중단이 또 나면 다시 돌리지 말고 [BLOCKED] · 새 워크트리엔 `local.properties`(sdk.dir만) 복사.
 - LC 창 교체(01:42): 보고처 = `life-coordinator-65`.
 
 ### 2번째 빌드 구성표(6번째 창 갱신 · R3 머지 뒤 확정)
