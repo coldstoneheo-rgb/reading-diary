@@ -346,12 +346,14 @@ class CropStepDensityTest {
   @Test
   fun light_screenshot() {
     openCropStep()
-    composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/crop_step_light.png")
+    // 자르기 카드만 찍는다 — 화면 위 «시각» 줄은 지금 시각이라 실행마다 달라진다(화면 전체는 RedesignCaptureTest 캡처).
+    composeTestRule.onNodeWithTag("camera_crop_card").captureRoboImage(filePath = "src/test/screenshots/crop_step_light.png")
   }
 
   @Test
   fun dark_screenshot() {
     openCropStep(themeId = RecordScreenHarness.DARK)
-    composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/crop_step_dark.png")
+    // 자르기 카드만 찍는다 — 화면 위 «시각» 줄은 지금 시각이라 실행마다 달라진다(화면 전체는 RedesignCaptureTest 캡처).
+    composeTestRule.onNodeWithTag("camera_crop_card").captureRoboImage(filePath = "src/test/screenshots/crop_step_dark.png")
   }
 }
