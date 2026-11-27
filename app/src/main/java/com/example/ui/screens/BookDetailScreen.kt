@@ -193,19 +193,6 @@ fun BookDetailScreen(
         )
     }
 
-    if (showPageDialog) {
-        PageInputDialog(
-            totalPages = currentBook.totalPages,
-            initialPage = sliderPage.toInt(),
-            onDismiss = { showPageDialog = false },
-            onSave = { page ->
-                showPageDialog = false
-                sliderPage = page.toFloat()
-                viewModel.updateBookProgress(currentBook.id, page)
-            }
-        )
-    }
-
     // 토큰(REDESIGN §3): 바깥 여백 12dp · 같은 묶음 사이 8dp · 다른 묶음 사이 16dp · 카드 안 12dp.
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -412,6 +399,18 @@ fun BookDetailScreen(
                                 .testTag("progress_page_text")
                         )
                     }
+                    if (showPageDialog) {
+                        PageInputRow(
+                            totalPages = currentBook.totalPages,
+                            initialPage = sliderPage.toInt(),
+                            onDismiss = { showPageDialog = false },
+                            onSave = { page ->
+                                showPageDialog = false
+                                sliderPage = page.toFloat()
+                                viewModel.updateBookProgress(currentBook.id, page)
+                            }
+                        )
+                    }
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
             }
@@ -518,37 +517,36 @@ fun BookDetailScreen(
     }
 }
 
-/** «96 / 320 쪽»을 누르면 여는 쪽 수 입력(REDESIGN §7-1 보정 2 — 슬라이더만으로는 1쪽 단위가 맞지 않는다). */
+/**
+ * «96 / 320 쪽»을 누르면 진척도 줄 아래에 여는 쪽 수 입력(REDESIGN §7-1 보정 2 — 슬라이더만으로는 1쪽 단위가 맞지 않는다).
+ * 대화상자가 아니라 줄 안에서 연다: 입력칸이 든 대화상자는 닫을 때 시험 환경에서 화면이 멈췄다(원인 미확정 · 줄 안 입력은 기록하기 화면과 같은 꼴).
+ */
 @Composable
-private fun PageInputDialog(totalPages: Int, initialPage: Int, onDismiss: () -> Unit, onSave: (Int) -> Unit) {
+private fun PageInputRow(totalPages: Int, initialPage: Int, onDismiss: () -> Unit, onSave: (Int) -> Unit) {
     var text by remember { mutableStateOf(initialPage.toString()) }
     val page = text.toIntOrNull()
     val valid = page != null && page in 0..totalPages
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("어디까지 읽었나요?", fontWeight = FontWeight.Bold) },
-        text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { v -> text = v.filter { it.isDigit() }.take(6) },
-                singleLine = true,
-                label = { Text("읽은 쪽 (0 ~ $totalPages)") },
-                suffix = { Text("/ $totalPages 쪽") },
-                isError = !valid,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { if (valid) onSave(page!!) }),
-                modifier = Modifier.fillMaxWidth().testTag("progress_page_input")
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = { onSave(page!!) }, enabled = valid, modifier = Modifier.testTag("progress_page_save")) {
-                Text("저장", fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("취소") }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        OutlinedTextField(
+            value = text,
+            onValueChange = { v -> text = v.filter { it.isDigit() }.take(6) },
+            singleLine = true,
+            label = { Text("읽은 쪽 (0 ~ $totalPages)") },
+            suffix = { Text("/ $totalPages 쪽") },
+            isError = !valid,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { if (valid) onSave(page!!) }),
+            modifier = Modifier.weight(1f).testTag("progress_page_input")
+        )
+        TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp).testTag("progress_page_cancel")) { Text("취소") }
+        TextButton(onClick = { onSave(page!!) }, enabled = valid, modifier = Modifier.heightIn(min = 48.dp).testTag("progress_page_save")) {
+            Text("저장", fontWeight = FontWeight.Bold)
         }
-    )
+    }
 }
 
 @Composable

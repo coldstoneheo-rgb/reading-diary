@@ -245,31 +245,17 @@ class BookDetailDensityTest {
   }
 
   @Test
-  fun diag_pageDialog_cancel() {
+  fun pageInput_cancelClosesIt_withoutSaving() {
     val id = startedBook()
     open(id)
+    val before = stored(id).currentPage
     composeTestRule.onNodeWithTag("progress_page_text").performClick()
     pump { has("progress_page_input") }
-    composeTestRule.onNodeWithText("취소").performClick()
+    composeTestRule.onNodeWithTag("progress_page_input").performTextReplacement("7")
+    composeTestRule.onNodeWithTag("progress_page_cancel").performClick()
     pump { !has("progress_page_input") }
+    assertEquals(before, stored(id).currentPage)
   }
-
-  @Test
-  fun diag_pageDialog_saveWithoutTyping() {
-    val id = startedBook()
-    open(id)
-    composeTestRule.onNodeWithTag("progress_page_text").performClick()
-    pump { has("progress_page_input") }
-    composeTestRule.onNodeWithTag("progress_page_save").performClick()
-    pump { !has("progress_page_input") }
-  }
-
-  private fun androidx.compose.ui.test.SemanticsNodeInteraction.assertIsNotEnabledCompat() {
-    val n = fetchSemanticsNode()
-    assertTrue("저장이 켜져 있다(범위 밖 쪽)", SemanticsProperties.Disabled in n.config)
-  }
-
-  // ── 시작 전: «읽기 시작» 카드만, FAB · 진척도 없음 ──
 
   @Test
   fun notStartedBook_hasNoFabAndNoProgress() {
