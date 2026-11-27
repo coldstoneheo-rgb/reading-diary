@@ -43,9 +43,29 @@
 - [x] R2 = **PR #97** critic 7/10 PASS → 중요 1(반전 켜짐 대비) · 경미 4 고침 553d3d2 · verify 545/0 · LC PASS-관찰(본문 3곳 고침) → **머지 d8bc52b**. 관찰 7: 계획서 «기록 쓰기»(R3에 실음) · after-r2 재캡처(head SHA) · 반전 켜짐 원 대비 약 1.9:1 · 사진 지우기 문구 · 사진 상자 비율 시험 · 낡은 주석 · 글꼴 캡처 흔들림.
 - [~] R3 = **PR #98** head 44d9e5f · verify 560 · 실패 0 · 건너뜀 1 · exit 0(main d8bc52b 위) · critic 8/10 PASS(d99d0c1) → 중요 1(쪽 입력 줄 2.0배) · 경미 3건 고침 · 쪽 입력은 대화상자 → 줄 안 입력(대화상자를 닫으면 AppNotIdle · 원인 후속) · **LC(65) 게이트 요청 02:1x**.
 
+- [x] R3 #98 LC PASS-관찰 → **머지 14462e2**(CI unit-test pass). 원격 heads 5. 관찰 5건(쪽 입력 시험 빈칸 · 회전 시 입력 사라짐 / `PhraseRecallScreen.kt:626` `PageRangeDialog`가 같은 꼴 — 에뮬레이터에서 열고 닫아 볼 것 / 순회 캡처 재촬영 / CI는 스크린샷 비교 안 함 / 2.0배 진행 막대 짧음 · ✎ 색 갈림)은 후속.
+- [x] 5. **순회 캡처 표**(시험 캡처 · 411×891dp · 지어낸 견본 · 명령 `RD_CAPTURE_OUT=… gradle :app:recordRoborazziDebug --tests com.example.RedesignCaptureTest --rerun` 종료코드 0 · 02:1x)
+
+폴더: `D:\사진\reading-diary\tour-20261128\14462e2\` · 찍은 head = **14462e2**(main · R1 + #96 + R2 + R3). before 짝 = `redesign-20261127\before\` 같은 이름.
+
+| 파일 | 화면 | 상태 |
+|---|---|---|
+| `detail-new.png` | 도서 상세 | 새 책 · 시작 전(«읽기 시작» 카드) |
+| `detail-records-1.png` · `detail-records-2.png` | 도서 상세 | 기록 있는 책 · 위 / 끝까지 내림 |
+| `r3-detail-{light,dark,font130,font200}.png` | 도서 상세 | 기록 3건 · 밝은 / Dark / 글꼴 1.3 · 2.0 |
+| `write-1-top.png` | 기록하기 | 새 기록 · 사진 전 |
+| `write-2-crop.png` | 기록하기 · 자르기 | 사진 고른 뒤 |
+| `r2-crop-{light,dark,font130,font200}.png` | 자르기 | 밝은 / Dark / 글꼴 1.3 · 2.0 |
+| `r2-crop-adjust.png` · `r2-crop-confirmed.png` | 자르기 | 틀 조정 펼침 · 확정 뒤 |
+| `write-3-text.png` · `write-4-bottom.png` | 기록하기(고치기) | 편집창 · 아래쪽 |
+| `r1-top-{light,dark,font130,font200}.png` · `r1-text-{light,dark,font200}.png` | 기록하기 | 위쪽 · 편집창(밝은 / Dark / 글꼴) |
+| `r1-keyboard.png` | 기록하기 | 키보드 흉내(IME 인셋 · 진짜 키보드는 에뮬레이터 묶음) |
+
+못 찍은 것: 빈 서재 · 서재 · 검색 · 설정 · 기억 서랍 · 문구 회상의 새 head 캡처(재설계 범위 밖 화면 — 바뀐 코드 0) · 가로 · 큰 화면 · 진짜 키보드(에뮬레이터 묶음 몫).
+
 ### 다음 창 인계(6번째 창 → 7번째 창 · 2026-11-28 02:1x · 앞 «6→7» 절을 대신함)
 
-main = d8bc52b(#95 R1 · #96 서재 · #97 R2). 열린 PR = #98(R3 · 게이트 대기) · #78(draft · 빌드에서 뺌).
+main = **14462e2**(#95 R1 · #96 서재 · #97 R2 · #98 R3). 열린 PR = #78(draft · 빌드에서 뺌)뿐. 1 · 2는 끝났다(위 표).
 1. #98 게이트 PASS면 위임 규칙대로 머지(`--match-head-commit 44d9e5fe6cf030c6d1981f3b033ee0b06fbbe038`) → 원격 가지 삭제(`gh api -X DELETE`) → 로컬 `git branch -d`.
 2. **순회 캡처 표(조건 5)**: 머지 뒤 main head 워크트리에서 `RD_CAPTURE_OUT='D:\사진\reading-diary\tour-20261128\<head 7자리>'`로 `:app:recordRoborazziDebug --tests com.example.RedesignCaptureTest --rerun` → 파일 · 화면 · 상태 · head SHA 표를 REPORT에. after-r2 · after-r3는 고침 전 head에서 찍혔다(LC 관찰) — 이 캡처가 대신한다.
 3. **에뮬레이터 묶음(조건 6)**: gradle 0인 상태에서. 본 폴더(키 있음)에서 main head를 detached로 `:app:assembleR8Debug` → `lc_pixel8_api36`(swiftshader_indirect · 부팅 약 100초)에 설치 → 9항목 전부(앱 열림 · 키 저장 재시작 · 사진 → 글자 읽기 · 책 검색 · 백업 → 복원 · 바코드(카메라 미리보기 보이게 · 안 보이면 logcat 1줄) · 기록 1건 저장 · 글로 공유 · 문구 회상과 기억 서랍) + LC 보강(기록하기 화면 진짜 키보드 1.0 · 2.0배 · «기록하기 → 뒤로 → 다시» 키보드). 항목마다 head SHA · 캡처 경로. 끝나면 본 폴더를 main으로 되돌린다.
@@ -92,7 +112,7 @@ main = d8bc52b(#95 R1 · #96 서재 · #97 R2). 열린 PR = #98(R3 · 게이트 
 4. 순회 캡처 표 · r8Debug 9항목 전부(그때 main head · 6번 카메라 미리보기 · LC 보강: 진짜 키보드 1.0/2.0 · «기록 쓰기 → 뒤로 → 다시» 키보드) · 구성표 · REPORT 마감 · WORKLOG · AGENT_STATUS.
 - 메모리: 에뮬레이터(2코어 · 수 GB)와 gradle은 따로. R2/R3를 서브에이전트로 동시에 돌리지 말 것(이번 강제 중단의 직접 원인으로 보임 — 데몬 2.6GB + 시험 JVM + 세션 셋).
 
-- [ ] 4. R2 → R3(서브에이전트 2개가 R1 위 가지 `feat/r2-crop-density` · `feat/r3-book-detail-density`에서 구현 중 · gradle은 잠금 `gradle-rd.lock`으로 한 번에 하나)
+- [x] 4. R2 #97 · R3 #98 머지(옛 메모: 서브에이전트 2개가 R1 위 가지 `feat/r2-crop-density` · `feat/r3-book-detail-density`에서 구현 중 · gradle은 잠금 `gradle-rd.lock`으로 한 번에 하나)
 - [ ] 5. 순회 캡처 표
 - [ ] 6. 구성표 + r8Debug 9항목 전부
 - [ ] 7. REPORT 마감 · WORKLOG · AGENT_STATUS
