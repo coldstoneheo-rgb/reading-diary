@@ -24,6 +24,14 @@ object ReadingStart {
     fun isStarted(book: Book, diaryCount: Int): Boolean =
         book.startDate.isNotBlank() || book.status == "COMPLETED" || book.currentPage > 0 || diaryCount > 0
 
+    /**
+     * 서재 · 편집 · 통계가 보이는 상태. 기준은 상세의 [isStarted]다 — 상태 값이 «읽는 중»이어도 시작하지 않은 책
+     * (예: #89 전에 «읽고 있는 책»으로 등록만 한 책)은 «읽을 책»으로 보인다. 그래야 서재와 상세가 같은 책을 다르게 말하지 않는다.
+     * DB 값은 바꾸지 않는다(사용자가 그 책을 고쳐 저장하거나 «읽기 시작»을 누를 때 바뀐다).
+     */
+    fun shelfStatus(book: Book, diaryCount: Int): String =
+        if (book.status == "READING" && !isStarted(book, diaryCount)) "TO_READ" else book.status
+
     /** 저장할 시작 값(분 단위). */
     fun format(millis: Long): String = SimpleDateFormat(DATE_TIME, Locale.US).format(Date(millis))
 

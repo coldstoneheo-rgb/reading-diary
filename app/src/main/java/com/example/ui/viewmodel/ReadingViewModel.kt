@@ -179,7 +179,16 @@ class ReadingViewModel @JvmOverloads constructor(
     val bookcases: StateFlow<List<Bookcase>> = repository.allBookcases
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val books: StateFlow<List<Book>> = repository.allBooks
+    /** 책 목록 — 상태는 [com.example.data.ReadingStart.shelfStatus](상세의 «시작했나» 판정)를 따른다. */
+    private val shelfBooks = combine(repository.allBooks, repository.allDiaries) { allBooks, allDiaries ->
+        val counts = allDiaries.groupingBy { it.bookId }.eachCount()
+        allBooks.map { book ->
+            val shown = com.example.data.ReadingStart.shelfStatus(book, counts[book.id] ?: 0)
+            if (shown == book.status) book else book.copy(status = shown)
+        }
+    }
+
+    val books: StateFlow<List<Book>> = shelfBooks
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /** 아직 DB에서 받기 전이면 null. 복원 직후의 빈 목록과 «그 책이 정말 없음»을 가른다. */
@@ -366,7 +375,7 @@ class ReadingViewModel @JvmOverloads constructor(
 
     // Dynamic filtering combined state of books
     val filteredBooks: StateFlow<List<Book>> = combine(
-        repository.allBooks,
+        shelfBooks,
         selectedFilter,
         selectedBookcaseId
     ) { allBooks, filter, bookcaseId ->
@@ -666,7 +675,8 @@ class ReadingViewModel @JvmOverloads constructor(
                         coverUrl = coverUrl,
                         bookcaseId = resolvedBookcaseId,
                         status = status,
-                        startDate = if (currentPage > 0) com.example.data.ReadingStart.format(System.currentTimeMillis()) else ""
+                        // «읽고 있는 책»으로 등록 = 지금 읽기 시작(시작 시각이 빈 채로 진척도 · 기록이 열리는 책을 만들지 않는다).
+                        startDate = if (currentPage > 0 || status == "READING") com.example.data.ReadingStart.format(System.currentTimeMillis()) else ""
                     )
                 )
             } else {
@@ -683,7 +693,11 @@ class ReadingViewModel @JvmOverloads constructor(
                         coverUrl = coverUrl,
                         bookcaseId = resolvedBookcaseId,
                         status = status,
-                        startDate = existingStartDate,
+                        // 시작 전 책을 «읽고 있는 책»으로 고쳐 저장하면 그때가 시작이다(등록과 같은 규칙).
+                        // 완독 책은 건드리지 않는다(시작이 완독일보다 늦어지지 않게).
+                        startDate = existingStartDate.ifBlank {
+                            if (status == "READING") com.example.data.ReadingStart.format(System.currentTimeMillis()) else ""
+                        },
                         // 이미 완독한 책은 제목 수정·책장 이동만으로 완독일이 오늘로 바뀌지 않게 원래 날짜를 지킨다.
                         endDate = if (status == "COMPLETED") {
                             if (currentBook?.status == "COMPLETED") currentBook.endDate else java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
