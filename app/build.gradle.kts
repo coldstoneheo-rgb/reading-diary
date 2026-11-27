@@ -48,11 +48,11 @@ android {
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }
-    // 측정 전용: release와 같은 R8 구성을 디버그 키로 서명한다(업로드 키 · 비밀번호 없이 번들 크기와 R8 통과를 잰다).
-    // Play는 디버그 서명 번들을 받지 않는다 — 이 산출물은 올리지 않는다. 올릴 번들은 사용자가 scripts/sign-release.sh로 만든다.
+    // 측정 전용: release와 같은 R8 구성으로 **서명하지 않은** 번들을 만든다(키 · 비밀번호 없이 번들 크기와 R8 통과를 잰다).
+    // 서명이 없어 Play에 올릴 수 없다. 올릴 번들은 사용자가 scripts/sign-release.sh로 만든다.
     create("releaseR8Check") {
       initWith(getByName("release"))
-      signingConfig = signingConfigs.getByName("debugConfig")
+      signingConfig = null
       matchingFallbacks += listOf("release")
     }
     debug {
