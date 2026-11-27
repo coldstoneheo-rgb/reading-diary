@@ -157,7 +157,6 @@ class CropStepDensityTest {
         assertTrue("$where: 글이 잘렸다 «$text» 줄 $line 끝 ${l.getLineRight(line)} > 폭 ${l.size.width}", l.getLineRight(line) <= l.size.width + 1f)
         assertTrue("$where: 말줄임 «$text»", !l.isLineEllipsized(line))
       }
-      // 글이 자기 버튼(병합 노드) 밖으로 나가지 않는다.
     }
   }
 
@@ -355,5 +354,13 @@ class CropStepDensityTest {
     openCropStep(themeId = RecordScreenHarness.DARK)
     // 자르기 카드만 찍는다 — 화면 위 «시각» 줄은 지금 시각이라 실행마다 달라진다(화면 전체는 RedesignCaptureTest 캡처).
     composeTestRule.onNodeWithTag("camera_crop_card").captureRoboImage(filePath = "src/test/screenshots/crop_step_dark.png")
+  }
+  /** critic #97 중요 1: «좌우 반전»을 켠 상태에서도 아이콘이 검은 도구 줄 위에 흰색으로 보인다(켜짐은 배경 원). */
+  @Test
+  fun flipOn_screenshot() {
+    openCropStep()
+    composeTestRule.onNodeWithTag("crop_flip_button").performClick()
+    idle()
+    composeTestRule.onNodeWithTag("camera_crop_card").captureRoboImage(filePath = "src/test/screenshots/crop_step_flip_on.png")
   }
 }

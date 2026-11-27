@@ -373,6 +373,8 @@ fun OcrDiaryScreen(
         val defaults = listOf(CropGeometry.DEFAULT_LEFT, CropGeometry.DEFAULT_TOP, CropGeometry.DEFAULT_RIGHT, CropGeometry.DEFAULT_BOTTOM)
         if (before == defaults) return
         val photo = activeImageUrl
+        val rotation0 = imageRotation
+        val flipped0 = isFlipped
         cropLeft = CropGeometry.DEFAULT_LEFT
         cropTop = CropGeometry.DEFAULT_TOP
         cropRight = CropGeometry.DEFAULT_RIGHT
@@ -380,7 +382,8 @@ fun OcrDiaryScreen(
         snackbarScope.launch {
             snackbarHostState.currentSnackbarData?.dismiss()
             val result = snackbarHostState.showSnackbar("자르기 틀을 처음대로 돌렸어요", actionLabel = "되돌리기", duration = SnackbarDuration.Long)
-            val untouched = listOf(cropLeft, cropTop, cropRight, cropBottom) == defaults && activeImageUrl == photo && !isCroppedReady
+            val untouched = listOf(cropLeft, cropTop, cropRight, cropBottom) == defaults && activeImageUrl == photo && !isCroppedReady &&
+                imageRotation == rotation0 && isFlipped == flipped0
             if (result == SnackbarResult.ActionPerformed && untouched) {
                 cropLeft = before[0]; cropTop = before[1]; cropRight = before[2]; cropBottom = before[3]
             }
@@ -737,7 +740,8 @@ fun OcrDiaryScreen(
                         text = { Text("회전 · 반전 · 자르기 틀도 처음으로 돌아갑니다. 편집창에 적은 글은 그대로 남아요.") },
                         confirmButton = {
                             TextButton(
-                                onClick = { showPhotoClearConfirm = false; clearShownPhoto() },
+                                // 지운 뒤 같은 사진을 다시 골라도 옛 틀이 되돌아오지 않게 «처음대로» 되돌리기 스낵바를 닫는다.
+                                onClick = { showPhotoClearConfirm = false; snackbarHostState.currentSnackbarData?.dismiss(); clearShownPhoto() },
                                 modifier = Modifier.testTag("photo_clear_confirm")
                             ) { Text("지우기", color = MaterialTheme.colorScheme.error) }
                         },
@@ -1038,7 +1042,7 @@ fun OcrDiaryScreen(
                             }
                         }
 
-                        // 인식 중 자르기를 다시 열어도 실패가 조용히 사라지지 않게 버튼과 따로 그린다.
+                        // 인식 실패 안내는 버튼 줄과 따로 그린다(인식 중에는 버튼 줄이 숨어도 다음 실패가 보이게).
                         (ocrState as? OcrState.Error)?.let { OcrErrorText(it.message) }
                     }
                 }
@@ -1341,7 +1345,7 @@ internal fun diaryShareText(text: String, title: String, author: String, page: S
 internal fun OcrErrorText(message: String) {
     Text(
         text = message,
-        style = MaterialTheme.typography.bodySmall,
+        style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp, lineHeight = 18.sp), // 12sp 이하 0(REDESIGN §6)
         color = MaterialTheme.colorScheme.error,
         modifier = Modifier
             .fillMaxWidth()
@@ -1397,7 +1401,11 @@ internal fun IconAction(
             }
         } else {
             // 켜고 끄는 동작(좌우 반전): 낭독기가 켜짐/꺼짐을 읽는다.
-            IconToggleButton(checked = checked, onCheckedChange = { onClick() }, enabled = enabled, modifier = modifier.size(48.dp)) {
+            // 켜짐 글자색 기본값(primary)은 검은 도구 줄 위에서 보이지 않는다 — 꺼짐과 같은 둘레 글자색을 쓰고 켜짐은 배경 원으로 보인다.
+            IconToggleButton(
+                checked = checked, onCheckedChange = { onClick() }, enabled = enabled, modifier = modifier.size(48.dp),
+                colors = IconButtonDefaults.iconToggleButtonColors(checkedContentColor = LocalContentColor.current)
+            ) {
                 Icon(imageVector = icon, contentDescription = label)
             }
         }
