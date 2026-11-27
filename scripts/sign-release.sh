@@ -10,8 +10,20 @@
 # - JDK: JAVA_HOME(없으면 Android Studio 동봉 JBR "C:/Program Files/Android/Android Studio/jbr"). keytool도 이 JDK의 것을 쓴다.
 # - 셸에 KAKAO_REST_API_KEY가 export돼 있으면 멈춘다 — 그대로 빌드하면 셸 값이 .env보다 앞서 앱에 박힌다(app/build.gradle.kts의 ENV_KAKAO).
 # - 구성 캐시를 끄고 빌드한다 — 켜 두면 서명 비밀번호가 .gradle/configuration-cache에 남는다.
+# - main 가지 · 고친 파일 없음 · HEAD = origin/main 일 때만 빌드한다(워커가 가지를 오가는 트리에서 실행하므로).
+#   고정 커밋으로 빌드하려면 EXPECT_HEAD=<전체 SHA>를 같이 준다.
+# - 끝에 찍히는 지문 두 줄은 PR · REPORT · 메시지에 붙이지 않는다(«일치» 여부만 알린다).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+if [ "${1:-}" != "--verify-only" ]; then
+  [ "$(git branch --show-current)" = main ] || { echo "중단: main 가지가 아니다($(git branch --show-current))" >&2; exit 1; }
+  [ -z "$(git status --porcelain)" ] || { echo "중단: 고친 파일이 있다(git status로 확인)" >&2; exit 1; }
+  HEAD_SHA="$(git rev-parse HEAD)"
+  WANT="${EXPECT_HEAD:-$(git rev-parse origin/main)}"
+  [ "$HEAD_SHA" = "$WANT" ] || { echo "중단: HEAD $HEAD_SHA 가 기대 커밋 $WANT 와 다르다(git pull 또는 EXPECT_HEAD 확인)" >&2; exit 1; }
+  echo "빌드 커밋: $HEAD_SHA (main · 깨끗한 트리)"
+fi
 
 KEYSTORE="${KEYSTORE_PATH:-$PWD/my-upload-key.jks}"
 # 상대 경로면 레포 루트 기준 절대 경로로(gradle의 file()은 app/ 기준이라 같은 파일을 보게 한다).
