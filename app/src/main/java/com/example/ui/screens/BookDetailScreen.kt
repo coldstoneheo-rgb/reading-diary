@@ -158,7 +158,8 @@ fun BookDetailScreen(
                                         currentPage = currentBook.currentPage,
                                         coverUrl = currentBook.coverUrl,
                                         bookcaseId = bookcase.id,
-                                        status = currentBook.status
+                                        // 서재와 같은 보이는 상태로 저장한다 — 책장만 옮겨도 «읽기 시작»이 일어나지 않게(ReadingStart.shelfStatus).
+                                        status = com.example.data.ReadingStart.shelfStatus(currentBook, diaries.size)
                                     ) {
                                         Toast.makeText(context, "'${bookcase.name}' 책장으로 이동했습니다.", Toast.LENGTH_SHORT).show()
                                     }

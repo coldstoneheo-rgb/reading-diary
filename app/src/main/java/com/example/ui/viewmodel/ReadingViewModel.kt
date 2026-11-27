@@ -375,7 +375,7 @@ class ReadingViewModel @JvmOverloads constructor(
 
     // Dynamic filtering combined state of books
     val filteredBooks: StateFlow<List<Book>> = combine(
-        shelfBooks,
+        books,
         selectedFilter,
         selectedBookcaseId
     ) { allBooks, filter, bookcaseId ->
@@ -693,11 +693,7 @@ class ReadingViewModel @JvmOverloads constructor(
                         coverUrl = coverUrl,
                         bookcaseId = resolvedBookcaseId,
                         status = status,
-                        // 시작 전 책을 «읽고 있는 책»으로 고쳐 저장하면 그때가 시작이다(등록과 같은 규칙).
-                        // 완독 책은 건드리지 않는다(시작이 완독일보다 늦어지지 않게).
-                        startDate = existingStartDate.ifBlank {
-                            if (status == "READING") com.example.data.ReadingStart.format(System.currentTimeMillis()) else ""
-                        },
+                        startDate = editedStartDate(currentBook, id, status, currentPage, existingStartDate),
                         // 이미 완독한 책은 제목 수정·책장 이동만으로 완독일이 오늘로 바뀌지 않게 원래 날짜를 지킨다.
                         endDate = if (status == "COMPLETED") {
                             if (currentBook?.status == "COMPLETED") currentBook.endDate else java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
@@ -707,6 +703,24 @@ class ReadingViewModel @JvmOverloads constructor(
                 )
             }
             onComplete()
+        }
+    }
+
+    /**
+     * 고쳐 저장할 때의 시작 값(상세의 [com.example.data.ReadingStart.isStarted]가 기준).
+     * - 시작 전 책을 «읽고 있는 책»으로 고쳐 저장 = 그때가 시작(등록과 같은 규칙).
+     *   이미 시작한 책(시작 값만 빈 책 포함)은 제목 · 책장만 고쳐도 시작 값을 지어내지 않는다 — 상세의 ✎로 적는다.
+     * - «다음에 읽을 책»으로 되돌리고 쪽 0 · 기록 0이면 시작 값을 지운다(그래야 상세도 «시작 전»이다).
+     * - 완독 책은 건드리지 않는다(시작이 완독일보다 늦어지지 않게).
+     */
+    private suspend fun editedStartDate(currentBook: Book?, id: Int, status: String, currentPage: Int, existing: String): String {
+        val records = repository.allDiaries.first().count { it.bookId == id }
+        val wasStarted = currentBook != null && com.example.data.ReadingStart.isStarted(currentBook, records)
+        return when {
+            status == "TO_READ" && currentPage == 0 && records == 0 -> ""
+            existing.isNotBlank() -> existing
+            status == "READING" && !wasStarted -> com.example.data.ReadingStart.format(System.currentTimeMillis())
+            else -> existing
         }
     }
 

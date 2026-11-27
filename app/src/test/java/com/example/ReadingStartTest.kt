@@ -87,6 +87,8 @@ class ReadingStartTest {
     assertEquals("쪽이 있으면 읽는 중", "READING", ReadingStart.shelfStatus(book(status = "READING", page = 3), 0))
     assertEquals("기록이 있으면 읽는 중", "READING", ReadingStart.shelfStatus(book(status = "READING"), 1))
     assertEquals("TO_READ", ReadingStart.shelfStatus(book(), 0))
+    assertEquals("읽을 책인데 기록이 있으면(상세가 기록을 연다) 서재도 읽는 중", "READING", ReadingStart.shelfStatus(book(), 1))
+    assertEquals("읽을 책인데 시작 값이 있으면 읽는 중", "READING", ReadingStart.shelfStatus(book(start = "2026-11-20 09:00"), 0))
     assertEquals("COMPLETED", ReadingStart.shelfStatus(book(status = "COMPLETED"), 0))
   }
 
@@ -203,6 +205,35 @@ class ReadingStartTest {
     } finally {
       collected.forEach { it.cancel() }
     }
+  }
+
+  /** critic #96 중요 1 · 2: 책장 이동 · 제목 고치기만으로 시작이 일어나지 않고, «읽을 책»으로 되돌리면 상세도 시작 전이다. */
+  @Test
+  fun editingWithoutStarting_neverInventsAStart_andRevertingToToReadClearsIt() {
+    val vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, FakeDiaryPhotoStore()) { false }
+    fun save(b: Book, status: String, page: Int = b.currentPage) {
+      var done = false
+      vm.saveBook(id = b.id, title = b.title, author = b.author, totalPages = b.totalPages, currentPage = page, coverUrl = b.coverUrl, bookcaseId = caseId, status = status) { done = true }
+      pump { done }
+    }
+    // A) 시작 전 옛 책(READING · 0쪽 · 기록 0 · 시작 빈칸)을 책장 이동 대화상자가 저장: 보이는 상태(읽을 책)로 저장되고 시작 값은 빈칸.
+    val legacy = stored(runBlocking { db.bookDao().insert(book(status = "READING")).toInt() })
+    save(legacy, ReadingStart.shelfStatus(legacy, 0))
+    assertEquals("", stored(legacy.id).startDate)
+    assertFalse("상세도 시작 전 그대로", ReadingStart.isStarted(stored(legacy.id), 0))
+    assertEquals("서재와 같은 값", "TO_READ", stored(legacy.id).status)
+
+    // B) 이미 시작했지만 시작 값만 빈 책(READING · 12쪽): 제목만 고쳐도 «지금»을 지어내지 않는다(✎ 단서 유지).
+    val started = stored(runBlocking { db.bookDao().insert(book(status = "READING", page = 12)).toInt() })
+    save(started.copy(title = "고친 제목"), "READING")
+    assertEquals("", stored(started.id).startDate)
+
+    // C) 시작한 책을 «다음에 읽을 책»으로 되돌림(폼이 쪽을 0으로) · 기록 0 → 시작 값을 지워 상세도 시작 전.
+    val begun = stored(runBlocking { db.bookDao().insert(book(status = "READING", page = 5, start = "2026-11-20 09:00")).toInt() })
+    save(begun, "TO_READ", page = 0)
+    assertEquals("", stored(begun.id).startDate)
+    assertFalse(ReadingStart.isStarted(stored(begun.id), 0))
+    assertEquals("TO_READ", ReadingStart.shelfStatus(stored(begun.id), 0))
   }
 
   /** «읽고 있는 책»으로 등록 · 고쳐 저장 = 지금 시작. 시작 시각이 빈 채로 진척도 · 기록이 열리는 새 책이 생기지 않는다. */
