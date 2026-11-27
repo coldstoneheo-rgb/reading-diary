@@ -1,8 +1,10 @@
 package com.example
 
 import com.example.ui.screens.grassGridDates
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -12,6 +14,11 @@ import java.util.Locale
 class GrassGridDatesTest {
 
   private val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+
+  // grassGridDates는 기본 로캘로 날짜 글자를 만든다 — 기대값(서기 · 아라비아 숫자)과 맞게 시험 동안 고정한다.
+  private var savedLocale: Locale? = null
+  @Before fun fixLocale() { savedLocale = Locale.getDefault(); Locale.setDefault(Locale.US) }
+  @After fun restoreLocale() { savedLocale?.let { Locale.setDefault(it) } }
 
   private fun day(s: String): Calendar = Calendar.getInstance().apply { time = fmt.parse(s)!!; set(Calendar.HOUR_OF_DAY, 15) }
 
