@@ -14,8 +14,8 @@ android {
     applicationId = "com.woodpeckerai.readingdiary"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = 2
+    versionName = "1.1"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -42,13 +42,29 @@ android {
   buildTypes {
     release {
       isCrunchPngs = false
-      isMinifyEnabled = false
+      // R8 축소 · 난독화(2번째 빌드부터). mapping.txt는 번들에 자동 포함된다(콘솔에 안 보일 때만 app/build/outputs/mapping/release/에서 올린다).
+      isMinifyEnabled = true
+      isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
+    }
+    // 측정 전용: release와 같은 R8 구성으로 **서명하지 않은** 번들을 만든다(키 · 비밀번호 없이 번들 크기와 R8 통과를 잰다).
+    // 서명이 없어 Play에 올릴 수 없다. 올릴 번들은 사용자가 scripts/sign-release.sh로 만든다.
+    create("releaseR8Check") {
+      initWith(getByName("release"))
+      signingConfig = null
+      matchingFallbacks += listOf("release")
     }
     debug {
       signingConfig = signingConfigs.getByName("debugConfig")
     }
+  }
+  // 측정 빌드는 release와 같은 코드여야 한다(상자 덤프 빈 껍데기 = src/release).
+  sourceSets {
+    // AGP 9 내장 Kotlin은 java.srcDir로 더한 폴더를 Kotlin 컴파일에 넣지 않는다(11-27 사용자 측정: compileReleaseR8CheckKotlin이
+    // debugtools를 못 찾음) — kotlin 소스 폴더로도 잇는다. release 변형은 기본 소스 세트 src/release를 그대로 쓰므로 이 줄과 무관하다.
+    getByName("releaseR8Check").java.srcDir("src/release/java")
+    getByName("releaseR8Check").kotlin.srcDir("src/release/java")
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11

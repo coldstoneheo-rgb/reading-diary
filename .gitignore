@@ -23,3 +23,6 @@ debug.keystore
 scratch/
 .codebase-memory/
 my-upload-key.jks
+# 키 파일 일반 패턴(업로드 키 · 디버그 키 · 다른 이름의 키도 커밋 0)
+*.jks
+*.keystore
