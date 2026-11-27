@@ -12,8 +12,8 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.SemanticsMatcher
-import androidx.compose.ui.test.assertIsNotSelected
-import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
@@ -90,15 +90,17 @@ class OcrNewPhotoResetTest {
 
     // 첫 사진: 반전을 켜고 왼쪽 끝을 30%로 옮긴다.
     composeTestRule.onNodeWithContentDescription("사진 선택").performClick()
-    composeTestRule.onNodeWithText("좌우 반전").performScrollTo().performClick()
-    composeTestRule.onNodeWithText("좌우 반전").assertIsSelected()
+    composeTestRule.onNodeWithContentDescription("좌우 반전").performScrollTo().performClick()
+    composeTestRule.onNodeWithTag("crop_flip_button").assertIsOn()
+    // 슬라이더는 접힌 «틀 조정» 안(R2) — 한 번 눌러 연다.
+    composeTestRule.onNodeWithTag("crop_adjust_toggle").performScrollTo().performClick()
     composeTestRule.onAllNodes(slider).onFirst().performScrollTo().performSemanticsAction(SemanticsActions.SetProgress) { it(0.3f) }
     composeTestRule.onNodeWithText("좌측 끝: 30%").assertExists()
 
     // 새 사진: 반전 꺼짐 · 틀 = 사진 전체.
     composeTestRule.onNodeWithContentDescription("사진 선택").performClick()
     composeTestRule.waitForIdle()
-    composeTestRule.onNodeWithText("좌우 반전").performScrollTo().assertIsNotSelected()
+    composeTestRule.onNodeWithTag("crop_flip_button").performScrollTo().assertIsOff()
     composeTestRule.onNodeWithText("좌측 끝: 0%").assertExists()
     composeTestRule.onNodeWithText("우측 끝: 100%").assertExists()
   }
@@ -122,7 +124,7 @@ class OcrNewPhotoResetTest {
     fun errors() = composeTestRule.onAllNodesWithTag("ocr_error").fetchSemanticsNodes().size
 
     composeTestRule.onNodeWithContentDescription("사진 선택").performClick()
-    composeTestRule.onNodeWithText("자르기 확정하기", substring = true).performScrollTo().performClick()
+    composeTestRule.onNodeWithTag("crop_confirm_button").performScrollTo().performClick()
     composeTestRule.waitForIdle()
     check(errors() == 0)
     composeTestRule.runOnUiThread { vm.processUnderlineOcr(Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)) }
@@ -132,7 +134,7 @@ class OcrNewPhotoResetTest {
     composeTestRule.onNodeWithContentDescription("사진 선택").performClick()
     composeTestRule.waitForIdle()
     check(errors() == 0) { "새 사진을 고른 즉시 지워져야 한다(자르기 확정이 대신 지우면 안 된다)" }
-    composeTestRule.onNodeWithText("자르기 확정하기", substring = true).performScrollTo().performClick()
+    composeTestRule.onNodeWithTag("crop_confirm_button").performScrollTo().performClick()
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithTag("ocr_button").assertExists()
     check(errors() == 0) { "앞 사진의 실패 안내가 새 사진 아래에 남았다" }

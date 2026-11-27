@@ -51,7 +51,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * 재설계 R1(기록 쓰기 화면)의 통과 기준(REDESIGN §7-1 보정 6):
+ * 재설계 R1(기록하기 화면)의 통과 기준(REDESIGN §7-1 보정 6):
  * 첫 화면 단언 · 아이콘 낭독 이름 · 글꼴 1.3 · 2.0배에서 잘림 0 · 겹침 0 · 12sp 이하 글자 0 · 키보드가 떠도 상단 바(저장) 고정 · 되돌리기.
  * 화면 = 411×891dp(사용자 폰과 같은 dp). 글 · 책은 지어낸 견본이다.
  */
@@ -180,7 +180,7 @@ class RecordScreenDensityTest {
     }
     // 안내 카드는 없다(REDESIGN §6).
     assertTrue(composeTestRule.onAllNodesWithText("분석 준비 완료").fetchSemanticsNodes().isEmpty())
-    assertEquals("기록 쓰기", composeTestRule.onNodeWithTag("diary_screen_title").fetchSemanticsNode().config[SemanticsProperties.Text].joinToString { it.text })
+    assertEquals("기록하기", composeTestRule.onNodeWithTag("diary_screen_title").fetchSemanticsNode().config[SemanticsProperties.Text].joinToString { it.text })
   }
 
   // ── 보정 4: 아이콘 낭독 이름(한국어) · 48dp 대상 ──
@@ -228,7 +228,11 @@ class RecordScreenDensityTest {
     openNew()
     val save = composeTestRule.onNodeWithTag("save_diary_submit_button")
     save.assertIsNotEnabled()
-    assertTrue(composeTestRule.onAllNodesWithText("저장", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+    val saveText = composeTestRule.onAllNodesWithText("저장", useUnmergedTree = true).fetchSemanticsNodes()
+    assertTrue(saveText.isNotEmpty())
+    // 화면의 주 동작 = 16sp 이상(TextButton 기본 14sp로 줄지 않게)
+    val saveSp = saveText.mapNotNull { layout(it) }.first().layoutInput.style.fontSize.value
+    assertTrue("저장 글자 ${saveSp}sp < 16sp", saveSp >= 16f)
     composeTestRule.onNodeWithTag("diary_extracted_text_input").performScrollTo().performTextReplacement("지어낸 문장")
     idle()
     save.assertIsEnabled()
