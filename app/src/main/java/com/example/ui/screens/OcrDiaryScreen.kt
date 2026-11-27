@@ -1115,9 +1115,9 @@ fun OcrDiaryScreen(
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                                 ) 
                             },
+                            // 글 길이에 따라 6줄에서 12줄까지 늘어난다(전에는 115dp 고정 · 4줄). 12줄을 넘으면 칸 안에서 스크롤한다.
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(115.dp)
                                 .testTag("diary_extracted_text_input"),
                             shape = RoundedCornerShape(8.dp),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -1126,7 +1126,8 @@ fun OcrDiaryScreen(
                                 unfocusedContainerColor = MaterialTheme.colorScheme.surface
                             ),
                             textStyle = MaterialTheme.typography.bodyMedium,
-                            maxLines = 4
+                            minLines = EXTRACTED_TEXT_MIN_LINES,
+                            maxLines = EXTRACTED_TEXT_MAX_LINES
                         )
                         
                         Spacer(modifier = Modifier.height(8.dp))
@@ -1487,3 +1488,7 @@ internal fun OcrErrorText(message: String) {
             .testTag("ocr_error")
     )
 }
+
+/** «추출 된 문장» 편집창에 보이는 줄 수: 하한(빈 칸 · 짧은 글) · 상한(긴 글은 칸 안 스크롤). HO-2026-1127 조건 5 — 전에는 4줄. */
+internal const val EXTRACTED_TEXT_MIN_LINES = 6
+internal const val EXTRACTED_TEXT_MAX_LINES = 12
