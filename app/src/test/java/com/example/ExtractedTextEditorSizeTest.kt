@@ -63,7 +63,7 @@ class ExtractedTextEditorSizeTest {
     val density = node.layoutInfo.density
     val heightDp = node.size.height / density.density
     val lineDp = 20f * density.fontScale
-    return (heightDp - 32f) / lineDp
+    return ((heightDp - 32f) / lineDp).toDouble()
   }
 
   @Test
