@@ -23,6 +23,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -421,9 +423,17 @@ fun StatisticsScreen(
                         }
 
                         // Grass blocks grid row index iteration (0..6)
+                        // 낭독기에는 칸 105개를 하나씩 읽히지 않고 묶음 설명 하나로 읽힌다(칸 누름은 같은 날짜 · 개수를 토스트로 보일 뿐이다).
+                        val recordedDays = remember(daysGrid) { daysGrid.sumOf { col -> col.count { it.second > 0 } } }
+                        val recordedCount = remember(daysGrid) { daysGrid.sumOf { col -> col.sumOf { it.second } } }
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("reading_activity_grid")
+                                .clearAndSetSemantics {
+                                    contentDescription = "최근 ${daysGrid.size}주 독서 잔디: 기록한 날 ${recordedDays}일 · 기록 ${recordedCount}개"
+                                }
                         ) {
                             daysGrid.forEach { column ->
                                 Column(
