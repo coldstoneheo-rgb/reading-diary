@@ -28,6 +28,34 @@
    - 백업 → 복원
 5. `/effort status` 1줄(슬래시 명령이라 에이전트가 실행할 수 없다).
 
+## 6번째 창 체크리스트(`reading-diary-df` · LC `life-coordinator-25` 추기 6 · 23:4x 시작)
+
+- [x] 1. 작업 가지 원격: `feat/r1-record-screen-density`(026eaea) · `fix/reading-status-started-main`(023bccf — LC 판정 1로 쓰지 않음, 기록 보존용) 푸시.
+- [~] 2. R1 묶음 실패 원인 = **시험 하네스**: `FirstRunSafetyTest`가 시험마다 만든 ReadingViewModel을 비우지 않아, `openingAnotherBook…`의 `loadBookDetail` Flow(getBookById)가 다음 시험의 `newInstall()`이 DB를 닫을 때 «connection pool has been closed»로 터지고 그 다음 시험(`leavingWithUnsavedInput…`)에 UncaughtExceptionsBeforeTest로 보고됨(실패 XML 줄 52 · 64 · 66). 수리: ViewModelStore에 담아 tearDown에서 DB 닫기 전에 비움. 전체 verify 재실행 중.
+- [x] R1 critic 재채점 8/10 PASS(심각 0 · 중요 0 · 경미 5) → LC PASS-관찰(차단 0 · 관찰 7 · CI run 46019268179) → 본문 수치 고침(병기 9 → 2) → **머지 7ad2b58**. 원격 heads 6.
+  - LC 관찰(후속 · R2 · 에뮬레이터 묶음으로): ① 에뮬레이터에서 진짜 키보드 캡처(배율 1.0 · 2.0) ② critic 경미 «툴팁 12sp» · «2.0배 글자 수 줄 3줄» ③ 길게 눌러 이름 단언 시험 0 ④ softInputMode 복원 경합 — «기록 쓰기 → 뒤로 → 다시» 키보드 확인 ⑤ 저장 글자 16sp(R2) ⑥ 저장 비활성 까닭 표시 · 닿지 않는 빈 글 토스트 · 사진 전체 삭제 확인(R2) ⑦ 책 띠 제거는 LC가 사용자에게 알림. 옛 말투 구역 제목(R2).
+- [~] 3. 서재 ↔ 상세: **PR #96** head 0255ff4 · 전체 verify 504 · 실패 0 · 건너뜀 1 · exit 0 · 기준 이미지 변화 0 · critic **6/10 NEEDS_REVISION**(중요 2: 책장 이동 · 제목 고치기만으로 시작이 생김 / 읽을 책인데 시작된 책의 반대 어긋남 · 경미 5). 수리(미커밋): `shelfStatus` 양방향 · `editedStartDate`(시작 전 책만 시작 기록 · 읽을 책 되돌림 + 쪽 0 · 기록 0이면 시작 지움) · 책장 이동은 보이는 상태로 저장 · `filteredBooks`가 `books` 재사용 · 주석 갱신 · 시험 4건 더함. **시험 명령은 잠금 대기 중 시스템 메모리 부족으로 강제 중단됨** — 사용자 요청 뒤 다시 돌린다(LC에 [ASK]). 가지 `fix/shelf-follows-start`(main a127601 위). 서재·편집·통계 상태 = `ReadingStart.shelfStatus`(상세 isStarted 기준) · «읽고 있는 책»으로 등록/고쳐 저장 = 그 순간이 시작 시각. 스키마 그대로.
+- [~] R1 = **PR #95**(head bff6be0) · 전체 verify 522 · 실패 0 · 건너뜀 1 · exit 0 · critic 재채점 중.
+- [~] R3: 가지 `feat/r3-book-detail-density` @ e1b56f7(WIP · 미푸시 · 워크트리 `r3-detail`). 첫 실행 26 중 실패 5 — 진척도 줄 1.3 · 2.0배에서 슬라이더 노드가 쪽 글자와 약 2dp 겹침(측정 노드를 감싼 칸으로 바꿈 · 미확인) · 뒤로가기 40dp(48dp로 고침 · 미확인, 2건) · 쪽 직접 넣기 저장 뒤 다이얼로그 닫힘에서 AppNotIdleException(원인 모름 · 진단 시험 2건 임시). 재실행은 메모리 부족으로 강제 중단 → 멈춤. 기준 이미지 · 전체 verify · after-r3 캡처 0. 조건 1(run1): 병기 1(FAB) · 48dp 미만 1(고침 미확인) · 12sp 이하 0 · 첫 화면 기록 카드 3 · 여백 12/12/8·16.
+- [~] R2: 워크트리 `r2-crop` · 가지 `feat/r2-crop-density` · head bff6be0 + **미커밋 6파일**(OcrDiaryScreen 자르기 카드 전면 교체 · 새 `CropStepDensityTest` · OcrNewPhotoResetTest · CameraProcessDeathTest · RecordScreenDensityTest(저장 16sp 단언) · RedesignCaptureTest). LC 추가 3건(저장 16sp · 구역 제목 «메모» · 사진 지우기 확인) 반영. **컴파일 · 시험 0회**(첫 실행이 메모리 부족으로 강제 중단). 위험: FlowRow weight · IconToggleButton · 새 import 컴파일, R1 기준 이미지 여러 장 갱신 필요.
+
+### 다음 창 인계(6번째 창 → 7번째 창 · 2026-11-28 00:3x)
+
+**막힌 것**: 00:2x에 시스템 메모리가 바닥나 gradle 실행 3개(#96 수리 시험 · R2 · R3)가 모두 Claude Code에 의해 강제 중단됐다. 안내상 사용자 요청 없이 다시 돌리지 않는다 — LC에 [BLOCKED]. 잠금 `C:\Users\colds\AppData\Local\Temp\claude\gradle-rd.lock`은 R2가 풀었다(다시 돌리기 전 `ls -d`로 없음 확인).
+
+다시 돌릴 때 순서(한 번에 하나 · 잠금 아래 · 서브에이전트 동시 gradle 0 권장):
+1. **#96** `shelf-start` 미커밋 수리: `--tests com.example.ReadingStartTest` → 전체 verify → 커밋 · 푸시 → critic 재채점(이전 6/10의 중요 2 · 경미 5 대비) → LC 게이트.
+2. **R2** `r2-crop`: 위 4개 시험 → 컴파일 오류 고침 → `recordRoborazziDebug`(CropStepDensityTest · CameraProcessDeathTest · R1 시험) → `RD_CAPTURE_OUT='D:\사진\reading-diary\redesign-20261127\after-r2'` 캡처 → 전체 verify → main(7ad2b58) 위로 옮겨 PR(R1과 내용 같아 rebase 충돌 없어야 함) → critic → LC.
+3. **R3** `r3-detail` e1b56f7(WIP): BookDetailDensityTest · ReadingStartTest · FirstRunSafetyTest → 쪽 입력 다이얼로그 AppNotIdleException 원인(진단 시험 2건 지우기) → 기준 이미지 → after-r3 캡처 → 전체 verify → R2 머지 뒤 main 위로 → PR. #96과 `BookDetailScreen.kt` 책장 이동 줄이 겹친다(작은 충돌).
+4. 순회 캡처 표 · r8Debug 9항목 전부(그때 main head · 6번 카메라 미리보기 · LC 보강: 진짜 키보드 1.0/2.0 · «기록 쓰기 → 뒤로 → 다시» 키보드) · 구성표 · REPORT 마감 · WORKLOG · AGENT_STATUS.
+- 메모리: 에뮬레이터(2코어 · 수 GB)와 gradle은 따로. R2/R3를 서브에이전트로 동시에 돌리지 말 것(이번 강제 중단의 직접 원인으로 보임 — 데몬 2.6GB + 시험 JVM + 세션 셋).
+
+- [ ] 4. R2 → R3(서브에이전트 2개가 R1 위 가지 `feat/r2-crop-density` · `feat/r3-book-detail-density`에서 구현 중 · gradle은 잠금 `gradle-rd.lock`으로 한 번에 하나)
+- [ ] 5. 순회 캡처 표
+- [ ] 6. 구성표 + r8Debug 9항목 전부
+- [ ] 7. REPORT 마감 · WORKLOG · AGENT_STATUS
+- [ ] 8. 후속
+
 ## 5번째 창 체크리스트(`reading-diary-7a` · LC `life-coordinator-25` 추기 5 · 21:10 시작)
 
 - [~] 1. **놓침은 닫힘 · 과선택은 열림**(LC 판정). #94 critic 2차 8/10 PASS → LC PASS-관찰 → **머지 a127601**. 남은 반 = «휜 쪽 과선택» 60분 상자(R1 게이트 뒤 · 후보 = 꺾은선 기울기). LC 관찰 5건(극단 기울기 + 작은 어절 3연속 동작 미고정 · 줄 사이 상자 넘어감 시험 없음 · `0.5` 이름 없음 · `SMALL`/`BIG` 범위 검사 · g07 본문 밖 1의 main 값 파일 확인 · 측정 전 값 옆 파일 보존)은 후속.
