@@ -55,6 +55,13 @@ android {
       signingConfig = null
       matchingFallbacks += listOf("release")
     }
+    // 실행 점검 전용(추기 2 B-c): release와 같은 R8 구성(initWith release · 같은 proguardFiles)을 디버그 키로 서명해 에뮬레이터에 깐다.
+    // 동작에 닿는 차이는 서명 키뿐이다(BuildConfig.BUILD_TYPE · 출력 폴더 이름만 다르고 읽는 코드 0 · debuggable = false 그대로 — R8을 디버그 모드로 돌리지 않는다). Play에 올리지 않는다.
+    create("r8Debug") {
+      initWith(getByName("release"))
+      signingConfig = signingConfigs.getByName("debugConfig")
+      matchingFallbacks += listOf("release")
+    }
     debug {
       signingConfig = signingConfigs.getByName("debugConfig")
     }
@@ -65,6 +72,8 @@ android {
     // debugtools를 못 찾음) — kotlin 소스 폴더로도 잇는다. release 변형은 기본 소스 세트 src/release를 그대로 쓰므로 이 줄과 무관하다.
     getByName("releaseR8Check").java.srcDir("src/release/java")
     getByName("releaseR8Check").kotlin.srcDir("src/release/java")
+    getByName("r8Debug").java.srcDir("src/release/java")
+    getByName("r8Debug").kotlin.srcDir("src/release/java")
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
