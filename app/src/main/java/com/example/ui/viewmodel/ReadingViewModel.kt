@@ -436,6 +436,9 @@ class ReadingViewModel @JvmOverloads constructor(
     val activeBook = MutableStateFlow<Book?>(null)
     val activeBookDiaries = MutableStateFlow<List<Diary>>(emptyList())
 
+    /** [activeBookDiaries]가 어느 책의 기록을 한 번이라도 받았는가(책 id). 받기 전에는 «기록 0개»와 «아직 모름»을 가른다 — 상세의 «읽기 시작» 카드가 깜빡이지 않게. */
+    val activeBookDiariesLoadedFor = MutableStateFlow<Int?>(null)
+
     // OCR visual flow state
     val ocrState = MutableStateFlow<OcrState>(OcrState.Idle)
 
@@ -529,10 +532,11 @@ class ReadingViewModel @JvmOverloads constructor(
         if (activeBook.value?.id != bookId) {
             activeBook.value = null
             activeBookDiaries.value = emptyList()
+            activeBookDiariesLoadedFor.value = null
         }
         bookDetailJob = viewModelScope.launch {
             launch { repository.getBookById(bookId).collect { activeBook.value = it } }
-            launch { repository.getDiariesForBook(bookId).collect { activeBookDiaries.value = it } }
+            launch { repository.getDiariesForBook(bookId).collect { activeBookDiaries.value = it; activeBookDiariesLoadedFor.value = bookId } }
         }
     }
 
@@ -542,7 +546,7 @@ class ReadingViewModel @JvmOverloads constructor(
     }
 
     // Slider Progress modification
-    fun updateBookProgress(bookId: Int, newPage: Int, onComplete: () -> Unit = {}) {
+    fun updateBookProgress(bookId: Int, newPage: Int, nowMillis: Long = System.currentTimeMillis(), onComplete: () -> Unit = {}) {
         viewModelScope.launch {
             val book = repository.getBookByIdOneShot(bookId)
             if (book != null) {
@@ -552,17 +556,53 @@ class ReadingViewModel @JvmOverloads constructor(
                     else -> book.status // keep same status if To Read
                 }
                 
+                // 이미 완독한 책을 끝 쪽에 다시 놓아도 완독일은 그대로다.
+                val endDate = if (newPage >= book.totalPages && book.status != "COMPLETED") java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date(nowMillis)) else book.endDate
                 val updated = book.copy(
                     currentPage = newPage.coerceIn(0, book.totalPages),
                     status = newStatus,
-                    // 이미 완독한 책을 끝 쪽에 다시 놓아도 완독일은 그대로다.
-                    endDate = if (newPage >= book.totalPages && book.status != "COMPLETED") java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else book.endDate,
-                    startDate = if (book.startDate.isEmpty() && newPage > 0) java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else book.startDate
+                    endDate = endDate,
+                    // 시작이 빈 책을 «지금»으로 채울 때도 완독일(그날 끝)보다 늦지 않게(startReading · updateReadingStart와 같은 불변식).
+                    startDate = if (book.startDate.isEmpty() && newPage > 0) com.example.data.ReadingStart.format(com.example.data.ReadingStart.latestAllowed(nowMillis, endDate)) else book.startDate
                 )
                 repository.updateBook(updated)
                 showIfActive(updated)
                 onComplete()
             }
+        }
+    }
+
+    /**
+     * «읽기 시작»: 누른 시각을 시작 값으로 적고 «읽는 중»으로 둔다(완독한 책의 상태는 건드리지 않는다).
+     * 이미 시작 값이 있으면 덮지 않는다 — 고치는 것은 [updateReadingStart].
+     */
+    fun startReading(bookId: Int, atMillis: Long = System.currentTimeMillis(), onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            val book = repository.getBookByIdOneShot(bookId) ?: return@launch
+            if (book.startDate.isNotBlank()) { onComplete(); return@launch }
+            val updated = book.copy(
+                status = if (book.status == "COMPLETED") book.status else "READING",
+                // 완독한 책이면 시작이 완독일보다 늦지 않게(updateReadingStart와 같은 불변식).
+                startDate = com.example.data.ReadingStart.format(minOf(atMillis, com.example.data.ReadingStart.latestAllowed(atMillis, book.endDate)))
+            )
+            repository.updateBook(updated)
+            showIfActive(updated)
+            onComplete()
+        }
+    }
+
+    /**
+     * 시작 날짜 · 시각 고치기(분 단위). 상태 · 쪽은 그대로.
+     * 지금보다 늦거나 완독일(그날 끝)보다 늦은 값은 쓰지 않고 [onResult]에 false.
+     */
+    fun updateReadingStart(bookId: Int, atMillis: Long, nowMillis: Long = System.currentTimeMillis(), onResult: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            val book = repository.getBookByIdOneShot(bookId) ?: return@launch
+            if (atMillis > com.example.data.ReadingStart.latestAllowed(nowMillis, book.endDate)) { onResult(false); return@launch }
+            val updated = book.copy(startDate = com.example.data.ReadingStart.format(atMillis))
+            repository.updateBook(updated)
+            showIfActive(updated)
+            onResult(true)
         }
     }
 
@@ -626,7 +666,7 @@ class ReadingViewModel @JvmOverloads constructor(
                         coverUrl = coverUrl,
                         bookcaseId = resolvedBookcaseId,
                         status = status,
-                        startDate = if (currentPage > 0) java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else ""
+                        startDate = if (currentPage > 0) com.example.data.ReadingStart.format(System.currentTimeMillis()) else ""
                     )
                 )
             } else {
@@ -943,7 +983,7 @@ class ReadingViewModel @JvmOverloads constructor(
 
     /**
      * 밑줄 «미리 선택»(SPIKE §4-2): 마지막 기본(온디바이스) 인식의 어절마다 밑줄 여부. 인식 뒤 같은 비트맵으로
-     * [UnderlinePreselect]를 불러 얻는다. 결과 화면이 어절 칩으로 보여 준다(UnderlinePreselectPanel — 편집창 글은 사용자가 버튼을 눌렀을 때만 바뀐다).
+     * [UnderlinePreselect]를 불러 얻는다. 결과 화면이 어절 칩으로 보여 주고, 편집창이 인식 결과 그대로면 켜진 어절만으로 바꿔 시작한다(OcrDiaryScreen — 칩을 고친 뒤에는 버튼을 눌렀을 때만 바뀐다).
      * 상자가 없는 결과 · 검출 실패는 null. 정밀 분석을 시작하면 null로 비운다(그 결과로 바꿀 수 있어 옛 값이 남지 않게).
      */
     val underlinePreselect = MutableStateFlow<List<UnderlinePreselect.Word>?>(null)

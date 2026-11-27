@@ -71,6 +71,10 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+/** «추출 된 문장» 편집창에 보이는 줄 수: 하한(빈 칸 · 짧은 글) · 상한(긴 글은 칸 안 스크롤). HO-2026-1127 조건 5 — 전에는 4줄. */
+internal const val EXTRACTED_TEXT_MIN_LINES = 6
+internal const val EXTRACTED_TEXT_MAX_LINES = 12
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OcrDiaryScreen(
@@ -97,6 +101,9 @@ fun OcrDiaryScreen(
     val formKey = remember(bookId, diaryId) { "ocr_form/${viewModel.diaryFormToken.value}/$bookId/$diaryId" }
     var pageStr by rememberSaveable(key = "$formKey/page") { mutableStateOf("") }
     var extractedText by rememberSaveable(key = "$formKey/text") { mutableStateOf("") }
+    // 마지막 인식의 틀 안 전체 글. 밑줄 어절이 있으면 편집창은 그 어절만으로 시작하고, 전체 글은 접힌 «원문 전체»로 내려간다.
+    var ocrFullText by rememberSaveable(key = "$formKey/ocrFull") { mutableStateOf("") }
+    var showOcrFullText by rememberSaveable(key = "$formKey/ocrFullShown") { mutableStateOf(false) }
     var notes by rememberSaveable(key = "$formKey/notes") { mutableStateOf("") }
     var editDetailsLoaded by rememberSaveable(key = "$formKey/editLoaded") { mutableStateOf(false) }
     // 밑줄 미리 선택(새 인식마다 새 값). 칩 상태는 새 값이 올 때만 새로 만든다(사용자가 고친 칩은 같은 값 동안 유지).
@@ -135,6 +142,8 @@ fun OcrDiaryScreen(
     fun clearShownPhoto() {
         viewModel.clearUnderlinePreselect() // 앞 사진의 미리 선택 칩이 새 사진 · 빈 화면에 남지 않게
         viewModel.clearOcrError() // 앞 사진의 실패 안내가 새 사진 아래에 남지 않게
+        ocrFullText = "" // 앞 사진의 «원문 전체»가 새 사진 · 빈 화면에 남지 않게(편집창 글은 전처럼 남는다)
+        showOcrFullText = false
         activeImageUrl = null
         isImageTaken = false
         isCroppedReady = false
@@ -375,11 +384,21 @@ fun OcrDiaryScreen(
         when (val state = ocrState) {
             is OcrState.Success -> {
                 extractedText = state.text
+                ocrFullText = state.text
+                showOcrFullText = false
                 Toast.makeText(context, "인식된 문장을 원문과 대조해 주세요.", Toast.LENGTH_SHORT).show()
             }
             // 실패는 «틀 안 글자 읽기» 버튼 아래에 남긴다(OcrErrorText). 토스트는 두 줄에서 잘려 다음에 할 일이 보이지 않았다.
             else -> Unit
         }
+    }
+
+    // 밑줄 어절이 오면 편집창을 그 어절만으로 바꾼다 — 편집창이 아직 인식 결과 그대로일 때만(사용자가 고친 글 · 기존 기록의 글은 덮지 않는다).
+    // 미리 선택이 0개면 아무것도 하지 않는다(전체 글이 그대로 남는다).
+    LaunchedEffect(preselect) {
+        val words = preselect ?: return@LaunchedEffect
+        if (words.none { it.selected } || ocrFullText.isEmpty() || extractedText != ocrFullText) return@LaunchedEffect
+        extractedText = preselectedText(words, words.map { it.selected })
     }
 
     // Helper functions to show standard pickers
@@ -1115,9 +1134,9 @@ fun OcrDiaryScreen(
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                                 ) 
                             },
+                            // 글 길이에 따라 6줄에서 12줄까지 늘어난다(전에는 115dp 고정 · 4줄). 12줄을 넘으면 칸 안에서 스크롤한다.
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(115.dp)
                                 .testTag("diary_extracted_text_input"),
                             shape = RoundedCornerShape(8.dp),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -1126,7 +1145,8 @@ fun OcrDiaryScreen(
                                 unfocusedContainerColor = MaterialTheme.colorScheme.surface
                             ),
                             textStyle = MaterialTheme.typography.bodyMedium,
-                            maxLines = 4
+                            minLines = EXTRACTED_TEXT_MIN_LINES,
+                            maxLines = EXTRACTED_TEXT_MAX_LINES
                         )
                         
                         Spacer(modifier = Modifier.height(8.dp))
@@ -1196,7 +1216,7 @@ fun OcrDiaryScreen(
                     }
                 }
 
-                // 밑줄 미리 선택: 고른 어절이 없으면 아무것도 그리지 않는다(기존 화면 그대로). 편집창 글은 버튼을 눌렀을 때만 바뀐다.
+                // 밑줄 미리 선택: 고른 어절이 없으면 아무것도 그리지 않는다(기존 화면 그대로). 첫 값은 위 LaunchedEffect(preselect)가 편집창에 넣고, 칩을 고친 뒤에는 버튼을 눌렀을 때만 바뀐다.
                 UnderlinePreselectPanel(
                     words = preselect,
                     chosen = preselectChosen,
@@ -1204,6 +1224,17 @@ fun OcrDiaryScreen(
                     onApply = { preselect?.let { extractedText = preselectedText(it, preselectChosen) } },
                     modifier = Modifier.padding(top = 10.dp)
                 )
+
+                // 원문 전체(접힘): 편집창 글이 마지막 인식의 전체 글과 다를 때(밑줄 어절로 시작 · 사용자가 고침). 펼쳐 읽거나 편집창을 전체 글로 되돌린다.
+                // 미리 선택 값(ViewModel)에 묶지 않는다 — 프로세스 재생성 · 사진 회전으로 값이 비어도 원문은 남는다(ocrFullText는 rememberSaveable).
+                if (ocrFullText.isNotEmpty() && extractedText != ocrFullText) {
+                    OcrFullTextSection(
+                        fullText = ocrFullText,
+                        expanded = showOcrFullText,
+                        onToggle = { showOcrFullText = !showOcrFullText },
+                        onUseFullText = { extractedText = ocrFullText }
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
@@ -1265,6 +1296,7 @@ fun OcrDiaryScreen(
                             TextButton(
                                 onClick = {
                                     extractedText = result.text
+                                    ocrFullText = "" // 정밀 결과로 바꾸면 온디바이스 원문을 «원문 전체»로 남기지 않는다(덜 정확한 판독이 원문처럼 보이지 않게)
                                     viewModel.clearOcrError()
                                     viewModel.resetPreciseOcrState()
                                 },
@@ -1486,4 +1518,25 @@ internal fun OcrErrorText(message: String) {
             .semantics { liveRegion = LiveRegionMode.Polite }
             .testTag("ocr_error")
     )
+}
+
+/** 틀 안 전체 글(접힘). 밑줄 어절만으로 시작한 편집창을 원문과 대조하거나 전체 글로 되돌린다. */
+@Composable
+private fun OcrFullTextSection(fullText: String, expanded: Boolean, onToggle: () -> Unit, onUseFullText: () -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        TextButton(onClick = onToggle, modifier = Modifier.testTag("ocr_full_text_toggle")) {
+            Text(if (expanded) "원문 전체 접기" else "원문 전체 보기 (${fullText.length}자)", style = MaterialTheme.typography.labelLarge)
+        }
+        if (expanded) {
+            Text(
+                text = fullText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).testTag("ocr_full_text")
+            )
+            TextButton(onClick = onUseFullText, modifier = Modifier.testTag("ocr_full_text_apply")) {
+                Text("편집창을 원문 전체로 바꾸기", style = MaterialTheme.typography.labelLarge)
+            }
+        }
+    }
 }

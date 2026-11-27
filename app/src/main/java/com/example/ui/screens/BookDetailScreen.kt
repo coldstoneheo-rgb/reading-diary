@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.ReadingStart
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.ui.components.CoverPlaceholder
@@ -47,6 +48,7 @@ fun BookDetailScreen(
     val book by viewModel.activeBook.collectAsState()
     val sampleIds by viewModel.sampleBookIds.collectAsState()
     val diaries by viewModel.activeBookDiaries.collectAsState()
+    val diariesLoadedFor by viewModel.activeBookDiariesLoadedFor.collectAsState()
     val bookcases by viewModel.bookcases.collectAsState()
 
     val diarySortNewestFirst by viewModel.diarySortNewestFirst.collectAsState()
@@ -82,6 +84,31 @@ fun BookDetailScreen(
     }
 
     val currentBook = book!!
+    // «읽기 시작» 전에는 진척도 · 기록 쓰기를 열지 않는다(HO-2026-1127 조건 4). 이미 있는 책의 옮김 규칙은 ReadingStart.isStarted.
+    val started = ReadingStart.isStarted(currentBook, diaries.size)
+    // 기록을 아직 받지 못했으면 시작 카드를 그리지 않는다(기록이 있는 옛 책에서 카드가 잠깐 떴다 사라지지 않게).
+    val diariesLoaded = diariesLoadedFor == currentBook.id
+
+    /** 시작 날짜 → 시각을 차례로 고른다. 옛 값(날짜만)은 그날 0시에서 시작한다. */
+    fun editReadingStart() {
+        val cal = java.util.Calendar.getInstance().apply {
+            // 시작이 빈 책은 고를 수 있는 가장 늦은 시각(지금 · 완독일 그날 끝 중 이른 것)에서 연다 — 완독일이 지난 책에서 초기값이 상한 밖이 되지 않게.
+            timeInMillis = ReadingStart.parse(currentBook.startDate) ?: ReadingStart.latestAllowed(System.currentTimeMillis(), currentBook.endDate)
+        }
+        val dialog = android.app.DatePickerDialog(context, { _, y, m, d ->
+            cal.set(y, m, d)
+            android.app.TimePickerDialog(context, { _, h, min ->
+                cal.set(java.util.Calendar.HOUR_OF_DAY, h)
+                cal.set(java.util.Calendar.MINUTE, min)
+                viewModel.updateReadingStart(currentBook.id, cal.timeInMillis) { ok ->
+                    if (!ok) Toast.makeText(context, "시작 시각은 지금이나 완독일보다 늦을 수 없어요.", Toast.LENGTH_SHORT).show()
+                }
+            }, cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE), true).show()
+        }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH))
+        // 고를 수 있는 마지막 날 = 오늘 · 완독일 중 이른 날(시각까지는 ViewModel이 다시 막는다).
+        dialog.datePicker.maxDate = ReadingStart.latestAllowed(System.currentTimeMillis(), currentBook.endDate)
+        dialog.show()
+    }
     val currentBookcase = bookcases.find { it.id == currentBook.bookcaseId }?.name ?: "기본 책장"
 
     if (showDeleteAlert) {
@@ -305,26 +332,33 @@ fun BookDetailScreen(
                         }
 
                         // Dates started/ended
-                        val datesText = when {
-                            currentBook.status == "COMPLETED" -> {
-                                "독서 기간: ${currentBook.startDate} ~ ${currentBook.endDate ?: "완료"}"
+                        val datesText = ReadingStart.periodLabel(currentBook, started)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = datesText,
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                modifier = Modifier.weight(1f, fill = false).testTag("reading_start_text")
+                            )
+                            // 시작한 책이면 ✎(48dp 누르는 자리 · 낭독 이름)로 날짜 · 시각을 고친다 — 시작 값이 빈 옛 책(완독 · 쪽 > 0 · 기록 있음)은 여기서 처음 적는다.
+                            if (started) {
+                                IconButton(onClick = { editReadingStart() }, modifier = Modifier.size(48.dp).testTag("reading_start_edit")) {
+                                    Icon(Icons.Outlined.Edit, contentDescription = if (currentBook.startDate.isBlank()) "시작 시각 적기" else "시작 시각 고치기", modifier = Modifier.size(18.dp))
+                                }
                             }
-                            currentBook.startDate.isNotEmpty() -> {
-                                "독서 시작: ${currentBook.startDate}"
-                            }
-                            else -> "아직 읽지 않은 도서"
                         }
-                        Text(
-                            text = datesText,
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                        )
                     }
                 }
             }
 
+            if (!started && diariesLoaded) {
+                item {
+                    StartReadingCard(onStart = { viewModel.startReading(currentBook.id) })
+                }
+            }
+
             // Slider Reading Progress Section
-            item {
+            if (started) item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -473,7 +507,7 @@ fun BookDetailScreen(
                         )
                     }
 
-                    Button(
+                    if (started) Button(
                         onClick = { viewModel.navigateTo(Screen.AddDiary(currentBook.id)) },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
@@ -512,7 +546,8 @@ fun BookDetailScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "책 페이지를 찍어 구절이 있는 부분을 잘라 내면 글자를 읽어 와 다이어리를 적을 수 있어요.",
+                            text = if (started) "책 페이지를 찍어 구절이 있는 부분을 잘라 내면 글자를 읽어 와 다이어리를 적을 수 있어요."
+                                else "«읽기 시작»을 누르면 기록을 적을 수 있어요.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
                             textAlign = TextAlign.Center
@@ -689,6 +724,32 @@ fun DiaryItemCard(
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.End
             )
+        }
+    }
+}
+
+/** 시작 전 카드: 누르면 지금 날짜 · 시각이 시작 값으로 저장되고 진척도 · 기록 쓰기가 열린다. */
+@Composable
+private fun StartReadingCard(onStart: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().testTag("start_reading_card"),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = "아직 시작 전이에요",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "누르면 지금 날짜와 시각이 시작으로 기록되고, 읽은 쪽 · 메모 · 사진 기록이 열려요. 시작 시각은 나중에 고칠 수 있어요.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Button(onClick = onStart, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("start_reading_button")) {
+                Text("읽기 시작", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold))
+            }
         }
     }
 }
