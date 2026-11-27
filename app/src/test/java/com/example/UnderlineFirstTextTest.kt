@@ -74,7 +74,7 @@ class UnderlineFirstTextTest {
   }
 
   private fun fieldText(): String = composeTestRule.onAllNodesWithTag("diary_extracted_text_input").fetchSemanticsNodes()
-    .firstOrNull()?.config?.getOrElse(androidx.compose.ui.semantics.SemanticsProperties.EditableText) { null }?.text.orEmpty()
+    .firstOrNull()?.config?.let { c -> if (androidx.compose.ui.semantics.SemanticsProperties.EditableText in c) c[androidx.compose.ui.semantics.SemanticsProperties.EditableText].text else null }.orEmpty()
 
   /** 새 기록 화면에서 인식을 돌린다. [selected] = 어절 순번마다 미리 선택 값. */
   private fun recognize(selected: (Int) -> Boolean): ReadingViewModel {
