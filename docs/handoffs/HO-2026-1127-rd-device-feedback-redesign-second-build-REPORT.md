@@ -65,7 +65,11 @@ main = a127601(#94). 열린 PR은 #78(draft)뿐이다. 아래 순서로 이어 �
 
 1. **R1 PR 올리기**
    - 워크트리: `.claude/worktrees/agent-a9fc4acfc8f5d1679`, 가지 `feat/r1-record-screen-density` @ 026eaea.
-   - 전체 `verifyRoborazziDebug` 결과를 확인한다. `FirstRunSafetyTest`의 «UncaughtExceptionsBeforeTest»가 되풀이되면, 앞 시험이 남긴 예외의 출처를 찾는다. 새 스낵바 코루틴을 먼저 의심한다. main에서도 같은 일이 나는지도 견준다.
+   - **막힌 것**: 서재 판정 커밋을 뗀 026eaea에서도 전체 `verifyRoborazziDebug`가 522 중 1 실패한다(23:3x). 단독으로 돌리면 통과한다.
+     - 실패 시험: `FirstRunSafetyTest.leavingWithUnsavedInput_asksFirst_andBlankFormLeavesAtOnce` · `UncaughtExceptionsBeforeTest`.
+     - 숨은 원인 단서: `IllegalStateException: Cannot perform this operation because the connection pool has been closed`. 앞 시험이 Room DB를 닫은 뒤 ViewModel의 Flow 수집(커서 읽기)이 살아 있다.
+     - 먼저 의심할 곳: 새 시험 `RecordScreenDensityTest` · `RecordScreenHarness`의 DB 닫기 순서. 화면 · 뷰모델을 먼저 정리해야 한다.
+     - 고친 뒤 전체 verify가 0이어야 PR을 연다. `FirstRunSafetyTest`의 «UncaughtExceptionsBeforeTest»가 되풀이되면, 앞 시험이 남긴 예외의 출처를 찾는다. 새 스낵바 코루틴을 먼저 의심한다. main에서도 같은 일이 나는지도 견준다.
    - 통과하면 푸시하고 PR을 연다. 본문 초안은 `.claude/worktrees/r1-pr-body.draft.md`(git 밖)에 있다. 들어갈 것: 계획서 §6 표 · 기준 이미지 12장 · 후속 6건 · 서재 판정을 뗀 까닭.
    - critic 7/10 PASS를 받은 상태에서 LC 게이트로 간다.
 2. **서재 판정 PR**
