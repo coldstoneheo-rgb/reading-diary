@@ -77,6 +77,68 @@ class UnderlinePreselectTest {
     assertTrue(UnderlinePreselect.forLines(page(), W, H, listOf(OcrLine("x", null, emptyList()))).isEmpty())
   }
 
+  /** 높이 40 어절 8개가 오른쪽으로 갈수록 8px씩 올라가는 줄(양 끝 차 56px > 글자 높이) — 휜 쪽 아래쪽 줄의 꼴. */
+  private fun risingLine(baseTop: Int) = List(8) { i -> Box(40 + i * 70, baseTop - i * 8, 100 + i * 70, baseTop - i * 8 + 40) }
+
+  @Test
+  fun curvedPageLine_staysOneLine_andDoesNotSplitIntoFragments() {
+    // 옛 묶기(줄 전체 세로 중심 중앙값과 비교)는 이 줄을 5 + 3 조각으로 갈랐다. 조각의 위 끝이 윗줄 밑줄 띠의 아래 한계가 돼
+    // 띠가 몇 px로 줄고, 밑줄 줄 어절을 통째로 놓쳤다(사용자 실제 틀 측정 2/5/4의 원인).
+    val upper = risingLine(200)
+    val lower = risingLine(290)
+    val lines = UnderlinePreselect.clusterLines(upper + lower)
+    assertEquals(2, lines.size)
+    assertEquals((0..7).toList(), lines[0].words)
+    assertEquals((8..15).toList(), lines[1].words)
+  }
+
+  @Test
+  fun tallMarginBox_andSmallMarkBeforeTheLine_doNotPullOrSplitBodyLines() {
+    // 기준 사진 g02의 꼴: 줄 머리 왼쪽 작은 표시(높이 25)와 여백의 키 큰 손글씨(높이 90)가 본문 줄을 가르거나 끌어오지 않는다.
+    val body = List(5) { i -> Box(100 + i * 70, 200 - i * 3, 160 + i * 70, 240 - i * 3) }
+    val mark = Box(10, 230, 40, 255)
+    val margin = Box(10, 340, 40, 430) // 세로 중심이 다음 줄보다 35px 아래(글자 높이 40의 절반 넘게)
+    val next = List(5) { i -> Box(100 + i * 70, 330, 160 + i * 70, 370) }
+    val words = body + mark + margin + next
+    val lines = UnderlinePreselect.clusterLines(words)
+    val bodyLine = lines.single { 0 in it.words }
+    assertTrue(bodyLine.words.containsAll((0..4).toList()))
+    val nextLine = lines.single { 7 in it.words }
+    assertEquals((7..11).toList(), nextLine.words)
+    assertTrue(lines.single { 6 in it.words }.words == listOf(6))
+  }
+
+  @Test
+  fun smallWordInsideAFlatLine_doesNotBecomeItsOwnLine() {
+    // critic 반례 A: 본문 줄 사이에 키 작은 상자(구두점 · 라틴 소문자). 혼자 줄이 되면 그 위 끝이 본문 줄의 띠를 막는다.
+    val body = List(4) { i -> Box(40 + i * 70, 200, 100 + i * 70, 240) }
+    val small = Box(104, 224, 108, 240)
+    val lines = UnderlinePreselect.clusterLines(body + small)
+    assertEquals(1, lines.size)
+    // 줄 머리에 먼저 오는 키 작은 상자(여는 따옴표)도 같은 줄.
+    val quote = Box(20, 200, 30, 216)
+    assertEquals(1, UnderlinePreselect.clusterLines(body + quote).size)
+  }
+
+  @Test
+  fun smallWordInsideARisingLine_doesNotSplitIt() {
+    // critic 반례 B: 8px씩 올라가는 줄 가운데 키 작은 상자 하나가 그 줄의 마지막 어절이 되어도 다음 어절이 끊기지 않는다.
+    val line = risingLine(200)
+    val small = Box(175, 206, 195, 228)
+    val lines = UnderlinePreselect.clusterLines(line + small)
+    assertEquals(1, lines.size)
+  }
+
+  @Test
+  fun nearerLineByDistance_winsOverAStaleFragmentThatIsVerticallyCloser() {
+    // 가로 거리 먼저: 아래로 기우는 본문 줄 어절이 멀리 왼쪽에 남은 조각(세로로 더 가까움)과 본문 줄 둘 다의 허용폭에 들 때 본문 줄로.
+    val stale = Box(10, 216, 40, 256)
+    val body = List(6) { k -> Box(100 + 70 * k, 180 + 8 * k, 160 + 70 * k, 220 + 8 * k) }
+    val lines = UnderlinePreselect.clusterLines(listOf(stale) + body)
+    assertEquals((1..6).toList(), lines.single { 1 in it.words }.words)
+    assertEquals(listOf(0), lines.single { 0 in it.words }.words)
+  }
+
   @Test
   fun outlierHeightWords_areLeftOutAndNeverSelected() {
     // 여러 줄을 합친 큰 상자(높이 > 2.4 × 중앙값)는 줄 묶기에서 빠지고 미리 선택도 false.
