@@ -42,7 +42,8 @@ object GoldenMeasure {
     val VARIANTS: List<Variant> = listOf(Variant("보정 전(문턱 0.3 · 띠 ±0.08H · 수평)", LEGACY, false)) +
         listOf(0.3, 0.29, 0.28, 0.27, 0.26, 0.25, 0.22, 0.2).map { d ->
             Variant("K1a+K2 · 한 단계 문턱 $d${if (d == 0.28) " = 직전 기본값" else ""}", SINGLE_028.copy(darkRatio = d), true)
-        } + Variant("K1a+K2 · 두 단계 문턱 = 지금 기본값", UnderlineDetector.Params(), true)
+        } + Variant("K1a+K2 · 두 단계 문턱 · 둘레 거르기 끔(#91 동작)", UnderlineDetector.Params(enclosureEndRatio = 0.0), true) +
+        Variant("K1a+K2 · 두 단계 문턱 = 지금 기본값", UnderlineDetector.Params(), true)
 
     /**
      * 앱 해상도 행: 기기 덤프 머리의 배율(원본 ÷ 앱 비트맵, 보통 2)만큼 사진을 줄이고(칸 평균) 상자를 나눠 지금 기본값으로 잰다.
@@ -60,8 +61,15 @@ object GoldenMeasure {
         "한 단계 0.23" to SINGLE_028.copy(darkRatio = 0.23),
         "지금 기본값 · 세로 3픽셀 평균 늘" to UnderlineDetector.Params(smoothMinHeight = 0),
         // 검출기 수리(HO-2026-1127): 열별 종이 밝기(창 반경 × 세로 분위)
-        "수리 전(띠 전체 종이)" to UnderlineDetector.Params(localPaperRadiusRatio = 0.0)
-    ) + listOf(1.5, 3.0).flatMap { r ->
+        "수리 전(띠 전체 종이)" to UnderlineDetector.Params(localPaperRadiusRatio = 0.0),
+        // 둘레 윗변 거르기(HO-2026-1127 추기 4): 끔 · 끝 구역 폭 · 바닥 구역 높이
+        "둘레 거르기 끔(#91 동작)" to UnderlineDetector.Params(enclosureEndRatio = 0.0)
+    ) + listOf(0.3, 0.6, 1.0).flatMap { e ->
+        listOf(0.2, 0.4, 0.7).map { d ->
+            val p = UnderlineDetector.Params(enclosureEndRatio = e, enclosureDepthRatio = d)
+            "둘레 끝 구역 ${e}H · 옆변 깊이 ${d}H${if (p == UnderlineDetector.Params()) " = 지금 기본값" else ""}" to p
+        }
+    } + listOf(1.5, 3.0).flatMap { r ->
         listOf(0.5, 0.75, 0.9).map { q ->
             val p = UnderlineDetector.Params(localPaperRadiusRatio = r, localPaperQuantile = q)
             "열별 종이 ±${r}H · 세로 분위 $q${if (p == UnderlineDetector.Params()) " = 지금 기본값" else ""}" to p
