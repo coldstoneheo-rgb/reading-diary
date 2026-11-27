@@ -2,6 +2,8 @@ package com.example
 
 import android.app.Application
 import android.os.Looper
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -20,6 +22,8 @@ import com.example.ui.viewmodel.ReadingViewModel
 import com.example.ui.viewmodel.Screen
 import com.example.data.ocr.OcrOutcome
 import com.example.data.ocr.TextExtractor
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -79,6 +83,18 @@ class ReadingStartTest {
   }
 
   @Test
+  fun shelfStatus_followsTheDetailStartRule() {
+    assertEquals("«읽고 있는 책»으로 등록만 한 책은 서재에서도 읽을 책", "TO_READ", ReadingStart.shelfStatus(book(status = "READING"), 0))
+    assertEquals("시작한 책은 그대로 읽는 중", "READING", ReadingStart.shelfStatus(book(status = "READING", start = "2026-11-20 09:00"), 0))
+    assertEquals("쪽이 있으면 읽는 중", "READING", ReadingStart.shelfStatus(book(status = "READING", page = 3), 0))
+    assertEquals("기록이 있으면 읽는 중", "READING", ReadingStart.shelfStatus(book(status = "READING"), 1))
+    assertEquals("TO_READ", ReadingStart.shelfStatus(book(), 0))
+    assertEquals("읽을 책인데 기록이 있으면(상세가 기록을 연다) 서재도 읽는 중", "READING", ReadingStart.shelfStatus(book(), 1))
+    assertEquals("읽을 책인데 시작 값이 있으면 읽는 중", "READING", ReadingStart.shelfStatus(book(start = "2026-11-20 09:00"), 0))
+    assertEquals("COMPLETED", ReadingStart.shelfStatus(book(status = "COMPLETED"), 0))
+  }
+
+  @Test
   fun formatAndParse_roundTripToTheMinute_andReadOldDateOnlyValues() {
     val at = 1_795_748_760_000L // 2026-11-27 12:06 KST
     val s = ReadingStart.format(at)
@@ -134,6 +150,9 @@ class ReadingStartTest {
     composeTestRule.runOnUiThread { vm.navigateTo(Screen.BookDetail(id)) }
     composeTestRule.setContent { MyApplicationTheme { BookDetailScreen(viewModel = vm) } }
     pump { has("reading_start_text") }
+    // 책장 칩은 책장 목록이 오기 전엔 «기본 책장»으로 그려진다 — 캡처가 로드 순서에 흔들리지 않게 기다린다.
+    pump { vm.bookcases.value.any { it.id == caseId } }
+    composeTestRule.waitForIdle()
     return vm
   }
 
@@ -166,6 +185,127 @@ class ReadingStartTest {
     composeTestRule.runOnUiThread { vm.startReading(id, 1_900_000_000_000L) }
     repeat(20) { shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(20) }
     assertEquals(ReadingStart.format(1_795_700_000_000L), stored(id).startDate)
+  }
+
+  /** 서재 목록(books · filteredBooks)과 상세가 같은 책을 다르게 말하지 않는다(LC 판정 1). DB 값은 그대로. */
+  @Test
+  fun shelf_showsANotStartedReadingBookAsToRead_andTheDetailAgrees() {
+    val legacy = runBlocking { db.bookDao().insert(book(status = "READING")).toInt() }
+    val vm = detail(legacy)
+    assertTrue("상세: 시작 전", has("start_reading_button"))
+    val collected = mutableListOf<kotlinx.coroutines.Job>()
+    collected += kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined).launch { vm.books.collect {} }
+    collected += kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined).launch { vm.filteredBooks.collect {} }
+    try {
+      pump { vm.books.value.any { it.id == legacy } }
+      assertEquals("TO_READ", vm.books.value.single { it.id == legacy }.status)
+      vm.selectedFilter.value = "READING"
+      pump { vm.filteredBooks.value.none { it.id == legacy } }
+      assertEquals("DB 값은 바꾸지 않는다", "READING", stored(legacy).status)
+
+      // «읽기 시작»을 누르면 서재에서도 읽는 중.
+      composeTestRule.onNodeWithTag("start_reading_button").performScrollTo().performClick()
+      pump { vm.filteredBooks.value.any { it.id == legacy } }
+      assertEquals("READING", vm.books.value.single { it.id == legacy }.status)
+    } finally {
+      collected.forEach { it.cancel() }
+    }
+  }
+
+  /** critic #96 중요 1 · 2: 책장 이동 · 제목 고치기만으로 시작이 일어나지 않고, «읽을 책»으로 되돌리면 상세도 시작 전이다. */
+  @Test
+  fun editingWithoutStarting_neverInventsAStart_andRevertingToToReadClearsIt() {
+    val vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, FakeDiaryPhotoStore()) { false }
+    fun save(b: Book, status: String, page: Int = b.currentPage) {
+      var done = false
+      vm.saveBook(id = b.id, title = b.title, author = b.author, totalPages = b.totalPages, currentPage = page, coverUrl = b.coverUrl, bookcaseId = caseId, status = status) { done = true }
+      pump { done }
+    }
+    // A) 시작 전 옛 책(READING · 0쪽 · 기록 0 · 시작 빈칸)의 책장 이동: 책장만 바뀌고 상태 · 시작 값은 그대로(시작이 생기지 않는다).
+    val legacy = stored(runBlocking { db.bookDao().insert(book(status = "READING")).toInt() })
+    val otherCase = runBlocking { db.bookcaseDao().insert(Bookcase(name = "옮길 곳")).toInt() }
+    var moved = false
+    vm.moveBookToBookcase(legacy.id, otherCase) { moved = true }
+    pump { moved }
+    assertEquals(otherCase, stored(legacy.id).bookcaseId)
+    assertEquals("", stored(legacy.id).startDate)
+    assertEquals("READING", stored(legacy.id).status)
+    assertFalse("상세도 시작 전 그대로", ReadingStart.isStarted(stored(legacy.id), 0))
+
+    // B) 이미 시작했지만 시작 값만 빈 책(READING · 12쪽): 제목만 고쳐도 «지금»을 지어내지 않는다(✎ 단서 유지).
+    val started = stored(runBlocking { db.bookDao().insert(book(status = "READING", page = 12)).toInt() })
+    save(started.copy(title = "고친 제목"), "READING")
+    assertEquals("", stored(started.id).startDate)
+
+    // C) 시작한 책을 «다음에 읽을 책»으로 되돌림(폼이 쪽을 0으로) · 기록 0 → 시작 값을 지워 상세도 시작 전.
+    val begun = stored(runBlocking { db.bookDao().insert(book(status = "READING", page = 5, start = "2026-11-20 09:00")).toInt() })
+    save(begun, "TO_READ", page = 0)
+    assertEquals("", stored(begun.id).startDate)
+    assertFalse(ReadingStart.isStarted(stored(begun.id), 0))
+    assertEquals("TO_READ", ReadingStart.shelfStatus(stored(begun.id), 0))
+  }
+
+  /** critic #96 재채점 중요 1: 기록이 있는 책은 고치기 폼에서 «다음에 읽을 책»을 고를 수 없다(골라도 상세 · 서재는 읽는 중이고 쪽만 0이 되던 회귀). */
+  @Test
+  fun editForm_blocksToRead_forABookWithRecords() {
+    val id = runBlocking { db.bookDao().insert(book(status = "READING", page = 50, start = "2026-11-20 09:00")).toInt() }
+    runBlocking { db.diaryDao().insert(Diary(bookId = id, page = 10, selectedText = "글", notes = "", createdAt = 1L)) }
+    val vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, FakeDiaryPhotoStore()) { false }
+    composeTestRule.setContent { MyApplicationTheme { com.example.ui.screens.AddEditBookScreen(viewModel = vm, bookId = id, startWithSearch = false) } }
+    pump { vm.diaries.value.any { it.bookId == id } && vm.books.value.any { it.id == id } }
+    composeTestRule.onNodeWithTag("status_selector").performScrollTo().performClick()
+    pump { has("status_to_read_option") }
+    composeTestRule.onNodeWithTag("status_to_read_option").assertIsNotEnabled()
+  }
+
+  /** 기록이 없는 책은 «다음에 읽을 책»을 그대로 고를 수 있다(위 시험이 늘 막힌 메뉴로 통과하지 않게). */
+  @Test
+  fun editForm_allowsToRead_forABookWithoutRecords() {
+    val id = runBlocking { db.bookDao().insert(book(status = "READING", page = 5, start = "2026-11-20 09:00")).toInt() }
+    val vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, FakeDiaryPhotoStore()) { false }
+    composeTestRule.setContent { MyApplicationTheme { com.example.ui.screens.AddEditBookScreen(viewModel = vm, bookId = id, startWithSearch = false) } }
+    pump { vm.books.value.any { it.id == id } }
+    composeTestRule.onNodeWithTag("status_selector").performScrollTo().performClick()
+    pump { has("status_to_read_option") }
+    composeTestRule.onNodeWithTag("status_to_read_option").assertIsEnabled()
+  }
+
+  /** «읽고 있는 책»으로 등록 · 고쳐 저장 = 지금 시작. 시작 시각이 빈 채로 진척도 · 기록이 열리는 새 책이 생기지 않는다. */
+  @Test
+  fun savingAsReading_recordsTheStartNow_forNewAndEditedBooks() {
+    val vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, FakeDiaryPhotoStore()) { false }
+    val before = System.currentTimeMillis()
+    var done = false
+    vm.saveBook(title = "읽는 중 등록", author = "", totalPages = 100, currentPage = 0, coverUrl = "", bookcaseId = caseId, status = "READING") { done = true }
+    pump { done }
+    val created = runBlocking { db.bookDao().getAllBooks().first() }.single { it.title == "읽는 중 등록" }
+    assertTrue(created.startDate, ReadingStart.hasTime(created.startDate))
+    assertTrue(ReadingStart.parse(created.startDate)!! >= before - before % 60_000)
+    assertTrue(ReadingStart.isStarted(created, 0))
+
+    done = false
+    vm.saveBook(title = "읽을 책 등록", author = "", totalPages = 100, currentPage = 0, coverUrl = "", bookcaseId = caseId, status = "TO_READ") { done = true }
+    pump { done }
+    val toRead = runBlocking { db.bookDao().getAllBooks().first() }.single { it.title == "읽을 책 등록" }
+    assertEquals("읽을 책은 시작 전", "", toRead.startDate)
+
+    // 읽을 책을 «읽고 있는 책»으로 고쳐 저장하면 그때가 시작. 이미 있는 시작 값은 덮지 않는다.
+    done = false
+    vm.saveBook(id = toRead.id, title = "읽을 책 등록", author = "", totalPages = 100, currentPage = 0, coverUrl = "", bookcaseId = caseId, status = "READING") { done = true }
+    pump { done }
+    assertTrue(ReadingStart.hasTime(stored(toRead.id).startDate))
+    val kept = stored(created.id).startDate
+    done = false
+    vm.saveBook(id = created.id, title = "고친 제목", author = "", totalPages = 100, currentPage = 0, coverUrl = "", bookcaseId = caseId, status = "READING") { done = true }
+    pump { done }
+    assertEquals(kept, stored(created.id).startDate)
+
+    // 완독 책을 고쳐도 빈 시작을 «지금»으로 채우지 않는다(완독일보다 늦은 시작 금지).
+    val done1 = runBlocking { db.bookDao().insert(book(status = "COMPLETED", page = 100, end = "2026-01-05")).toInt() }
+    done = false
+    vm.saveBook(id = done1, title = "견본", author = "", totalPages = 100, currentPage = 100, coverUrl = "", bookcaseId = caseId, status = "COMPLETED") { done = true }
+    pump { done }
+    assertEquals("", stored(done1).startDate)
   }
 
   @Test

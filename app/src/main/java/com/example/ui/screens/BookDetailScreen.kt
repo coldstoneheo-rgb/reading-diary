@@ -150,16 +150,8 @@ fun BookDetailScreen(
                                 .fillMaxWidth()
                                 .clickable {
                                     showBookcaseTransferDialog = false
-                                    viewModel.saveBook(
-                                        id = currentBook.id,
-                                        title = currentBook.title,
-                                        author = currentBook.author,
-                                        totalPages = currentBook.totalPages,
-                                        currentPage = currentBook.currentPage,
-                                        coverUrl = currentBook.coverUrl,
-                                        bookcaseId = bookcase.id,
-                                        status = currentBook.status
-                                    ) {
+                                    // 책장만 옮긴다(상태 · 시작 값은 그대로 — 옮기는 것만으로 «읽기 시작»이 생기지 않게).
+                                    viewModel.moveBookToBookcase(currentBook.id, bookcase.id) {
                                         Toast.makeText(context, "'${bookcase.name}' 책장으로 이동했습니다.", Toast.LENGTH_SHORT).show()
                                     }
                                 }

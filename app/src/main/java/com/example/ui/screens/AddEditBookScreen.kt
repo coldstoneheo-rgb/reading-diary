@@ -71,6 +71,7 @@ fun AddEditBookScreen(
 
     val bookcases by viewModel.bookcases.collectAsState()
     val books by viewModel.books.collectAsState()
+    val diaries by viewModel.diaries.collectAsState()
 
     var title by remember { mutableStateOf("") }
     var author by remember { mutableStateOf("") }
@@ -440,8 +441,12 @@ fun AddEditBookScreen(
                                     statusExpanded = false
                                 }
                             )
+                            // 기록이 있는 책은 상세가 읽는 중으로 연다(ReadingStart.isStarted) — «다음에 읽을 책»으로 바꾸면 쪽만 0이 되고 서재는 그대로라 막는다.
+                            val hasRecords = bookId != null && diaries.any { it.bookId == bookId }
                             DropdownMenuItem(
-                                text = { Text("다음에 읽을 책") },
+                                text = { Text(if (hasRecords) "다음에 읽을 책 (기록이 있는 책은 고를 수 없어요)" else "다음에 읽을 책") },
+                                enabled = !hasRecords,
+                                modifier = Modifier.testTag("status_to_read_option"),
                                 onClick = {
                                     selectedStatus = "TO_READ"
                                     currentPageStr = "0"

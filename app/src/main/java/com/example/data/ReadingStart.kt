@@ -10,7 +10,7 @@ import java.util.Locale
  * 시작 시각은 Room 스키마를 바꾸지 않고 기존 `Book.startDate` 문자열에 담는다:
  * - 새 값 = `yyyy-MM-dd HH:mm`(읽기 시작을 누른 시각 · 사용자가 고친 시각)
  * - 옛 값 = `yyyy-MM-dd`(이전 앱이 진척도를 처음 움직인 날에 적은 값) — 시각 모름으로 그대로 읽는다.
- * `startDate`는 상세 화면 표시와 백업(DB 통째) 외에는 읽지 않는다(통계 · 내보내기는 쓰지 않는다) — 두 꼴이 섞여도 계산이 깨지지 않는다.
+ * 상세 화면 표시 외에 `startDate`를 읽는 곳(백업 · [isStarted] · [shelfStatus] · ViewModel의 저장 · 진척도 · 읽기 시작)은 비었는지만 본다 — 두 꼴이 섞여도 계산이 깨지지 않는다.
  *
  * 옮김 규칙(이미 있는 책): 아래 넷 중 하나라도 맞으면 «이미 읽기 시작한 책»으로 본다 — 사용자가 다시 누를 일이 없다.
  * 시작 날짜가 있음 · 완독 · 읽은 쪽 > 0 · 기록이 1개 이상. 넷 다 아니면(«읽고 있는 책»으로 등록만 하고 손대지 않은 책 포함)
@@ -23,6 +23,18 @@ object ReadingStart {
 
     fun isStarted(book: Book, diaryCount: Int): Boolean =
         book.startDate.isNotBlank() || book.status == "COMPLETED" || book.currentPage > 0 || diaryCount > 0
+
+    /**
+     * 서재 · 편집 · 통계가 보이는 상태. 기준은 상세의 [isStarted]다 — 두 방향 다 맞춘다.
+     * - 상태가 «읽는 중»이어도 시작하지 않은 책(예: #89 전에 «읽고 있는 책»으로 등록만 한 책) → «읽을 책».
+     * - 상태가 «읽을 책»이어도 시작한 책(기록이 있음 · 시작 값이 있음 등 — 상세가 진척도 · 기록을 연다) → «읽는 중».
+     * 그래야 서재와 상세가 같은 책을 다르게 말하지 않는다. DB 값은 바꾸지 않는다(사용자가 고쳐 저장하거나 «읽기 시작»을 누를 때 바뀐다).
+     */
+    fun shelfStatus(book: Book, diaryCount: Int): String = when {
+        book.status == "READING" && !isStarted(book, diaryCount) -> "TO_READ"
+        book.status == "TO_READ" && isStarted(book, diaryCount) -> "READING"
+        else -> book.status
+    }
 
     /** 저장할 시작 값(분 단위). */
     fun format(millis: Long): String = SimpleDateFormat(DATE_TIME, Locale.US).format(Date(millis))
