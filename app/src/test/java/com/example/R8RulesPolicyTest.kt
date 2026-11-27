@@ -1,5 +1,6 @@
 package com.example
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -26,8 +27,12 @@ class R8RulesPolicyTest {
     val code = gradle.readText()
     val block = Regex("create\\(\"r8Debug\"\\)\\s*\\{([^}]*)\\}").find(code)?.groupValues?.get(1)
     assertTrue("r8Debug 빌드 타입이 없다", block != null)
-    assertTrue("r8Debug는 release 구성을 그대로 이어받아야 한다", block!!.contains("initWith(getByName(\"release\"))"))
-    assertTrue("r8Debug는 디버그 키로만 서명한다", block.contains("signingConfigs.getByName(\"debugConfig\")"))
-    assertTrue("r8Debug에서 R8 · 규칙을 따로 바꾸지 않는다", !block.contains("isMinifyEnabled") && !block.contains("proguardFiles"))
+    // 블록 안 줄이 정확히 이 셋뿐이다 — 중첩 블록 · debuggable · 축소 · 규칙 파일을 따로 바꾸는 줄이 끼면 실패한다.
+    val lines = block!!.lines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("//") }
+    assertEquals(
+      listOf("initWith(getByName(\"release\"))", "signingConfig = signingConfigs.getByName(\"debugConfig\")", "matchingFallbacks += listOf(\"release\")"),
+      lines
+    )
+    assertTrue("r8Debug 블록 안에 중첩 블록이 있다", !block.contains("{"))
   }
 }
