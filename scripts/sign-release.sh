@@ -14,6 +14,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 KEYSTORE="${KEYSTORE_PATH:-$PWD/my-upload-key.jks}"
+# 상대 경로면 레포 루트 기준 절대 경로로(gradle의 file()은 app/ 기준이라 같은 파일을 보게 한다).
+case "$KEYSTORE" in /*|[A-Za-z]:*) ;; *) KEYSTORE="$PWD/$KEYSTORE" ;; esac
 ALIAS="${KEY_ALIAS:-upload}"
 AAB_DEFAULT="app/build/outputs/bundle/release/app-release.aab"
 
@@ -22,6 +24,8 @@ fail() { echo "중단: $*" >&2; exit 1; }
 JBR_DEFAULT="/c/Program Files/Android/Android Studio/jbr"
 if [ -z "${JAVA_HOME:-}" ] && [ -d "$JBR_DEFAULT" ]; then export JAVA_HOME="$JBR_DEFAULT"; fi
 [ -n "${JAVA_HOME:-}" ] || fail "JAVA_HOME이 없고 Android Studio JBR도 찾지 못했다(JAVA_HOME으로 지정)"
+# Windows 꼴(C:\...)이면 POSIX 꼴로 — 그대로 PATH에 넣으면 «:»에서 갈라진다.
+command -v cygpath >/dev/null && JAVA_HOME="$(cygpath -u "$JAVA_HOME")" && export JAVA_HOME
 export PATH="$JAVA_HOME/bin:$PATH"
 
 [ -f "$KEYSTORE" ] || fail "업로드 키 파일이 없다: $KEYSTORE (KEYSTORE_PATH로 지정)"
@@ -74,4 +78,4 @@ GRADLE="${GRADLE:-$(ls -d "$HOME"/.gradle/wrapper/dists/gradle-9.4.1-bin/*/gradl
 KEYSTORE_PATH="$KEYSTORE" "$GRADLE" :app:bundleRelease --no-daemon --no-configuration-cache
 unset KEY_PASSWORD
 verify "$AAB_DEFAULT"
-echo "R8 가독화 파일(콘솔에 함께 올린다): app/build/outputs/mapping/release/mapping.txt"
+echo "R8 가독화 파일은 번들 안에 함께 들어간다(Play가 자동으로 읽는다). 콘솔에 안 보이면 올린다: app/build/outputs/mapping/release/mapping.txt"

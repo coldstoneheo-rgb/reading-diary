@@ -42,7 +42,7 @@ android {
   buildTypes {
     release {
       isCrunchPngs = false
-      // R8 축소 · 난독화(2번째 빌드부터). 올릴 때 mapping.txt(app/build/outputs/mapping/release/)를 콘솔에 함께 올린다.
+      // R8 축소 · 난독화(2번째 빌드부터). mapping.txt는 번들에 자동 포함된다(콘솔에 안 보일 때만 app/build/outputs/mapping/release/에서 올린다).
       isMinifyEnabled = true
       isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
