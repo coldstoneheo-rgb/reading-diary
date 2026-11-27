@@ -315,15 +315,16 @@ class FirstRunSafetyTest {
 
     // 3) 인식(사진 · ML Kit만 가짜) → 결과가 편집창에 들어온다 → 고친다
     composeTestRule.runOnUiThread { vm.processUnderlineOcr(Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)) }
-    pump { shown("바람이 부는 언덕에 나무가 서 있다") }
-    // 밑줄 어절 칩: 미리 켜져 있지만 버튼을 눌러야 문장이 바뀐다. 잘못 켜진 «부는»은 끄고 놓친 «나무가»는 켠다.
+    // 밑줄 어절 칩이 뜨고, 편집창은 켜진 어절만으로 시작한다(전체 글은 접힌 «원문 전체»). 칩을 고친 뒤에는 버튼을 눌러야 문장이 바뀐다.
     pump { composeTestRule.onAllNodesWithTag("underline_preselect_panel").fetchSemanticsNodes().isNotEmpty() }
+    pump { shown("바람이 부는 언덕에") && !shown("바람이 부는 언덕에 나무가") }
+    // 잘못 켜진 «부는»은 끄고 놓친 «나무가»는 켠다.
     composeTestRule.onNodeWithTag("preselect_word_0").assertIsSelected()
     composeTestRule.onNodeWithTag("preselect_word_3").assertIsNotSelected()
     composeTestRule.onNodeWithTag("preselect_word_1").performScrollTo().performClick()
     composeTestRule.onNodeWithTag("preselect_word_3").performScrollTo().performClick()
     composeTestRule.waitForIdle()
-    assertTrue(shown("바람이 부는 언덕에 나무가 서 있다"))
+    assertTrue(shown("바람이 부는 언덕에") && !shown("바람이 언덕에 나무가"))
     composeTestRule.onNodeWithTag("preselect_apply_button").performScrollTo().performClick()
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithTag("diary_extracted_text_input").assertTextContains("바람이 언덕에 나무가")
