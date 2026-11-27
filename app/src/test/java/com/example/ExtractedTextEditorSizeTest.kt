@@ -30,7 +30,7 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * 편집창 크기(HO-2026-1127 조건 5): 500자 글에서 보이는 줄 수가 이전 값(115dp 고정 = 4줄)의 두 배 이상.
- * 줄 수 = (칸 높이 − 위아래 안쪽 여백 32dp) ÷ 본문 줄 높이 20sp(bodyMedium). 글은 지어낸 견본이다.
+ * 줄 수 = (칸 높이 − 위아래 안쪽 여백 32dp) ÷ 본문 줄 높이 20sp(bodyMedium). 글꼴 배율 1.0 전제(선형 환산). 글은 지어낸 견본이다.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -73,6 +73,8 @@ class ExtractedTextEditorSizeTest {
     val lines = visibleLines(fiveHundred)
     println("편집창에 보이는 줄(500자) = ${"%.1f".format(lines)}")
     assertTrue("보이는 줄 $lines < 8", lines >= 8.0)
+    // 상한: 칸이 글 길이만큼 끝없이 늘지 않는다(500자 ≈ 22줄).
+    assertTrue("보이는 줄 $lines > 상한 12", lines <= com.example.ui.screens.EXTRACTED_TEXT_MAX_LINES + 0.5)
   }
 
   /** 기준 이미지(verifyRoborazziDebug에서만 비교). 크기 단언은 위 시험이 맡는다 — 이미지가 바뀌어도 줄 수 판정은 따로 읽힌다. */
