@@ -92,7 +92,8 @@ fun BookDetailScreen(
     /** 시작 날짜 → 시각을 차례로 고른다. 옛 값(날짜만)은 그날 0시에서 시작한다. */
     fun editReadingStart() {
         val cal = java.util.Calendar.getInstance().apply {
-            timeInMillis = ReadingStart.parse(currentBook.startDate) ?: System.currentTimeMillis()
+            // 시작이 빈 책은 고를 수 있는 가장 늦은 시각(지금 · 완독일 그날 끝 중 이른 것)에서 연다 — 완독일이 지난 책에서 초기값이 상한 밖이 되지 않게.
+            timeInMillis = ReadingStart.parse(currentBook.startDate) ?: ReadingStart.latestAllowed(System.currentTimeMillis(), currentBook.endDate)
         }
         val dialog = android.app.DatePickerDialog(context, { _, y, m, d ->
             cal.set(y, m, d)
