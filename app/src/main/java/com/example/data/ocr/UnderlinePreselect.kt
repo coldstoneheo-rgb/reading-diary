@@ -1,6 +1,7 @@
 package com.example.data.ocr
 
 import com.example.data.ocr.UnderlineDetector.Box
+import kotlin.math.abs
 
 /**
  * 앱이 밑줄 검출기를 부르는 유일한 입구(SPIKE §4-2 «미리 선택»). 순수 Kotlin — JVM에서 테스트하고,
@@ -70,21 +71,43 @@ object UnderlinePreselect {
     }
 
     /**
-     * [kept] 어절을 글줄로 묶는다. 왼쪽에서 오른쪽으로 어절을 훑으며, 세로 중심이 **바로 왼쪽 이웃 어절**(그 줄의 마지막 어절)에서
-     * 두 상자 가운데 낮은 쪽 높이의 절반 안인 줄 가운데, 가로로 가장 가까운(그다음 세로로 가까운) 줄에 잇는다. 낮은 쪽 높이를 쓰는
-     * 까닭: 여백의 키 큰 손글씨 상자가 넓은 허용폭으로 본문 어절을 끌어오지 않게. 가로 거리를 먼저 보는 까닭: 줄 머리 왼쪽의 작은
-     * 표시 상자처럼 멀리 남은 줄 끝이 본문 줄을 반으로 가르지 않게. 줄 전체의 중앙값과 견주지 않는 까닭: 쪽이 휘어 줄이 기울면 한 줄의
-     * 양 끝 높이 차가 글자 높이를 넘고, 그러면 줄이 조각나 그 조각의 위 끝이 윗줄의 밑줄 띠를 막는다(사용자 틀 측정 2/5/4의 원인).
+     * [kept] 어절을 글줄로 묶는다. 왼쪽에서 오른쪽으로 어절을 훑으며 각 줄의 **기준 어절**(그 줄에 마지막으로 들어온 제 키 어절 —
+     * 높이가 줄 높이 중앙값의 0.7배 이상)과 견준다. 붙는 조건은 둘 중 하나다:
+     * - 세로 중심 차가 두 상자 가운데 낮은 쪽 높이의 절반 미만.
+     * - 둘 중 키 작은 쪽(다른 쪽 높이의 0.7배 미만 — 따옴표 · 구두점 · 라틴 소문자)의 세로 중심이 키 큰 쪽의 위아래 끝 안.
+     *   키 큰 쪽은 쪽 전체 어절 높이 중앙값의 1.5배 이하여야 한다(여백의 키 큰 손글씨 상자가 본문 어절을 품지 않게).
+     *   키 작은 어절은 줄이 제 키 어절을 얻으면 기준 어절에서 물러난다(그 어절 하나가 고리가 돼 줄을 가르지 않게).
+     * 후보 줄이 여럿이면 가로로 가장 가까운(그 줄 마지막 어절의 오른쪽 끝에서) 줄, 그다음 세로로 가까운 줄.
+     *
+     * 까닭: 줄 전체의 중앙값과 견주면 쪽이 휘어 기운 줄(양 끝 높이 차 > 글자 높이)이 조각나고, 조각의 위 끝이 윗줄의 밑줄 띠를 막아
+     * 그 줄 밑줄을 통째로 놓친다(사용자 틀 측정 2/5/4의 원인). 낮은 쪽 높이: 여백의 키 큰 손글씨 상자가 넓은 허용폭으로 본문 어절을
+     * 끌어오지 않게. 가로 거리 먼저: 줄 머리 왼쪽에 남은 작은 표시 상자가 본문 줄을 반으로 가르지 않게.
      * 줄 아래 끝은 밑줄과 합쳐져 부푼 상자를 피하려고 «위 끝 중앙값 + 높이 30백분위»로 잡는다. 줄 순서는 세로 중심 중앙값 순.
      * 엔진의 줄 묶음은 쓰지 않는다 — 측정(기준 자료)과 같은 값을 내기 위해.
      */
     fun clusterLines(words: List<Box>, kept: List<Int> = words.indices.toList()): List<Line> {
         fun cy(i: Int) = (words[i].top + words[i].bottom) / 2.0
         val groups = mutableListOf<MutableList<Int>>()
+        val anchors = mutableListOf<Int>() // 줄마다 기준 어절
+        val pageH = if (kept.isEmpty()) 0 else median(kept.map { words[it].height })
+        fun fits(i: Int, a: Int): Boolean {
+            val dy = abs(cy(i) - cy(a))
+            if (dy < 0.5 * minOf(words[a].height, words[i].height)) return true
+            fun inside(small: Int, big: Int) =
+                words[small].height < SMALL * words[big].height && words[big].height <= BIG * pageH &&
+                    cy(small) >= words[big].top && cy(small) <= words[big].bottom
+            return inside(i, a) || inside(a, i)
+        }
         for (i in kept.sortedWith(compareBy({ words[it].left }, { cy(it) }))) {
-            val best = groups.filter { g -> kotlin.math.abs(cy(i) - cy(g.last())) < 0.5 * minOf(words[g.last()].height, words[i].height) }
-                .minWithOrNull(compareBy({ g -> (words[i].left - words[g.last()].right).coerceAtLeast(0) }, { g -> kotlin.math.abs(cy(i) - cy(g.last())) }))
-            if (best != null) best += i else groups += mutableListOf(i)
+            val best = groups.indices.filter { fits(i, anchors[it]) }
+                .minWithOrNull(compareBy({ g -> (words[i].left - words[groups[g].last()].right).coerceAtLeast(0) }, { g -> abs(cy(i) - cy(anchors[g])) }))
+            if (best == null) {
+                groups += mutableListOf(i)
+                anchors += i
+            } else {
+                groups[best] += i
+                if (words[i].height >= SMALL * median(groups[best].map { words[it].height })) anchors[best] = i
+            }
         }
         groups.sortBy { g -> medianD(g.map { cy(it) }) }
         return groups.map { g ->
@@ -95,6 +118,12 @@ object UnderlinePreselect {
             Line(Box(ws.minOf { words[it].left }, top, ws.maxOf { words[it].right }, top + h), ws)
         }
     }
+
+    /** 키 작은 어절의 경계(× 기준 어절 · 줄 높이 중앙값). */
+    private const val SMALL = 0.7
+
+    /** 세로 범위로 키 작은 어절을 품을 수 있는 상자의 높이 상한(× 쪽 전체 어절 높이 중앙값). */
+    private const val BIG = 1.5
 
     private fun median(v: List<Int>): Int = v.sorted()[v.size / 2]
     private fun medianD(v: List<Double>): Double = v.sorted()[v.size / 2]

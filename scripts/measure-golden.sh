@@ -17,8 +17,11 @@ for s in "${SETS[@]}"; do
 done
 if [ "${2:-}" = "--check" ]; then echo "확인 끝: 자료 ${#SETS[@]}묶음 · gradle 있음"; exit 0; fi
 RD_GOLDEN_DIR="$DIRS" "$GRADLE" :app:testDebugUnitTest --tests com.example.golden.GoldenMeasureTest --rerun -q
+HEAD_SHA=$(git rev-parse --short HEAD)
 for s in "${SETS[@]}"; do
   echo "== $s"
-  head -1 "$ROOT/$s/_results/measure.md"
+  first=$(head -1 "$ROOT/$s/_results/measure.md")
+  echo "$first"
+  case "$first" in *"$HEAD_SHA"*) ;; *) echo "결과 첫 줄의 SHA가 지금 HEAD($HEAD_SHA)와 다르다 — 측정이 돌지 않았다"; exit 3;; esac
   grep -E '= 지금 기본값|제외 없음\(지금 앱\)' "$ROOT/$s/_results/measure.md" | head -3 || true
 done

@@ -7,7 +7,7 @@ import java.time.format.DateTimeFormatter
 
 /**
  * 측정 진입점. 레포 밖 기준 자료 폴더를 환경 변수로 받는다(없거나 비면 «자료 0장»으로 통과).
- * 여러 폴더를 [File.pathSeparator](Windows `;`)로 이어 주면 한 실행에서 차례로 잰다 — 기준 271 · 사용자 사진(틀 없음 · 사용자가
+ * 여러 폴더를 `;`로 이어 주면(모든 OS — Windows 경로의 `:`와 겹치지 않게) 한 실행에서 차례로 잰다 — 기준 271 · 사용자 사진(틀 없음 · 사용자가
  * 실제로 자른 틀) · 테스터 견본을 늘 같이 재서, 틀 없는 값만 보고 실제 화면 값을 놓치는 일을 막는다(`scripts/measure-golden.sh`):
  *
  *   RD_GOLDEN_DIR='<폴더1>;<폴더2>' RD_SPIKE_OUT='<오버레이 폴더>' \
@@ -26,7 +26,7 @@ class GoldenMeasureTest {
     }
     val stamp = "> 측정 실행: head `${headSha()}` · ${LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))}\n\n"
     val spikeOut = System.getenv("RD_SPIKE_OUT")?.takeIf { it.isNotBlank() }?.let(::File)
-    for (path in raw.split(File.pathSeparator).map { it.trim() }.filter { it.isNotEmpty() }) {
+    for (path in raw.split(";").map { it.trim() }.filter { it.isNotEmpty() }) {
       val dir = File(path)
       if (!dir.isDirectory) {
         println("RD_GOLDEN_DIR 폴더 없음($path) — 자료 0장")
@@ -46,7 +46,7 @@ class GoldenMeasureTest {
       val p = ProcessBuilder("git", "rev-parse", "--short", "HEAD").redirectErrorStream(true).start()
       val s = p.inputStream.bufferedReader().readText().trim()
       if (p.waitFor() != 0 || s.isEmpty()) return "모름"
-      val st = ProcessBuilder("git", "status", "--porcelain", "--", "src/main").redirectErrorStream(true).start()
+      val st = ProcessBuilder("git", "status", "--porcelain", "--", "src").redirectErrorStream(true).start()
       val dirty = st.inputStream.bufferedReader().readText().isNotBlank()
       st.waitFor()
       if (dirty) "$s+커밋 안 한 변경" else s
