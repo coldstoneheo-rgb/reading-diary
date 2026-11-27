@@ -51,6 +51,21 @@ object ReadingStart {
         return minOf(nowMillis, endOfDay)
     }
 
+    /**
+     * 상세 화면의 기간 줄. 시작한 책(옮김 규칙상 시작 · [isStarted])에는 시작 값이 비어도
+     * «아직 읽지 않은 도서»나 빈 시작 자리(«독서 기간:  ~ …»)를 보이지 않는다 — «시작 기록 없음»으로 적고 ✎로 채운다.
+     */
+    fun periodLabel(book: Book, started: Boolean): String {
+        val start = book.startDate.trim()
+        return when {
+            !started -> "아직 읽지 않은 도서"
+            book.status == "COMPLETED" && start.isNotEmpty() -> "독서 기간: $start ~ ${book.endDate ?: "완료"}"
+            book.status == "COMPLETED" -> if (book.endDate.isNullOrBlank()) "완독 · 시작 기록 없음" else "완독: ${book.endDate} · 시작 기록 없음"
+            start.isNotEmpty() -> "독서 시작: $start"
+            else -> "읽는 중 · 시작 기록 없음"
+        }
+    }
+
     /** 시각까지 적힌 값인가(옛 날짜만 있는 값 = false). */
     fun hasTime(startDate: String): Boolean = startDate.trim().length > DATE.length && parse(startDate) != null
 }

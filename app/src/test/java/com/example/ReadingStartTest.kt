@@ -251,4 +251,68 @@ class ReadingStartTest {
     assertEquals("COMPLETED", stored(id).status)
     assertTrue(stored(id).startDate, ReadingStart.parse(stored(id).startDate)!! <= ReadingStart.parse("2026-11-21")!!)
   }
+
+  // ---------- 시작했지만 시작 값이 빈 책(#89 재게이트 A) ----------
+
+  @Test
+  fun periodLabel_neverShowsAnEmptyStartForAStartedBook() {
+    assertEquals("아직 읽지 않은 도서", ReadingStart.periodLabel(book(), started = false))
+    assertEquals("완독: 2026-11-20 · 시작 기록 없음", ReadingStart.periodLabel(book(status = "COMPLETED", end = "2026-11-20"), true))
+    assertEquals("완독 · 시작 기록 없음", ReadingStart.periodLabel(book(status = "COMPLETED"), true))
+    assertEquals("읽는 중 · 시작 기록 없음", ReadingStart.periodLabel(book(status = "READING", page = 12), true))
+    assertEquals("독서 기간: 2026-11-01 09:00 ~ 2026-11-20", ReadingStart.periodLabel(book(status = "COMPLETED", start = "2026-11-01 09:00", end = "2026-11-20"), true))
+    assertEquals("독서 시작: 2026-11-20", ReadingStart.periodLabel(book(status = "READING", start = "2026-11-20"), true))
+  }
+
+  private fun assertNoEmptyStart() {
+    val text = composeTestRule.onNodeWithTag("reading_start_text").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.Text].joinToString { it.text }
+    assertFalse(text, text.contains("아직 읽지 않은 도서"))
+    assertFalse(text, text.contains(":  ~"))
+    assertTrue(text, text.contains("시작 기록 없음"))
+  }
+
+  @Test
+  fun completedBook_withBlankStart_showsAWayToWriteTheStart() {
+    val id = runBlocking { db.bookDao().insert(book(status = "COMPLETED", page = 100, end = "2026-11-20")).toInt() }
+    val vm = detail(id)
+    assertNoEmptyStart()
+    composeTestRule.onNodeWithTag("reading_start_edit").assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
+    assertTrue(composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("시작 시각 적기")).fetchSemanticsNodes().isNotEmpty())
+    // ✎가 여는 길(updateReadingStart)로 적으면 기간 줄이 시작 값으로 바뀐다.
+    var result: Boolean? = null
+    composeTestRule.runOnUiThread { vm.updateReadingStart(id, ReadingStart.parse("2026-11-01 09:00")!!) { result = it } }
+    pump { result == true }
+    pump { runCatching { composeTestRule.onNodeWithTag("reading_start_text").assertTextContains("독서 기간: 2026-11-01 09:00 ~ 2026-11-20") }.isSuccess }
+  }
+
+  @Test
+  fun readingBook_withPagesButBlankStart_showsAWayToWriteTheStart() {
+    val id = runBlocking { db.bookDao().insert(book(status = "READING", page = 12)).toInt() }
+    detail(id)
+    assertFalse(has("start_reading_button"))
+    assertNoEmptyStart()
+    assertTrue(has("reading_start_edit"))
+    assertTrue(composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("시작 시각 적기")).fetchSemanticsNodes().isNotEmpty())
+  }
+
+  @Test
+  fun updateBookProgress_fillsABlankStartNoLaterThanTheCompletionDay() {
+    val id = runBlocking { db.bookDao().insert(book(status = "COMPLETED", page = 100, end = "2026-11-20")).toInt() }
+    val vm = detail(id)
+    var done = false
+    composeTestRule.runOnUiThread { vm.updateBookProgress(id, 50, ReadingStart.parse("2026-11-27 12:06")!!) { done = true } }
+    pump { done }
+    val start = stored(id).startDate
+    assertTrue(start, ReadingStart.parse(start)!! < ReadingStart.parse("2026-11-21")!!)
+    assertEquals("완독일은 그대로", "2026-11-20", stored(id).endDate)
+  }
+
+  @Test
+  @GraphicsMode(GraphicsMode.Mode.NATIVE)
+  fun startedBook_withBlankStart_screenshot() {
+    val id = runBlocking { db.bookDao().insert(book(status = "READING", page = 12)).toInt() }
+    detail(id)
+    pump { has("reading_start_edit") }
+    composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/book_detail_started_blank_start.png")
+  }
 }

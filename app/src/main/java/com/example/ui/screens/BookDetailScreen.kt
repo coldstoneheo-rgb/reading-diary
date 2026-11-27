@@ -331,15 +331,7 @@ fun BookDetailScreen(
                         }
 
                         // Dates started/ended
-                        val datesText = when {
-                            currentBook.status == "COMPLETED" -> {
-                                "독서 기간: ${currentBook.startDate} ~ ${currentBook.endDate ?: "완료"}"
-                            }
-                            currentBook.startDate.isNotEmpty() -> {
-                                "독서 시작: ${currentBook.startDate}"
-                            }
-                            else -> "아직 읽지 않은 도서"
-                        }
+                        val datesText = ReadingStart.periodLabel(currentBook, started)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = datesText,
@@ -347,10 +339,10 @@ fun BookDetailScreen(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                                 modifier = Modifier.weight(1f, fill = false).testTag("reading_start_text")
                             )
-                            // 시작 값이 있으면 ✎(48dp 누르는 자리 · 낭독 이름)로 날짜 · 시각을 고친다.
-                            if (currentBook.startDate.isNotBlank()) {
+                            // 시작한 책이면 ✎(48dp 누르는 자리 · 낭독 이름)로 날짜 · 시각을 고친다 — 시작 값이 빈 옛 책(완독 · 쪽 > 0 · 기록 있음)은 여기서 처음 적는다.
+                            if (started) {
                                 IconButton(onClick = { editReadingStart() }, modifier = Modifier.size(48.dp).testTag("reading_start_edit")) {
-                                    Icon(Icons.Outlined.Edit, contentDescription = "시작 시각 고치기", modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Outlined.Edit, contentDescription = if (currentBook.startDate.isBlank()) "시작 시각 적기" else "시작 시각 고치기", modifier = Modifier.size(18.dp))
                                 }
                             }
                         }

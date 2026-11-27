@@ -546,7 +546,7 @@ class ReadingViewModel @JvmOverloads constructor(
     }
 
     // Slider Progress modification
-    fun updateBookProgress(bookId: Int, newPage: Int, onComplete: () -> Unit = {}) {
+    fun updateBookProgress(bookId: Int, newPage: Int, nowMillis: Long = System.currentTimeMillis(), onComplete: () -> Unit = {}) {
         viewModelScope.launch {
             val book = repository.getBookByIdOneShot(bookId)
             if (book != null) {
@@ -556,12 +556,14 @@ class ReadingViewModel @JvmOverloads constructor(
                     else -> book.status // keep same status if To Read
                 }
                 
+                // 이미 완독한 책을 끝 쪽에 다시 놓아도 완독일은 그대로다.
+                val endDate = if (newPage >= book.totalPages && book.status != "COMPLETED") java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date(nowMillis)) else book.endDate
                 val updated = book.copy(
                     currentPage = newPage.coerceIn(0, book.totalPages),
                     status = newStatus,
-                    // 이미 완독한 책을 끝 쪽에 다시 놓아도 완독일은 그대로다.
-                    endDate = if (newPage >= book.totalPages && book.status != "COMPLETED") java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date()) else book.endDate,
-                    startDate = if (book.startDate.isEmpty() && newPage > 0) com.example.data.ReadingStart.format(System.currentTimeMillis()) else book.startDate
+                    endDate = endDate,
+                    // 시작이 빈 책을 «지금»으로 채울 때도 완독일(그날 끝)보다 늦지 않게(startReading · updateReadingStart와 같은 불변식).
+                    startDate = if (book.startDate.isEmpty() && newPage > 0) com.example.data.ReadingStart.format(com.example.data.ReadingStart.latestAllowed(nowMillis, endDate)) else book.startDate
                 )
                 repository.updateBook(updated)
                 showIfActive(updated)
