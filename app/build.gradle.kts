@@ -61,7 +61,10 @@ android {
   }
   // 측정 빌드는 release와 같은 코드여야 한다(상자 덤프 빈 껍데기 = src/release).
   sourceSets {
+    // AGP 9 내장 Kotlin은 java.srcDir로 더한 폴더를 Kotlin 컴파일에 넣지 않는다(11-27 사용자 측정: compileReleaseR8CheckKotlin이
+    // debugtools를 못 찾음) — kotlin 소스 폴더로도 잇는다. release 변형은 기본 소스 세트 src/release를 그대로 쓰므로 이 줄과 무관하다.
     getByName("releaseR8Check").java.srcDir("src/release/java")
+    getByName("releaseR8Check").kotlin.srcDir("src/release/java")
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
