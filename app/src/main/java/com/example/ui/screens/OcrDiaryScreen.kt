@@ -71,6 +71,10 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+/** «추출 된 문장» 편집창에 보이는 줄 수: 하한(빈 칸 · 짧은 글) · 상한(긴 글은 칸 안 스크롤). HO-2026-1127 조건 5 — 전에는 4줄. */
+internal const val EXTRACTED_TEXT_MIN_LINES = 6
+internal const val EXTRACTED_TEXT_MAX_LINES = 12
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OcrDiaryScreen(
@@ -1488,7 +1492,3 @@ internal fun OcrErrorText(message: String) {
             .testTag("ocr_error")
     )
 }
-
-/** «추출 된 문장» 편집창에 보이는 줄 수: 하한(빈 칸 · 짧은 글) · 상한(긴 글은 칸 안 스크롤). HO-2026-1127 조건 5 — 전에는 4줄. */
-internal const val EXTRACTED_TEXT_MIN_LINES = 6
-internal const val EXTRACTED_TEXT_MAX_LINES = 12
