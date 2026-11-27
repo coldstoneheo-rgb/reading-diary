@@ -7,7 +7,8 @@
 # - 비밀번호는 화면 입력으로만 받는다(인자 · 파일 · 셸 기록에 남지 않는다). gradle 한 번에만 넘기고 끝나면 지운다.
 # - 업로드 키 파일: KEYSTORE_PATH(없으면 레포 루트 my-upload-key.jks) · 별칭: KEY_ALIAS(없으면 upload).
 # - gradle: GRADLE(없으면 ~/.gradle/wrapper/dists/gradle-9.4.1-bin/*/gradle-9.4.1/bin/gradle).
-# - 셸에 NAVER_CLIENT_SECRET이 export돼 있으면 멈춘다 — 그대로 빌드하면 값이 앱에 박힌다(CLAUDE.md 안전 규칙).
+# - 셸에 KAKAO_REST_API_KEY가 export돼 있으면 멈춘다 — 그대로 빌드하면 셸 값이 .env보다 앞서 앱에 박힌다(app/build.gradle.kts의 ENV_KAKAO).
+# - 구성 캐시를 끄고 빌드한다 — 켜 두면 서명 비밀번호가 .gradle/configuration-cache에 남는다.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -20,7 +21,7 @@ fail() { echo "중단: $*" >&2; exit 1; }
 [ -f "$KEYSTORE" ] || fail "업로드 키 파일이 없다: $KEYSTORE (KEYSTORE_PATH로 지정)"
 command -v keytool >/dev/null || fail "keytool이 PATH에 없다(JDK bin을 PATH에 넣는다)"
 
-read -rsp "키 저장소 비밀번호: " STORE_PASSWORD; echo
+IFS= read -rsp "키 저장소 비밀번호: " STORE_PASSWORD; echo
 [ -n "$STORE_PASSWORD" ] || fail "비밀번호가 비었다"
 export STORE_PASSWORD
 trap 'unset STORE_PASSWORD KEY_PASSWORD' EXIT
@@ -39,8 +40,8 @@ verify() {
   local aab="$1"
   [ -f "$aab" ] || fail "번들이 없다: $aab"
   local k a
-  k="$(key_sha256)"; [ -n "$k" ] || fail "업로드 키 지문을 읽지 못했다(비밀번호 · 별칭 $ALIAS 확인)"
-  a="$(aab_sha256 "$aab")"; [ -n "$a" ] || fail "번들에 서명이 없다: $aab"
+  k="$(key_sha256 || true)"; [ -n "$k" ] || fail "업로드 키 지문을 읽지 못했다(비밀번호 · 별칭 $ALIAS 확인)"
+  a="$(aab_sha256 "$aab" || true)"; [ -n "$a" ] || fail "번들에 서명이 없다: $aab"
   echo "업로드 키 SHA-256 : $k"
   echo "번들 서명 SHA-256 : $a"
   [ "$k" = "$a" ] || fail "지문이 다르다 — 이 번들을 올리지 않는다"
@@ -52,16 +53,19 @@ if [ "${1:-}" = "--verify-only" ]; then
   exit 0
 fi
 
-[ -z "${NAVER_CLIENT_SECRET:-}" ] || fail "셸에 NAVER_CLIENT_SECRET이 export돼 있다 — unset 하고 다시"
+[ -z "${KAKAO_REST_API_KEY:-}" ] || fail "셸에 KAKAO_REST_API_KEY가 export돼 있다 — unset KAKAO_REST_API_KEY 하고 다시"
 
-read -rsp "키 비밀번호(키 저장소와 같으면 Enter): " KEY_PASSWORD; echo
+# 빌드 전에 비밀번호 · 별칭부터 확인한다(틀리면 R8 빌드를 기다리지 않고 멈춘다).
+[ -n "$(key_sha256 || true)" ] || fail "업로드 키를 열지 못했다(비밀번호 · 별칭 $ALIAS 확인)"
+
+IFS= read -rsp "키 비밀번호(키 저장소와 같으면 Enter): " KEY_PASSWORD; echo
 [ -n "$KEY_PASSWORD" ] || KEY_PASSWORD="$STORE_PASSWORD"
 export KEY_PASSWORD
 
 GRADLE="${GRADLE:-$(ls -d "$HOME"/.gradle/wrapper/dists/gradle-9.4.1-bin/*/gradle-9.4.1/bin/gradle 2>/dev/null | head -1)}"
 [ -n "$GRADLE" ] || fail "gradle을 찾지 못했다(GRADLE로 지정)"
 
-KEYSTORE_PATH="$KEYSTORE" "$GRADLE" :app:bundleRelease --no-daemon
+KEYSTORE_PATH="$KEYSTORE" "$GRADLE" :app:bundleRelease --no-daemon --no-configuration-cache
 unset KEY_PASSWORD
 verify "$AAB_DEFAULT"
 echo "R8 가독화 파일(콘솔에 함께 올린다): app/build/outputs/mapping/release/mapping.txt"
