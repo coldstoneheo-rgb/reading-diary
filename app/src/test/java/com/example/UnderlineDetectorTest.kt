@@ -369,4 +369,64 @@ class UnderlineDetectorTest {
       UnderlineDetector.underlinedWords(words, lineOf, runs)
     )
   }
+
+  /**
+   * 둘레 표시(HO-2026-1127 추기 4): 아랫줄 어절에 친 동그라미의 윗변이 윗줄 아래 띠에 들어와도 윗줄 어절은 켜지지 않는다.
+   * 동그라미 아래 변(아랫줄 띠)은 켜진다 · 같은 띠의 진짜 밑줄도 켜진다. 거르기를 끄면(#91 동작) 윗줄 어절이 켜진다.
+   */
+  @Test
+  fun circleAroundALowerWord_doesNotLightTheLineAbove() {
+    val img = canvas()
+    val upper = listOf(Box(50, 40, 150, 80), Box(170, 40, 270, 80), Box(290, 40, 390, 80))
+    val lower = listOf(Box(50, 112, 150, 152), Box(170, 112, 270, 152), Box(290, 112, 390, 152))
+    (upper + lower).forEach { glyphWord(img, it) }
+    // 동그라미: 아랫줄 둘째 어절 둘레(가운데 220,132 · 가로 반지름 60 · 세로 40 · 굵기 3 · 회색 90).
+    for (t in 0 until 3600) {
+      val a = Math.toRadians(t / 10.0)
+      val cx = (220 + 60 * Math.cos(a)).toInt()
+      val cy = (132 + 40 * Math.sin(a)).toInt()
+      for (dx in -1..1) for (dy in -1..1) img[(cy + dy) * w + cx + dx] = 90
+    }
+    // 진짜 밑줄: 윗줄 셋째 어절 아래(양 끝이 띠 안에서 끝난다).
+    for (x in 288 until 392) for (t in 0 until 3) img[(88 + t) * w + x] = 60
+    val lines = listOf(Box(50, 40, 390, 80), Box(50, 112, 390, 152))
+    val words = upper + lower
+    val lineOf = listOf(0, 0, 0, 1, 1, 1)
+    fun lit(p: UnderlineDetector.Params) = UnderlineDetector.underlinedWords(words, lineOf, UnderlineDetector.detect(img, w, h, lines, p, slopes = null), p)
+
+    assertArrayEquals(booleanArrayOf(false, false, true, false, true, false), lit(UnderlineDetector.Params()))
+    assertArrayEquals(booleanArrayOf(false, true, true, false, true, false), lit(UnderlineDetector.Params(enclosureEndRatio = 0.0)))
+  }
+
+  private val encUpper = listOf(Box(50, 40, 150, 80), Box(170, 40, 270, 80), Box(290, 40, 390, 80))
+  private val encLower = listOf(Box(50, 112, 150, 152), Box(170, 112, 270, 152), Box(290, 112, 390, 152))
+  private val encLines = listOf(Box(50, 40, 390, 80), Box(50, 112, 390, 152))
+  private fun encLit(img: IntArray, p: UnderlineDetector.Params) = UnderlineDetector.underlinedWords(
+    encUpper + encLower, listOf(0, 0, 0, 1, 1, 1), UnderlineDetector.detect(img, w, h, encLines, p, slopes = null), p)
+
+  /**
+   * 옆변 깊이 조건: 윗줄 어절에 친 네모의 아래 변(윗줄 띠)은 밑줄로 켜진다. 모서리 세로획이 띠 바닥을 조금 지나도(0.2H)
+   * 다음 줄 안으로 0.4H까지 내려가지 않으면 둘레의 윗변이 아니다. 깊이를 거의 0으로 두면(«바닥에 닿음»만 보는 안) 네모 안 어절이 꺼진다.
+   */
+  @Test
+  fun boxAroundAnUpperWord_withShortCornerOvershoot_staysLit() {
+    val img = canvas()
+    (encUpper + encLower).forEach { glyphWord(img, it) }
+    fill(img, Box(160, 30, 280, 33), 90) // 위 변
+    fill(img, Box(160, 90, 280, 93), 90) // 아래 변(윗줄 띠 안)
+    fill(img, Box(158, 30, 161, 120), 90) // 왼쪽 변 · 아래로 삐침(띠 바닥 112 → 120)
+    fill(img, Box(279, 30, 282, 120), 90) // 오른쪽 변
+    assertArrayEquals(booleanArrayOf(false, true, false, false, false, false), encLit(img, UnderlineDetector.Params()))
+    assertArrayEquals(booleanArrayOf(false, false, false, false, false, false), encLit(img, UnderlineDetector.Params(enclosureDepthRatio = 0.01)))
+  }
+
+  /** 양 끝 조건: 한쪽 끝만 다음 줄 안으로 깊이 내려간 밑줄(끝을 아래로 긋는 버릇)은 둘레가 아니다 — 켜진다. */
+  @Test
+  fun underlineWithOneEndHookingDown_staysLit() {
+    val img = canvas()
+    (encUpper + encLower).forEach { glyphWord(img, it) }
+    fill(img, Box(166, 90, 274, 93), 60)
+    fill(img, Box(271, 90, 274, 145), 60) // 오른쪽 끝만 다음 줄 안으로
+    assertArrayEquals(booleanArrayOf(false, true, false, false, false, false), encLit(img, UnderlineDetector.Params()))
+  }
 }
