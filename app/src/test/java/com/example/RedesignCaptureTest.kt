@@ -221,6 +221,47 @@ class RedesignCaptureTest {
     shot("r1-keyboard")
   }
 
+  // ── R2 장면: 자르기 단계(밝은 · Dark · 글꼴 1.3 · 2.0 · 틀 조정 열림 · 확정 뒤). before 짝은 write-2-crop. ──
+
+  private fun r2Crop(name: String, themeId: Int, fontScale: Float, openAdjust: Boolean = false, confirm: Boolean = false) {
+    val id = book("READING", 96, "2026-11-20")
+    val vm = vm()
+    val uri = pagePhoto()
+    val registryOwner = object : ActivityResultRegistryOwner {
+      override val activityResultRegistry = object : ActivityResultRegistry() {
+        override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
+          dispatchResult(requestCode, uri)
+        }
+      }
+    }
+    composeTestRule.setContent {
+      CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner) {
+        RecordScreenHarness.Frame(themeId, fontScale) { OcrDiaryScreen(viewModel = vm, bookId = id, diaryId = null) }
+      }
+    }
+    composeTestRule.waitUntil(10_000) { has("diary_page_input") }
+    composeTestRule.onNode(androidx.compose.ui.test.hasContentDescription("사진 선택")).performClick()
+    composeTestRule.waitUntil(10_000) { has("camera_crop_card") }
+    idle()
+    if (openAdjust) {
+      composeTestRule.onNodeWithTag("crop_adjust_toggle").performScrollTo().performClick()
+      composeTestRule.waitUntil(10_000) { has("crop_adjust_panel") }
+      composeTestRule.onNodeWithTag("crop_adjust_panel").performScrollTo()
+    }
+    if (confirm) {
+      composeTestRule.onNodeWithTag("crop_confirm_button").performScrollTo().performClick()
+      composeTestRule.waitUntil(10_000) { has("ocr_button") }
+    }
+    shot(name)
+  }
+
+  @Test fun r2_crop_light() { if (out != null) r2Crop("r2-crop-light", RecordScreenHarness.LIGHT, 1f) }
+  @Test fun r2_crop_dark() { if (out != null) r2Crop("r2-crop-dark", RecordScreenHarness.DARK, 1f) }
+  @Test fun r2_crop_font130() { if (out != null) r2Crop("r2-crop-font130", RecordScreenHarness.LIGHT, 1.3f) }
+  @Test fun r2_crop_font200() { if (out != null) r2Crop("r2-crop-font200", RecordScreenHarness.LIGHT, 2f) }
+  @Test fun r2_crop_adjust() { if (out != null) r2Crop("r2-crop-adjust", RecordScreenHarness.LIGHT, 1f, openAdjust = true) }
+  @Test fun r2_crop_confirmed() { if (out != null) r2Crop("r2-crop-confirmed", RecordScreenHarness.LIGHT, 1f, confirm = true) }
+
   @Test
   fun write_afterRecognition_withPreselect() {
     if (out == null) return

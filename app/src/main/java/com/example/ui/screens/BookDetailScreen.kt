@@ -84,7 +84,7 @@ fun BookDetailScreen(
     }
 
     val currentBook = book!!
-    // «읽기 시작» 전에는 진척도 · 기록 쓰기를 열지 않는다(HO-2026-1127 조건 4). 이미 있는 책의 옮김 규칙은 ReadingStart.isStarted.
+    // «읽기 시작» 전에는 진척도 · 기록하기를 열지 않는다(HO-2026-1127 조건 4). 이미 있는 책의 옮김 규칙은 ReadingStart.isStarted.
     val started = ReadingStart.isStarted(currentBook, diaries.size)
     // 기록을 아직 받지 못했으면 시작 카드를 그리지 않는다(기록이 있는 옛 책에서 카드가 잠깐 떴다 사라지지 않게).
     val diariesLoaded = diariesLoadedFor == currentBook.id
@@ -720,7 +720,7 @@ fun DiaryItemCard(
     }
 }
 
-/** 시작 전 카드: 누르면 지금 날짜 · 시각이 시작 값으로 저장되고 진척도 · 기록 쓰기가 열린다. */
+/** 시작 전 카드: 누르면 지금 날짜 · 시각이 시작 값으로 저장되고 진척도 · 기록하기가 열린다. */
 @Composable
 private fun StartReadingCard(onStart: () -> Unit) {
     Card(

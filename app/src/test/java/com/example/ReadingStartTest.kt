@@ -45,7 +45,7 @@ import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
 import java.util.TimeZone
 
-/** «읽기 시작»(HO-2026-1127 조건 4): 시작 전에는 진척도 · 기록 쓰기가 닫혀 있고, 누르면 날짜 · 시각이 저장돼 보인다. 스키마는 그대로(v3). */
+/** «읽기 시작»(HO-2026-1127 조건 4): 시작 전에는 진척도 · 기록하기가 닫혀 있고, 누르면 날짜 · 시각이 저장돼 보인다. 스키마는 그대로(v3). */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36], qualifiers = "w411dp-h891dp")
 class ReadingStartTest {
@@ -161,7 +161,7 @@ class ReadingStartTest {
     val id = runBlocking { db.bookDao().insert(book()).toInt() }
     val vm = detail(id)
     assertTrue(has("start_reading_button"))
-    assertFalse("시작 전에는 기록 쓰기가 닫혀 있다", has("add_diary_button"))
+    assertFalse("시작 전에는 기록하기가 닫혀 있다", has("add_diary_button"))
     assertFalse("시작 전에는 진척도가 닫혀 있다", has("progress_slider"))
 
     val before = System.currentTimeMillis()

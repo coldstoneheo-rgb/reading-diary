@@ -328,7 +328,7 @@ class FirstRunSafetyTest {
     val bookId = vm.books.value.single().id
     pump { composeTestRule.onAllNodesWithTag("book_card_$bookId").fetchSemanticsNodes().isNotEmpty() }
     composeTestRule.onNodeWithTag("book_card_$bookId").performClick()
-    // 새 책은 «읽기 시작»을 눌러야 기록 쓰기가 열린다(HO-2026-1127 조건 4).
+    // 새 책은 «읽기 시작»을 눌러야 기록하기가 열린다(HO-2026-1127 조건 4).
     pump { composeTestRule.onAllNodesWithTag("start_reading_button").fetchSemanticsNodes().isNotEmpty() }
     assertTrue(composeTestRule.onAllNodesWithTag("add_diary_button").fetchSemanticsNodes().isEmpty())
     composeTestRule.onNodeWithTag("start_reading_button").performScrollTo().performClick()

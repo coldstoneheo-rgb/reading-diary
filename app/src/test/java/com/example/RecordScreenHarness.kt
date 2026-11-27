@@ -23,7 +23,7 @@ import androidx.core.view.WindowInsetsCompat
 import com.example.ui.theme.MyApplicationTheme
 
 /**
- * 기록 쓰기 화면(R1) 시험 · 캡처의 공통 틀: 테마 · 글꼴 배율 · 키보드(IME 인셋) 흉내.
+ * 기록하기 화면(R1) 시험 · 캡처의 공통 틀: 테마 · 글꼴 배율 · 키보드(IME 인셋) 흉내.
  *
  * Robolectric에는 실제 키보드가 없다. 화면이 받는 것과 같은 IME 인셋을 Compose 뷰에 직접 보내고([sendIme]),
  * 키보드가 덮는 자리를 회색 판으로 그려 캡처에서 겹침이 보이게 한다. 창 단위의 밀어 올림(adjustPan)은 흉내 낼 수 없다 —
