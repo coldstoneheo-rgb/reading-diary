@@ -2,6 +2,8 @@ package com.example
 
 import android.app.Application
 import android.os.Looper
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -148,6 +150,9 @@ class ReadingStartTest {
     composeTestRule.runOnUiThread { vm.navigateTo(Screen.BookDetail(id)) }
     composeTestRule.setContent { MyApplicationTheme { BookDetailScreen(viewModel = vm) } }
     pump { has("reading_start_text") }
+    // 책장 칩은 책장 목록이 오기 전엔 «기본 책장»으로 그려진다 — 캡처가 로드 순서에 흔들리지 않게 기다린다.
+    pump { vm.bookcases.value.any { it.id == caseId } }
+    composeTestRule.waitForIdle()
     return vm
   }
 
@@ -216,12 +221,16 @@ class ReadingStartTest {
       vm.saveBook(id = b.id, title = b.title, author = b.author, totalPages = b.totalPages, currentPage = page, coverUrl = b.coverUrl, bookcaseId = caseId, status = status) { done = true }
       pump { done }
     }
-    // A) 시작 전 옛 책(READING · 0쪽 · 기록 0 · 시작 빈칸)을 책장 이동 대화상자가 저장: 보이는 상태(읽을 책)로 저장되고 시작 값은 빈칸.
+    // A) 시작 전 옛 책(READING · 0쪽 · 기록 0 · 시작 빈칸)의 책장 이동: 책장만 바뀌고 상태 · 시작 값은 그대로(시작이 생기지 않는다).
     val legacy = stored(runBlocking { db.bookDao().insert(book(status = "READING")).toInt() })
-    save(legacy, ReadingStart.shelfStatus(legacy, 0))
+    val otherCase = runBlocking { db.bookcaseDao().insert(Bookcase(name = "옮길 곳")).toInt() }
+    var moved = false
+    vm.moveBookToBookcase(legacy.id, otherCase) { moved = true }
+    pump { moved }
+    assertEquals(otherCase, stored(legacy.id).bookcaseId)
     assertEquals("", stored(legacy.id).startDate)
+    assertEquals("READING", stored(legacy.id).status)
     assertFalse("상세도 시작 전 그대로", ReadingStart.isStarted(stored(legacy.id), 0))
-    assertEquals("서재와 같은 값", "TO_READ", stored(legacy.id).status)
 
     // B) 이미 시작했지만 시작 값만 빈 책(READING · 12쪽): 제목만 고쳐도 «지금»을 지어내지 않는다(✎ 단서 유지).
     val started = stored(runBlocking { db.bookDao().insert(book(status = "READING", page = 12)).toInt() })
@@ -234,6 +243,31 @@ class ReadingStartTest {
     assertEquals("", stored(begun.id).startDate)
     assertFalse(ReadingStart.isStarted(stored(begun.id), 0))
     assertEquals("TO_READ", ReadingStart.shelfStatus(stored(begun.id), 0))
+  }
+
+  /** critic #96 재채점 중요 1: 기록이 있는 책은 고치기 폼에서 «다음에 읽을 책»을 고를 수 없다(골라도 상세 · 서재는 읽는 중이고 쪽만 0이 되던 회귀). */
+  @Test
+  fun editForm_blocksToRead_forABookWithRecords() {
+    val id = runBlocking { db.bookDao().insert(book(status = "READING", page = 50, start = "2026-11-20 09:00")).toInt() }
+    runBlocking { db.diaryDao().insert(Diary(bookId = id, page = 10, selectedText = "글", notes = "", createdAt = 1L)) }
+    val vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, FakeDiaryPhotoStore()) { false }
+    composeTestRule.setContent { MyApplicationTheme { com.example.ui.screens.AddEditBookScreen(viewModel = vm, bookId = id, startWithSearch = false) } }
+    pump { vm.diaries.value.any { it.bookId == id } && vm.books.value.any { it.id == id } }
+    composeTestRule.onNodeWithTag("status_selector").performScrollTo().performClick()
+    pump { has("status_to_read_option") }
+    composeTestRule.onNodeWithTag("status_to_read_option").assertIsNotEnabled()
+  }
+
+  /** 기록이 없는 책은 «다음에 읽을 책»을 그대로 고를 수 있다(위 시험이 늘 막힌 메뉴로 통과하지 않게). */
+  @Test
+  fun editForm_allowsToRead_forABookWithoutRecords() {
+    val id = runBlocking { db.bookDao().insert(book(status = "READING", page = 5, start = "2026-11-20 09:00")).toInt() }
+    val vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, FakeDiaryPhotoStore()) { false }
+    composeTestRule.setContent { MyApplicationTheme { com.example.ui.screens.AddEditBookScreen(viewModel = vm, bookId = id, startWithSearch = false) } }
+    pump { vm.books.value.any { it.id == id } }
+    composeTestRule.onNodeWithTag("status_selector").performScrollTo().performClick()
+    pump { has("status_to_read_option") }
+    composeTestRule.onNodeWithTag("status_to_read_option").assertIsEnabled()
   }
 
   /** «읽고 있는 책»으로 등록 · 고쳐 저장 = 지금 시작. 시작 시각이 빈 채로 진척도 · 기록이 열리는 새 책이 생기지 않는다. */

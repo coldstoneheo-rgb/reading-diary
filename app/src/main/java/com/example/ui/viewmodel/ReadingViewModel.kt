@@ -724,6 +724,18 @@ class ReadingViewModel @JvmOverloads constructor(
         }
     }
 
+    /** 책장만 옮긴다 — 상태 · 시작 값 · 쪽은 그대로(책장을 옮기는 것만으로 «읽기 시작»이 생기거나 상태가 바뀌지 않게). */
+    fun moveBookToBookcase(bookId: Int, bookcaseId: Int, onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            val book = repository.getBookByIdOneShot(bookId) ?: return@launch
+            if (database.bookcaseDao().getAllBookcasesOneShot().none { it.id == bookcaseId }) return@launch
+            val updated = book.copy(bookcaseId = bookcaseId)
+            repository.updateBook(updated)
+            showIfActive(updated)
+            onComplete()
+        }
+    }
+
     fun updateBookRating(bookId: Int, rating: Int, onComplete: () -> Unit = {}) {
         viewModelScope.launch {
             val book = repository.getBookByIdOneShot(bookId)
