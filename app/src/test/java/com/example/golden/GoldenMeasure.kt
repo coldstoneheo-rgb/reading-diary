@@ -59,7 +59,7 @@ object GoldenMeasure {
         "직전 기본값(한 단계 0.28)" to SINGLE_028,
         "한 단계 0.23" to SINGLE_028.copy(darkRatio = 0.23),
         "지금 기본값 · 세로 3픽셀 평균 늘" to UnderlineDetector.Params(smoothMinHeight = 0),
-        // 검출기 수리(HO-2026-1127): 열별 종이 밝기 · 둘레 표시 윗변 거르기
+        // 검출기 수리(HO-2026-1127): 열별 종이 밝기(창 반경 × 세로 분위)
         "수리 전(띠 전체 종이)" to UnderlineDetector.Params(localPaperRadiusRatio = 0.0)
     ) + listOf(1.5, 3.0).flatMap { r ->
         listOf(0.5, 0.75, 0.9).map { q ->

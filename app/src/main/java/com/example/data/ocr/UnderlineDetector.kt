@@ -79,8 +79,10 @@ object UnderlineDetector {
         val smoothMinHeight: Int = 60,
         /**
          * 열별 종이 밝기(HO-2026-1127 검출기 수리): «어둡다»를 띠 전체 종이(중앙값) 대신 **그 열 둘레의 종이**에 대해 잰다.
-         * 열마다 띠 안 세로 중앙값(밑줄 획은 띠 높이의 일부라 중앙값은 종이)을 구하고, 가로 ±[localPaperRadiusRatio] × H 안에서
-         * 그 중앙값들의 중앙값을 그 열의 종이로 쓴다. 조명이 줄 왼쪽 → 오른쪽으로 기울어 띠 끝이 어두운 사진에서 줄 끝 어절이
+         * 열마다 띠 안 세로 [localPaperQuantile] 분위(밑줄 · 표시 획은 띠 높이의 일부라 이 분위는 종이)를 구하고,
+         * 가로 ±[localPaperRadiusRatio] × H 안에서 그 값들의 중앙값을 그 열의 종이로 쓴다.
+         * 한계: 띠 양 끝에서는 창이 한쪽으로 잘려 종이를 안쪽(약 1.25H 안) 값으로 잡는다 — 조명 기울기가 매우 가파르면 줄 끝 여유가 줄어든다.
+         * 비용: 줄마다 열 × 창 정렬(앱 해상도에서 줄당 수천 번). 기본 디스패처에서 돈다 — 기기에서 느리면 256칸 히스토그램 이동 중앙값으로 바꾼다. 조명이 줄 왼쪽 → 오른쪽으로 기울어 띠 끝이 어두운 사진에서 줄 끝 어절이
          * 밑줄로 켜지던 과선택을 막는다. 0 = 끔(띠 전체 중앙값 하나 — 수리 전 동작).
          */
         val localPaperRadiusRatio: Double = 3.0,
@@ -260,6 +262,7 @@ object UnderlineDetector {
      * 사진 밖으로 옮겨진 행은 건너뛴다(값이 하나도 없으면 255).
      */
     private fun localPaper(gray: IntArray, width: Int, height: Int, x0: Int, x1: Int, y0: Int, y1: Int, slope: Double, cx: Double, radius: Int, q: Double): IntArray {
+        require(q in 0.0..1.0) { "localPaperQuantile" }
         val col = IntArray(x1 - x0)
         val buf = IntArray(maxOf(1, y1 - y0))
         for (x in x0 until x1) {
