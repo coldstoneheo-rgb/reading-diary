@@ -257,6 +257,13 @@ class BookDetailDensityTest {
     assertEquals(before, stored(id).currentPage)
   }
 
+  private fun androidx.compose.ui.test.SemanticsNodeInteraction.assertIsNotEnabledCompat() {
+    val n = fetchSemanticsNode()
+    assertTrue("저장이 켜져 있다(범위 밖 쪽)", SemanticsProperties.Disabled in n.config)
+  }
+
+  // ── 시작 전: «읽기 시작» 카드만, FAB · 진척도 없음 ──
+
   @Test
   fun notStartedBook_hasNoFabAndNoProgress() {
     open(newBook(), cards = 0)
