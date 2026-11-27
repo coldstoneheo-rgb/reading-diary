@@ -3,6 +3,7 @@
 #
 #   bash scripts/sign-release.sh                      # 번들 만들기 + 대조
 #   bash scripts/sign-release.sh --verify-only <aab>  # 이미 있는 번들의 서명만 대조
+#   bash scripts/sign-release.sh --check              # 비밀번호를 묻기 전에 전제(가지 · 트리 · HEAD · JDK · 키 파일 · gradle)만 점검하고 멈춘다
 #
 # - 비밀번호는 화면 입력으로만 받는다(인자 · 파일 · 셸 기록에 남지 않는다). gradle 한 번에만 넘기고 끝나면 지운다.
 # - 업로드 키 파일: KEYSTORE_PATH(없으면 레포 루트 my-upload-key.jks) · 별칭: KEY_ALIAS(없으면 upload).
@@ -42,6 +43,14 @@ export PATH="$JAVA_HOME/bin:$PATH"
 
 [ -f "$KEYSTORE" ] || fail "업로드 키 파일이 없다: $KEYSTORE (KEYSTORE_PATH로 지정)"
 command -v keytool >/dev/null || fail "keytool이 PATH에 없다(JDK bin을 PATH에 넣는다)"
+
+if [ "${1:-}" = "--check" ]; then
+  [ -z "${KAKAO_REST_API_KEY:-}" ] || fail "셸에 KAKAO_REST_API_KEY가 export돼 있다 — unset KAKAO_REST_API_KEY 하고 다시"
+  G="${GRADLE:-$(ls -d "$HOME"/.gradle/wrapper/dists/gradle-9.4.1-bin/*/gradle-9.4.1/bin/gradle 2>/dev/null | head -1)}"
+  [ -n "$G" ] || fail "gradle을 찾지 못했다(GRADLE로 지정)"
+  echo "점검 통과: 키 파일 $KEYSTORE · 별칭 $ALIAS · gradle $G — 비밀번호만 넣으면 빌드가 시작된다"
+  exit 0
+fi
 
 IFS= read -rsp "키 저장소 비밀번호: " STORE_PASSWORD; echo
 [ -n "$STORE_PASSWORD" ] || fail "비밀번호가 비었다"
