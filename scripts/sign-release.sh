@@ -7,6 +7,7 @@
 # - 비밀번호는 화면 입력으로만 받는다(인자 · 파일 · 셸 기록에 남지 않는다). gradle 한 번에만 넘기고 끝나면 지운다.
 # - 업로드 키 파일: KEYSTORE_PATH(없으면 레포 루트 my-upload-key.jks) · 별칭: KEY_ALIAS(없으면 upload).
 # - gradle: GRADLE(없으면 ~/.gradle/wrapper/dists/gradle-9.4.1-bin/*/gradle-9.4.1/bin/gradle).
+# - JDK: JAVA_HOME(없으면 Android Studio 동봉 JBR "C:/Program Files/Android/Android Studio/jbr"). keytool도 이 JDK의 것을 쓴다.
 # - 셸에 KAKAO_REST_API_KEY가 export돼 있으면 멈춘다 — 그대로 빌드하면 셸 값이 .env보다 앞서 앱에 박힌다(app/build.gradle.kts의 ENV_KAKAO).
 # - 구성 캐시를 끄고 빌드한다 — 켜 두면 서명 비밀번호가 .gradle/configuration-cache에 남는다.
 set -euo pipefail
@@ -17,6 +18,11 @@ ALIAS="${KEY_ALIAS:-upload}"
 AAB_DEFAULT="app/build/outputs/bundle/release/app-release.aab"
 
 fail() { echo "중단: $*" >&2; exit 1; }
+
+JBR_DEFAULT="/c/Program Files/Android/Android Studio/jbr"
+if [ -z "${JAVA_HOME:-}" ] && [ -d "$JBR_DEFAULT" ]; then export JAVA_HOME="$JBR_DEFAULT"; fi
+[ -n "${JAVA_HOME:-}" ] || fail "JAVA_HOME이 없고 Android Studio JBR도 찾지 못했다(JAVA_HOME으로 지정)"
+export PATH="$JAVA_HOME/bin:$PATH"
 
 [ -f "$KEYSTORE" ] || fail "업로드 키 파일이 없다: $KEYSTORE (KEYSTORE_PATH로 지정)"
 command -v keytool >/dev/null || fail "keytool이 PATH에 없다(JDK bin을 PATH에 넣는다)"
