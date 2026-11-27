@@ -30,10 +30,10 @@ object GoldenMeasure {
 
     /** 보정 전(2026-11-13까지) 검출기: 문턱 0.3Δ · 띠 줄 아래 +0.08H ~ 다음 줄 위 −0.08H · 수평. */
     val LEGACY = UnderlineDetector.Params(darkRatio = 0.3, bandTopRatio = null, nextLinePadRatio = null, smoothMinHeight = 0,
-        seedFraction = 0.0)
+        seedFraction = 0.0, localPaperRadiusRatio = 0.0, enclosureEndRatio = 0.0)
 
     /** 2026-11-15(#65)부터 2026-11-25까지의 기본값: 한 단계 문턱 0.28. */
-    val SINGLE_028 = UnderlineDetector.Params(darkRatio = 0.28, seedFraction = 0.0)
+    val SINGLE_028 = UnderlineDetector.Params(darkRatio = 0.28, seedFraction = 0.0, localPaperRadiusRatio = 0.0, enclosureEndRatio = 0.0)
 
     /**
      * 설정 비교 표(기기 덤프 상자만, 장 합계). 첫 행 = 보정 전, 이어서 K1a(띠를 기기 ML Kit 줄 상자 모양에 맞춘 지금 기본 띠)
@@ -62,7 +62,7 @@ object GoldenMeasure {
         "지금 기본값 · 세로 3픽셀 평균 늘" to UnderlineDetector.Params(smoothMinHeight = 0),
         // 검출기 수리(HO-2026-1127): 열별 종이 밝기(창 반경 × 세로 분위)
         "수리 전(띠 전체 종이)" to UnderlineDetector.Params(localPaperRadiusRatio = 0.0),
-        // 둘레 윗변 거르기(HO-2026-1127 추기 4): 끔 · 끝 구역 폭 · 바닥 구역 높이
+        // 둘레 윗변 거르기(HO-2026-1127 추기 4): 끔 · 끝 구역 폭 × 옆변 깊이
         "둘레 거르기 끔(#91 동작)" to UnderlineDetector.Params(enclosureEndRatio = 0.0)
     ) + listOf(0.3, 0.6, 1.0).flatMap { e ->
         listOf(0.2, 0.4, 0.7).map { d ->
