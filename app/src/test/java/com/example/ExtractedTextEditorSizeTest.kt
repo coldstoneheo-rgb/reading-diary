@@ -66,12 +66,19 @@ class ExtractedTextEditorSizeTest {
     return ((heightDp - 32f) / lineDp).toDouble()
   }
 
+  private val fiveHundred = "바람이 부는 언덕에 나무가 서 있고 그 아래로 작은 길이 이어진다. ".repeat(14).take(500)
+
   @Test
   fun fiveHundredChars_showAtLeastTwiceTheOldFourLines() {
-    val text = "바람이 부는 언덕에 나무가 서 있고 그 아래로 작은 길이 이어진다. ".repeat(14).take(500)
-    val lines = visibleLines(text, shot = "extracted_editor_500")
+    val lines = visibleLines(fiveHundred)
     println("편집창에 보이는 줄(500자) = ${"%.1f".format(lines)}")
     assertTrue("보이는 줄 $lines < 8", lines >= 8.0)
+  }
+
+  /** 기준 이미지(verifyRoborazziDebug에서만 비교). 크기 단언은 위 시험이 맡는다 — 이미지가 바뀌어도 줄 수 판정은 따로 읽힌다. */
+  @Test
+  fun fiveHundredChars_screenshot() {
+    visibleLines(fiveHundred, shot = "extracted_editor_500")
   }
 
   @Test
