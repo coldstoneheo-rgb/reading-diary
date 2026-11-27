@@ -11,6 +11,8 @@ import android.os.Bundle
 import android.os.Looper
 import android.os.Parcel
 import android.provider.MediaStore
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -119,14 +121,15 @@ class CameraProcessDeathTest {
   }
 
   private fun textShown(text: String) = composeTestRule.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
+  private fun descShown(label: String) = composeTestRule.onAllNodesWithContentDescription(label).fetchSemanticsNodes().isNotEmpty()
 
   /** 책 상세 → 기록 화면 → «사진 촬영» 누름까지. */
   private fun openCamera(controller: ActivityController<MainActivity>): CameraRequest {
     val model = vm(controller.get())
     model.navigateTo(Screen.BookDetail(bookId))
     model.navigateTo(Screen.AddDiary(bookId))
-    settle { textShown("사진 촬영") }
-    composeTestRule.onNodeWithText("사진 촬영").performScrollTo().performClick()
+    settle { descShown("사진 촬영") }
+    composeTestRule.onNodeWithContentDescription("사진 촬영").performClick()
     composeTestRule.waitForIdle()
     shadowOf(Looper.getMainLooper()).idle()
     val started = shadowOf(controller.get()).nextStartedActivityForResult
@@ -221,7 +224,7 @@ class CameraProcessDeathTest {
     val second = killAndRestore(first, openCamera(first), Activity.RESULT_CANCELED) { }
 
     assertEquals(Screen.AddDiary(bookId), vm(second.get()).currentScreenState.value)
-    settle { textShown("사진 촬영") }
+    settle { descShown("사진 촬영") }
     assertEquals(CANCELED_TOAST, ShadowToast.getTextOfLatestToast())
     assertFalse(textShown("자르기 확정하기"))
   }
@@ -235,7 +238,7 @@ class CameraProcessDeathTest {
     }
 
     assertEquals(Screen.AddDiary(bookId), vm(second.get()).currentScreenState.value)
-    settle { textShown("사진 촬영") }
+    settle { descShown("사진 촬영") }
     assertEquals(CANCELED_TOAST, ShadowToast.getTextOfLatestToast())
     assertFalse(textShown("자르기 확정하기"))
   }

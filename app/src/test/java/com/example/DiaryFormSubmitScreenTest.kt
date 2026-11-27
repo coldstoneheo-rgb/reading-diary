@@ -9,6 +9,8 @@ import androidx.activity.result.ActivityResultRegistry
 import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -109,9 +111,9 @@ class DiaryFormSubmitScreenTest {
     }
     composeTestRule.waitUntil(10_000) {
       shadowOf(Looper.getMainLooper()).idle()
-      composeTestRule.onAllNodesWithText("사진 선택").fetchSemanticsNodes().isNotEmpty()
+      composeTestRule.onAllNodesWithContentDescription("사진 선택").fetchSemanticsNodes().isNotEmpty()
     }
-    composeTestRule.onAllNodesWithText("사진 선택").onFirst().performScrollTo().performClick()
+    composeTestRule.onNodeWithContentDescription("사진 선택").performClick()
     composeTestRule.onNodeWithTag("diary_page_input").performScrollTo().performTextReplacement("7")
     composeTestRule.onNodeWithTag("diary_extracted_text_input").performScrollTo().performTextReplacement("표식 문장")
     composeTestRule.waitForIdle()
@@ -120,7 +122,7 @@ class DiaryFormSubmitScreenTest {
   }
 
   private fun clickSave() =
-    composeTestRule.onNodeWithTag("save_diary_submit_button").performScrollTo().performClick()
+    composeTestRule.onNodeWithTag("save_diary_submit_button").performClick()
 
   private fun awaitToast(text: String) = pump { ShadowToast.getTextOfLatestToast()?.contains(text) == true }
 

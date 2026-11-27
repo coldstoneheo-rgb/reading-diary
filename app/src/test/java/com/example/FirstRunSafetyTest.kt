@@ -20,6 +20,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.AppDatabase
 import com.example.data.Book
@@ -71,13 +74,29 @@ class FirstRunSafetyTest {
     )
   }
 
-  private fun viewModel(text: String = "쓰지 않음") = ReadingViewModel(app, FixedExtractor(text), FixedExtractor(text), FakeDiaryPhotoStore()) { false }
+  /**
+   * 시험마다 만든 ViewModel을 담아 두고 끝에 비운다(onCleared → viewModelScope 취소).
+   * 비우지 않으면 그 ViewModel의 Room Flow 수집(예: loadBookDetail의 getBookById)이 살아 있다가
+   * 다음 시험의 [newInstall]이 DB를 닫는 순간 «connection pool has been closed»로 터지고,
+   * 그 예외가 다음 시험의 UncaughtExceptionsBeforeTest로 보고된다.
+   */
+  private val viewModels = ViewModelStore()
+
+  private fun viewModel(text: String = "쓰지 않음"): ReadingViewModel {
+    val factory = object : ViewModelProvider.Factory {
+      @Suppress("UNCHECKED_CAST")
+      override fun <T : ViewModel> create(modelClass: Class<T>): T =
+        ReadingViewModel(app, FixedExtractor(text), FixedExtractor(text), FakeDiaryPhotoStore()) { false } as T
+    }
+    return ViewModelProvider(viewModels, factory)["vm${viewModels.keys().size}", ReadingViewModel::class.java]
+  }
 
   private val collectors = mutableListOf<Job>()
 
   @After
   fun tearDown() {
     collectors.forEach { it.cancel() }
+    viewModels.clear() // DB를 닫기 전에 수집을 먼저 끊는다.
     newInstall()
   }
 
@@ -333,7 +352,7 @@ class FirstRunSafetyTest {
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithTag("diary_extracted_text_input").assertTextContains("바람이 언덕에 나무가")
     composeTestRule.onNodeWithTag("diary_page_input").performScrollTo().performTextReplacement("7")
-    composeTestRule.onNodeWithTag("save_diary_submit_button").performScrollTo().performClick()
+    composeTestRule.onNodeWithTag("save_diary_submit_button").performClick()
     pump { vm.currentScreenState.value == Screen.BookDetail(bookId) }
     assertEquals("칩으로 만든 문장이 그대로 저장된다", listOf("바람이 언덕에 나무가"), runBlocking { db.diaryDao().getAllDiaries().first() }.map { it.selectedText })
 

@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.view.WindowManager
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -21,6 +22,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -38,6 +40,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
@@ -49,6 +53,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -65,6 +70,7 @@ import com.example.ui.viewmodel.ReadingViewModel
 import com.example.ui.viewmodel.Screen
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -326,6 +332,37 @@ fun OcrDiaryScreen(
         viewModel.navigateBack()
     }
     BackHandler(enabled = hasUnsavedInput) { showDiscardConfirm = true }
+
+    // 키보드가 뜨면 상단 바(저장)는 그 자리에 두고 내용만 줄인다. 창의 기본(adjustUnspecified)은 스크롤 뷰를 못 찾는 Compose 창을
+    // adjustPan으로 다뤄 화면 전체를 밀어 올렸다(상단 바가 화면 밖으로). 이 화면에 있는 동안만 adjustResize로 두고 떠날 때 되돌린다.
+    // edge-to-edge 창은 크기가 바뀌지 않고 IME 인셋만 받으므로, 아래 Scaffold가 그 인셋을 내용 여백으로 쓴다.
+    DisposableEffect(Unit) {
+        val window = (context as? android.app.Activity)?.window
+        val previous = window?.attributes?.softInputMode
+        fun apply(mode: Int) {
+            // setSoftInputMode(0)은 «테마 값 따르기»로만 바뀌고 값이 남는다 — 속성을 직접 돌려놓는다.
+            val lp = window?.attributes ?: return
+            lp.softInputMode = mode
+            window.attributes = lp
+        }
+        if (previous != null) apply(previous and WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST.inv() or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        onDispose { if (previous != null) apply(previous) }
+    }
+
+    // 편집창 글을 한 번에 바꾸는 동작(줄바꿈 해제 · 전체 지우기 · 원문 전체로 바꾸기)은 되돌리기 스낵바를 띄운다. 편집창 글만 되돌린다.
+    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarScope = rememberCoroutineScope()
+    fun replaceTextWithUndo(newText: String, message: String) {
+        val before = extractedText
+        if (newText == before) return
+        extractedText = newText
+        snackbarScope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            val result = snackbarHostState.showSnackbar(message, actionLabel = "되돌리기", duration = SnackbarDuration.Long)
+            // 그 사이 사용자가 글을 또 고쳤으면 되돌리지 않는다(새로 친 글을 덮지 않게).
+            if (result == SnackbarResult.ActionPerformed && extractedText == newText) extractedText = before
+        }
+    }
     if (showDiscardConfirm) {
         AlertDialog(
             onDismissRequest = { showDiscardConfirm = false },
@@ -453,14 +490,137 @@ fun OcrDiaryScreen(
         return
     }
 
+    /** 저장(상단 바 «저장»). 빠진 값은 토스트로 알리고 멈춘다. */
+    fun submitDiary() {
+        val pageNum = pageStr.toIntOrNull() ?: 0
+        if (pageNum <= 0) {
+            Toast.makeText(context, "기록할 쪽수를 먼저 기재해 주세요.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (pageNum > currentBook.totalPages) {
+            Toast.makeText(context, "입력하신 페이지가 이 책의 전체 쪽수(${currentBook.totalPages}쪽)보다 많을 수는 없습니다.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (extractedText.isBlank()) {
+            Toast.makeText(context, "사진에서 글자를 읽어 오거나 구절을 직접 적어 주세요.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (!photosLoaded) {
+            Toast.makeText(context, "사진 정보를 불러오는 중입니다. 잠시 뒤 다시 눌러 주세요.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // 화면에 남겨 둔 사진은 체크 없이 함께 보관한다(ADR-006 Q-a). 빼려면 «사진 전체 삭제».
+        val shownPhoto = activeImageUrl?.takeIf { !it.startsWith("http") }
+        val photoFits = PhotoDrafts.canAdd(photoDrafts)
+        val slots = if (shownPhoto != null && photoFits) {
+            photoDrafts + PhotoInputSlot.New(Uri.parse(shownPhoto), imageRotation, isFlipped)
+        } else {
+            photoDrafts
+        }
+
+        // 저장 완료는 사용자가 이미 다른 화면으로 갔을 수 있으므로, 저장을 시작한 이 화면일 때만 닫는다.
+        val startedOn = viewModel.currentScreenState.value
+        submittedHere = true
+        if (diaryId == null) submittedCreatedAt = selectedTimestamp
+
+        // Save diary with selected timestamp (which defaults to System.currentTimeMillis() or selected/historical date-time value)
+        viewModel.saveDiaryWithPhotos(
+            bookId = bookId,
+            page = pageNum,
+            selectedText = extractedText,
+            notes = notes,
+            id = diaryId,
+            createdAt = selectedTimestamp,
+            photos = PhotoDrafts.toInput(slots, loadedPhotos.map { it.photoId }),
+            onFailure = {
+                submittedHere = false
+                // 이미 화면을 떠났으면 입력이 남아 있지 않다.
+                val message = if (viewModel.currentScreenState.value === startedOn) {
+                    "기록을 저장하지 못했습니다. 입력한 내용은 그대로 있으니 다시 시도해 주세요."
+                } else {
+                    "기록을 저장하지 못했습니다. 다시 작성해 주세요."
+                }
+                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            }
+        ) { failedPhotos ->
+            if (pageNum > currentBook.currentPage) {
+                viewModel.updateBookProgress(currentBook.id, pageNum)
+            }
+            val saved = if (diaryId != null) "다이어리 기록이 안전하게 수정되었습니다." else "새 다이어리 기록이 안전하게 저장되었습니다."
+            val notice = when {
+                failedPhotos > 0 -> "글은 저장했지만 사진 ${failedPhotos}장을 저장하지 못했습니다."
+                shownPhoto != null && !photoFits -> "글은 저장했습니다. 사진은 기록당 ${PhotoDrafts.MAX_PER_DIARY}장까지라 방금 사진은 보관하지 않았습니다."
+                else -> saved
+            }
+            Toast.makeText(context, notice, Toast.LENGTH_LONG).show()
+            if (viewModel.navigateBackIfCurrent(startedOn)) viewModel.resetOcrState()
+        }
+    
+    }
+
+    fun launchCamera() {
+        val hasCameraPermission = ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+        if (hasCameraPermission) {
+            try {
+                val uri = createCameraTempUri()
+                cameraTempUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                Toast.makeText(context, "카메라 실행 중 오류가 발생했습니다: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            try {
+                permissionLauncher.launch(android.Manifest.permission.CAMERA)
+            } catch (e: Exception) {
+                Toast.makeText(context, "카메라 권한 요청에 실패했습니다: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun launchGallery() {
+        try {
+            galleryLauncher.launch("image/*")
+        } catch (e: Exception) {
+            Toast.makeText(context, "갤러리 실행 중 오류가 발생했습니다: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        // 키보드 인셋을 내용 여백에 더한다(위 adjustResize와 짝). 상단 바는 그대로, 내용 칸만 키보드 위까지로 줄어든다.
+        contentWindowInsets = ScaffoldDefaults.contentWindowInsets.union(WindowInsets.ime),
         topBar = {
             TopAppBar(
-                title = { Text(if (diaryId != null) "독서 펜기록 수정" else "독서 펜기록 추가", style = MaterialTheme.typography.titleMedium) },
+                title = {
+                    Text(
+                        if (diaryId != null) "기록 고치기" else "기록 쓰기",
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.testTag("diary_screen_title")
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = { if (hasUnsavedInput) showDiscardConfirm = true else leave() }) {
                         Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "뒤로가기")
+                    }
+                },
+                actions = {
+                    IconAction("사진 촬영", Icons.Default.PhotoCamera, onClick = { launchCamera() }, modifier = Modifier.testTag("diary_camera_button"))
+                    IconAction("사진 선택", Icons.Default.Collections, onClick = { launchGallery() }, modifier = Modifier.testTag("diary_gallery_button"))
+                    // 저장 = 글자 버튼(LC 판정 · REDESIGN §7). 저장할 글이 없으면 비활성 꼴. 복원 판정이 끝나기 전에 또 누르면 같은 작성 시각의 기록이 2건이 된다.
+                    TextButton(
+                        onClick = { submitDiary() },
+                        enabled = !diarySaving && submittedCreatedAt == null && extractedText.isNotBlank(),
+                        modifier = Modifier.testTag("save_diary_submit_button")
+                    ) {
+                        Text("저장", fontWeight = FontWeight.Bold, maxLines = 1)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -474,205 +634,70 @@ fun OcrDiaryScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .background(MaterialTheme.colorScheme.background)
+                .testTag("diary_form_scroll")
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            // 다른 묶음 사이 16dp · 같은 묶음 안 8dp(REDESIGN §3)
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Book Info Badge
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp), RoundedCornerShape(12.dp))
-                    .padding(12.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.MenuBook,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(end = 12.dp)
-                )
-                Column {
-                    Text(currentBook.title, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
-                    Text("저자: ${currentBook.author}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
-                }
-            }
-
-            // Date, Time & Page Section
-            Text(
-                "기록 일시 및 쪽수 입력",
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.primary
-            )
-
+            // 날짜 · 시각 · 쪽: «이름표 + 값» 한 줄씩(48dp 이상), 줄 사이 1dp 구분선
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(0.5.dp)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    // Date picker (가로 전체 채워 가독성 보완)
-                    OutlinedTextField(
-                        value = dateFormatter.format(Date(selectedTimestamp)),
-                        onValueChange = {},
-                        readOnly = true,
-                        enabled = false,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                            disabledBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
-                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                            disabledLeadingIconColor = MaterialTheme.colorScheme.primary
-                        ),
-                        label = { Text("기록 날짜") },
-                        leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = "날짜") },
+                EntryRow(label = "날짜", onClick = { showDatePicker() }, onClickLabel = "날짜 고르기", modifier = Modifier.testTag("diary_date_row")) {
+                    EntryValue(dateFormatter.format(Date(selectedTimestamp)), Modifier.weight(1f))
+                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                EntryDivider()
+                EntryRow(label = "시각", onClick = { showTimePicker() }, onClickLabel = "시각 고르기", modifier = Modifier.testTag("diary_time_row")) {
+                    EntryValue(timeFormatter.format(Date(selectedTimestamp)), Modifier.weight(1f))
+                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                EntryDivider()
+                EntryRow(label = "쪽", modifier = Modifier.testTag("diary_page_row")) {
+                    val valueStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                    BasicTextField(
+                        value = pageStr,
+                        onValueChange = { pageStr = it },
+                        textStyle = valueStyle,
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showDatePicker() },
-                        shape = RoundedCornerShape(8.dp)
+                            .weight(1f)
+                            .testTag("diary_page_input"),
+                        decorationBox = { inner ->
+                            Box(contentAlignment = Alignment.CenterStart) {
+                                if (pageStr.isEmpty()) {
+                                    Text("필수 · 예: 150", style = valueStyle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                inner()
+                            }
+                        }
                     )
-
-                    // Time picker & Page input (가로 배치 밸런스 조정)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Time picker trigger field (줄바꿈 방지를 위해 Icon 제거, 1.2f 가중치 부여 및 singleLine 설정)
-                        OutlinedTextField(
-                            value = timeFormatter.format(Date(selectedTimestamp)),
-                            onValueChange = {},
-                            readOnly = true,
-                            enabled = false,
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                                disabledBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
-                                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                            ),
-                            label = { Text("기록 시각") },
-                            modifier = Modifier
-                                .weight(1.2f)
-                                .clickable { showTimePicker() },
-                            shape = RoundedCornerShape(8.dp)
-                        )
-
-                        // Page input ('페이지'로 네이밍 간소화, Icon 제거 및 밸런싱 배치)
-                        OutlinedTextField(
-                            value = pageStr,
-                            onValueChange = { pageStr = it },
-                            label = { Text("페이지 *") },
-                            placeholder = { Text("예: 150") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            modifier = Modifier
-                                .weight(0.8f)
-                                .testTag("diary_page_input"),
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                    }
                 }
             }
 
-            // Steps section: Photo Selection
-            Text(
-                "사진 분석 도구 선택",
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            // Method Chooser: Camera vs Gallery Buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Button(
-                    onClick = {
-                        val hasCameraPermission = ContextCompat.checkSelfPermission(
-                            context,
-                            android.Manifest.permission.CAMERA
-                        ) == PackageManager.PERMISSION_GRANTED
-                        
-                        if (hasCameraPermission) {
-                            try {
-                                val uri = createCameraTempUri()
-                                cameraTempUri = uri
-                                cameraLauncher.launch(uri)
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "카메라 실행 중 오류가 발생했습니다: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
-                            }
-                        } else {
-                            try {
-                                permissionLauncher.launch(android.Manifest.permission.CAMERA)
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "카메라 권한 요청에 실패했습니다: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectedMethod == "CAMERA" && activeImageUrl != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = if (selectedMethod == "CAMERA" && activeImageUrl != null) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
-                    ),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Icon(imageVector = Icons.Default.PhotoCamera, contentDescription = null)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("사진 촬영")
-                }
-
-                Button(
-                    onClick = {
-                        try {
-                            galleryLauncher.launch("image/*")
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "갤러리 실행 중 오류가 발생했습니다: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectedMethod == "GALLERY" && activeImageUrl != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = if (selectedMethod == "GALLERY" && activeImageUrl != null) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer
-                    ),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Icon(imageVector = Icons.Default.Collections, contentDescription = null)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("사진 선택")
-                }
-            }
-
-            // GUIDANCE PLACEHOLDER (when no image is captured or selected yet)
+            // 사진 자리: 사진이 없으면 한 줄 안내(촬영 · 선택은 상단 바 아이콘). 사진이 있으면 아래 자르기 카드가 이 자리다.
             if (activeImageUrl == null) {
-                Card(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .wrapContentHeight()
-                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp))
+                        .heightIn(min = 48.dp)
+                        .background(MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .testTag("photo_slot"),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CameraEnhance,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Text(
-                            "분석 준비 완료",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            "책 페이지를 촬영하거나 사진을 불러온 뒤,\n밑줄 친 부분만 틀 안에 들어오게 잘라 주세요.\n틀 안의 글자를 모두 읽어 옵니다.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                            textAlign = TextAlign.Center,
-                            lineHeight = 20.sp
-                        )
-                    }
+                    Icon(Icons.Default.PhotoCamera, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        "위 아이콘으로 책 페이지를 찍거나 골라 주세요",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
@@ -1104,15 +1129,62 @@ fun OcrDiaryScreen(
                 }
             }
 
-            // Stage 3: Extracted Text Editor (추출 된 문장)
+            // Stage 3: 밑줄 문장 편집창. 머리 오른쪽에 아이콘 동작(줄바꿈 해제 · 전체 지우기 · 더 보기).
             Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "추출 된 문장",
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.primary
-                )
-                
-                Spacer(modifier = Modifier.height(6.dp))
+                var showEditorMenu by remember { mutableStateOf(false) }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "밑줄 문장",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconAction(
+                        "줄바꿈 해제",
+                        Icons.Default.WrapText,
+                        enabled = extractedText.isNotEmpty(),
+                        onClick = { replaceTextWithUndo(extractedText.replace("\n", " ").replace("\\s+".toRegex(), " ").trim(), "줄바꿈을 풀었어요") },
+                        modifier = Modifier.testTag("unwrap_lines_button")
+                    )
+                    IconAction(
+                        "전체 지우기",
+                        Icons.Default.Clear,
+                        enabled = extractedText.isNotEmpty(),
+                        onClick = { replaceTextWithUndo("", "글을 모두 지웠어요") },
+                        modifier = Modifier.testTag("clear_text_button")
+                    )
+                    Box {
+                        IconAction("더 보기", Icons.Default.MoreVert, onClick = { showEditorMenu = true }, modifier = Modifier.testTag("editor_more_button"))
+                        DropdownMenu(expanded = showEditorMenu, onDismissRequest = { showEditorMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("여백 자동 보정") },
+                                leadingIcon = { Icon(Icons.Default.AutoFixHigh, contentDescription = null) },
+                                enabled = extractedText.isNotEmpty(),
+                                onClick = {
+                                    showEditorMenu = false
+                                    extractedText = extractedText.trim()
+                                    Toast.makeText(context, "여백 정돈이 완료되었습니다.", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.testTag("trim_text_button")
+                            )
+                            // 글로 공유: 공유 시트에 보낼 글을 그대로 넘긴다(이미지는 만들지 않는다).
+                            DropdownMenuItem(
+                                text = { Text("글로 공유하기") },
+                                leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                                enabled = extractedText.isNotBlank(),
+                                onClick = {
+                                    showEditorMenu = false
+                                    val share = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(android.content.Intent.EXTRA_TEXT, diaryShareText(extractedText, currentBook.title, currentBook.author, pageStr))
+                                    }
+                                    context.startActivity(android.content.Intent.createChooser(share, "글로 공유하기"))
+                                },
+                                modifier = Modifier.testTag("share_text_button")
+                            )
+                        }
+                    }
+                }
 
                 Card(
                     modifier = Modifier
@@ -1128,11 +1200,11 @@ fun OcrDiaryScreen(
                         OutlinedTextField(
                             value = extractedText,
                             onValueChange = { extractedText = it },
-                            placeholder = { 
+                            placeholder = {
                                 Text(
                                     text = "읽어 온 글자가 이곳에 보이고, 밑줄 친 부분만 남게 고칠 수 있습니다.",
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                                ) 
+                                )
                             },
                             // 글 길이에 따라 6줄에서 12줄까지 늘어난다(전에는 115dp 고정 · 4줄). 12줄을 넘으면 칸 안에서 스크롤한다.
                             modifier = Modifier
@@ -1148,55 +1220,18 @@ fun OcrDiaryScreen(
                             minLines = EXTRACTED_TEXT_MIN_LINES,
                             maxLines = EXTRACTED_TEXT_MAX_LINES
                         )
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        // Action buttons
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            AssistChip(
-                                onClick = {
-                                    extractedText = extractedText.replace("\n", " ").replace("\\s+".toRegex(), " ").trim()
-                                },
-                                label = { Text("줄바꿈 해제", fontSize = 11.sp) },
-                                leadingIcon = { Icon(Icons.Default.WrapText, contentDescription = null, modifier = Modifier.size(12.dp)) },
-                                modifier = Modifier.weight(1f)
-                            )
-                            
-                            AssistChip(
-                                onClick = {
-                                    if (extractedText.isNotEmpty()) {
-                                        extractedText = extractedText.trim()
-                                        Toast.makeText(context, "여백 정돈이 완료되었습니다.", Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                                label = { Text("여백 자동 보정", fontSize = 11.sp) },
-                                leadingIcon = { Icon(Icons.Default.AutoFixHigh, contentDescription = null, modifier = Modifier.size(12.dp)) },
-                                modifier = Modifier.weight(1f)
-                            )
-                            
-                            AssistChip(
-                                onClick = {
-                                    extractedText = ""
-                                },
-                                label = { Text("전체 지우기", fontSize = 11.sp) },
-                                leadingIcon = { Icon(Icons.Default.Clear, contentDescription = null, modifier = Modifier.size(12.dp)) },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
 
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
                                 text = "글자 수: ${extractedText.length}자 | 문장 수: ${if (extractedText.isEmpty()) 0 else extractedText.split(".", "?", "!").filter { it.isNotBlank() }.size}개",
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp, lineHeight = 18.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f)
                             )
                             
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1208,7 +1243,7 @@ fun OcrDiaryScreen(
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = if (extractedText.isNotEmpty()) "원문과 대조해 주세요" else "인식 대기 중",
-                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold),
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold),
                                     color = if (extractedText.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                                 )
                             }
@@ -1222,7 +1257,7 @@ fun OcrDiaryScreen(
                     chosen = preselectChosen,
                     onToggle = { i -> preselectChosen[i] = !preselectChosen[i] },
                     onApply = { preselect?.let { extractedText = preselectedText(it, preselectChosen) } },
-                    modifier = Modifier.padding(top = 10.dp)
+                    modifier = Modifier.padding(top = 8.dp)
                 )
 
                 // 원문 전체(접힘): 편집창 글이 마지막 인식의 전체 글과 다를 때(밑줄 어절로 시작 · 사용자가 고침). 펼쳐 읽거나 편집창을 전체 글로 되돌린다.
@@ -1232,11 +1267,11 @@ fun OcrDiaryScreen(
                         fullText = ocrFullText,
                         expanded = showOcrFullText,
                         onToggle = { showOcrFullText = !showOcrFullText },
-                        onUseFullText = { extractedText = ocrFullText }
+                        onUseFullText = { replaceTextWithUndo(ocrFullText, "편집창을 원문 전체로 바꿨어요") }
                     )
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // 정밀 분석(선택): 키 등록 + 사진 전송 동의가 있을 때만 노출. 사진마다 확인 다이얼로그를 거친다(ADR-002 Q3)
                 val preciseTarget = activeImageUrl?.takeIf { !it.startsWith("http") }
@@ -1256,7 +1291,7 @@ fun OcrDiaryScreen(
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
 
                 if (showPreciseConfirm && preciseTarget != null) {
@@ -1306,43 +1341,6 @@ fun OcrDiaryScreen(
                         dismissButton = { TextButton(onClick = { viewModel.resetPreciseOcrState() }) { Text("버리기") } }
                     )
                 }
-
-                // 글로 공유: 공유 시트에 보낼 글을 그대로 넘긴다(이미지는 만들지 않는다).
-                OutlinedButton(
-                    onClick = {
-                        if (extractedText.isBlank()) {
-                            Toast.makeText(context, "공유할 문장이 없습니다. 먼저 책 페이지 사진에서 글자를 읽어 와 주세요.", Toast.LENGTH_SHORT).show()
-                        } else {
-                            val share = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(android.content.Intent.EXTRA_TEXT, diaryShareText(extractedText, currentBook.title, currentBook.author, pageStr))
-                            }
-                            context.startActivity(android.content.Intent.createChooser(share, "글로 공유하기"))
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("share_text_button"),
-                    enabled = extractedText.isNotBlank(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.primary,
-                        disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                    ),
-                    border = BorderStroke(1.dp, if (extractedText.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Share, 
-                        contentDescription = "공유",
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "글로 공유하기", 
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                }
             }
 
              if (diaryId != null && photosLoaded) {
@@ -1382,8 +1380,8 @@ fun OcrDiaryScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     "이 밑줄을 보고 떠올랐던 본인의 생각, 감정, 일상을 기록해두세요.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp, lineHeight = 18.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -1410,88 +1408,6 @@ fun OcrDiaryScreen(
                 )
             }
 
-            // Submit Button
-            Button(
-                onClick = {
-                    val pageNum = pageStr.toIntOrNull() ?: 0
-                    if (pageNum <= 0) {
-                        Toast.makeText(context, "기록할 쪽수를 먼저 기재해 주세요.", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-                    if (pageNum > currentBook.totalPages) {
-                        Toast.makeText(context, "입력하신 페이지가 이 책의 전체 쪽수(${currentBook.totalPages}쪽)보다 많을 수는 없습니다.", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-                    if (extractedText.isBlank()) {
-                        Toast.makeText(context, "사진에서 글자를 읽어 오거나 구절을 직접 적어 주세요.", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-
-                    if (!photosLoaded) {
-                        Toast.makeText(context, "사진 정보를 불러오는 중입니다. 잠시 뒤 다시 눌러 주세요.", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-
-                    // 화면에 남겨 둔 사진은 체크 없이 함께 보관한다(ADR-006 Q-a). 빼려면 «사진 전체 삭제».
-                    val shownPhoto = activeImageUrl?.takeIf { !it.startsWith("http") }
-                    val photoFits = PhotoDrafts.canAdd(photoDrafts)
-                    val slots = if (shownPhoto != null && photoFits) {
-                        photoDrafts + PhotoInputSlot.New(Uri.parse(shownPhoto), imageRotation, isFlipped)
-                    } else {
-                        photoDrafts
-                    }
-
-                    // 저장 완료는 사용자가 이미 다른 화면으로 갔을 수 있으므로, 저장을 시작한 이 화면일 때만 닫는다.
-                    val startedOn = viewModel.currentScreenState.value
-                    submittedHere = true
-                    if (diaryId == null) submittedCreatedAt = selectedTimestamp
-
-                    // Save diary with selected timestamp (which defaults to System.currentTimeMillis() or selected/historical date-time value)
-                    viewModel.saveDiaryWithPhotos(
-                        bookId = bookId,
-                        page = pageNum,
-                        selectedText = extractedText,
-                        notes = notes,
-                        id = diaryId,
-                        createdAt = selectedTimestamp,
-                        photos = PhotoDrafts.toInput(slots, loadedPhotos.map { it.photoId }),
-                        onFailure = {
-                            submittedHere = false
-                            // 이미 화면을 떠났으면 입력이 남아 있지 않다.
-                            val message = if (viewModel.currentScreenState.value === startedOn) {
-                                "기록을 저장하지 못했습니다. 입력한 내용은 그대로 있으니 다시 시도해 주세요."
-                            } else {
-                                "기록을 저장하지 못했습니다. 다시 작성해 주세요."
-                            }
-                            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-                        }
-                    ) { failedPhotos ->
-                        if (pageNum > currentBook.currentPage) {
-                            viewModel.updateBookProgress(currentBook.id, pageNum)
-                        }
-                        val saved = if (diaryId != null) "다이어리 기록이 안전하게 수정되었습니다." else "새 다이어리 기록이 안전하게 저장되었습니다."
-                        val notice = when {
-                            failedPhotos > 0 -> "글은 저장했지만 사진 ${failedPhotos}장을 저장하지 못했습니다."
-                            shownPhoto != null && !photoFits -> "글은 저장했습니다. 사진은 기록당 ${PhotoDrafts.MAX_PER_DIARY}장까지라 방금 사진은 보관하지 않았습니다."
-                            else -> saved
-                        }
-                        Toast.makeText(context, notice, Toast.LENGTH_LONG).show()
-                        if (viewModel.navigateBackIfCurrent(startedOn)) viewModel.resetOcrState()
-                    }
-                },
-                // 복원 판정이 끝나기 전에 또 누르면 같은 작성 시각의 기록이 2건이 된다.
-                enabled = !diarySaving && submittedCreatedAt == null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("save_diary_submit_button"),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(if (diaryId != null) "다이어리 수정 완료 및 저장" else "다이어리 작성 완료 및 저장", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            }
         }
     }
 }
@@ -1539,4 +1455,66 @@ private fun OcrFullTextSection(fullText: String, expanded: Boolean, onToggle: ()
             }
         }
     }
+}
+
+/**
+ * 아이콘만 쓰는 동작(REDESIGN §4). 낭독 이름(contentDescription)과 길게 누르면 뜨는 툴팁이 같은 [label]이다.
+ * 누르는 대상은 IconButton 기본 48dp.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun IconAction(
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        tooltip = { PlainTooltip { Text(label) } },
+        state = rememberTooltipState()
+    ) {
+        IconButton(onClick = onClick, enabled = enabled, modifier = modifier.size(48.dp)) {
+            Icon(imageVector = icon, contentDescription = label)
+        }
+    }
+}
+
+/** «이름표 + 값» 한 줄(REDESIGN §3): 48dp 이상(글꼴이 커지면 함께 커진다) · 이름표 14sp 보조색 · 폭 56dp 이상. */
+@Composable
+private fun EntryRow(
+    label: String,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    onClickLabel: String? = null,
+    content: @Composable RowScope.() -> Unit
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .then(if (onClick != null) Modifier.clickable(onClickLabel = onClickLabel, onClick = onClick) else Modifier)
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label,
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            modifier = Modifier.widthIn(min = 56.dp).padding(end = 8.dp)
+        )
+        content()
+    }
+}
+
+@Composable
+private fun EntryValue(text: String, modifier: Modifier = Modifier) {
+    Text(text, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface, modifier = modifier)
+}
+
+@Composable
+private fun EntryDivider() {
+    HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
 }

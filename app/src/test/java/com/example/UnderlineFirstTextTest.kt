@@ -3,10 +3,12 @@ package com.example
 import android.app.Application
 import android.graphics.Bitmap
 import android.os.Looper
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -123,6 +125,21 @@ class UnderlineFirstTextTest {
     pump { fieldText() == full }
   }
 
+  /** «원문 전체로 바꾸기»는 고른 밑줄 어절 글을 한 번에 덮는다 — 되돌리기 스낵바로 그 글을 돌려받는다(R1 (d)). */
+  @Test
+  fun replacingWithTheFullText_canBeUndone() {
+    recognize { it == 1 || it == 2 }
+    pump { fieldText() == "부는 언덕에" }
+    composeTestRule.onNodeWithTag("ocr_full_text_toggle").performScrollTo().performClick()
+    composeTestRule.onNodeWithTag("ocr_full_text_apply").performScrollTo().performClick()
+    pump { fieldText() == full }
+    pump { composeTestRule.onAllNodesWithText("되돌리기").fetchSemanticsNodes().isNotEmpty() }
+    composeTestRule.onNodeWithText("되돌리기").performClick()
+    pump { fieldText() == "부는 언덕에" }
+    // 접힌 «원문 전체»도 다시 나타난다(편집창 글 ≠ 원문).
+    pump { composeTestRule.onAllNodesWithTag("ocr_full_text_toggle").fetchSemanticsNodes().isNotEmpty() }
+  }
+
   @Test
   fun noUnderlinedWord_keepsTheFullText_andShowsNoFoldedSection() {
     val vm = recognize { false }
@@ -164,7 +181,7 @@ class UnderlineFirstTextTest {
     recognize { it == 1 || it == 2 }
     pump { fieldText() == "부는 언덕에" }
     composeTestRule.onAllNodesWithTag("ocr_full_text_toggle").assertCountEquals(1)
-    composeTestRule.onNodeWithText("사진 선택").performScrollTo().performClick()
+    composeTestRule.onNodeWithContentDescription("사진 선택").performClick()
     pump { composeTestRule.onAllNodesWithTag("ocr_full_text_toggle").fetchSemanticsNodes().isEmpty() }
     assertTrue(fieldText() == "부는 언덕에")
   }
