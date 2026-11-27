@@ -436,6 +436,9 @@ class ReadingViewModel @JvmOverloads constructor(
     val activeBook = MutableStateFlow<Book?>(null)
     val activeBookDiaries = MutableStateFlow<List<Diary>>(emptyList())
 
+    /** [activeBookDiaries]가 어느 책의 기록을 한 번이라도 받았는가(책 id). 받기 전에는 «기록 0개»와 «아직 모름»을 가른다 — 상세의 «읽기 시작» 카드가 깜빡이지 않게. */
+    val activeBookDiariesLoadedFor = MutableStateFlow<Int?>(null)
+
     // OCR visual flow state
     val ocrState = MutableStateFlow<OcrState>(OcrState.Idle)
 
@@ -529,10 +532,11 @@ class ReadingViewModel @JvmOverloads constructor(
         if (activeBook.value?.id != bookId) {
             activeBook.value = null
             activeBookDiaries.value = emptyList()
+            activeBookDiariesLoadedFor.value = null
         }
         bookDetailJob = viewModelScope.launch {
             launch { repository.getBookById(bookId).collect { activeBook.value = it } }
-            launch { repository.getDiariesForBook(bookId).collect { activeBookDiaries.value = it } }
+            launch { repository.getDiariesForBook(bookId).collect { activeBookDiaries.value = it; activeBookDiariesLoadedFor.value = bookId } }
         }
     }
 
@@ -584,14 +588,18 @@ class ReadingViewModel @JvmOverloads constructor(
         }
     }
 
-    /** 시작 날짜 · 시각 고치기(분 단위). 상태 · 쪽은 그대로. */
-    fun updateReadingStart(bookId: Int, atMillis: Long, onComplete: () -> Unit = {}) {
+    /**
+     * 시작 날짜 · 시각 고치기(분 단위). 상태 · 쪽은 그대로.
+     * 지금보다 늦거나 완독일(그날 끝)보다 늦은 값은 쓰지 않고 [onResult]에 false.
+     */
+    fun updateReadingStart(bookId: Int, atMillis: Long, nowMillis: Long = System.currentTimeMillis(), onResult: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
             val book = repository.getBookByIdOneShot(bookId) ?: return@launch
+            if (atMillis > com.example.data.ReadingStart.latestAllowed(nowMillis, book.endDate)) { onResult(false); return@launch }
             val updated = book.copy(startDate = com.example.data.ReadingStart.format(atMillis))
             repository.updateBook(updated)
             showIfActive(updated)
-            onComplete()
+            onResult(true)
         }
     }
 

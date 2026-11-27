@@ -33,6 +33,12 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.unit.dp
+import com.github.takahirom.roborazzi.captureRoboImage
 import java.util.TimeZone
 
 /** «읽기 시작»(HO-2026-1127 조건 4): 시작 전에는 진척도 · 기록 쓰기가 닫혀 있고, 누르면 날짜 · 시각이 저장돼 보인다. 스키마는 그대로(v3). */
@@ -57,8 +63,8 @@ class ReadingStartTest {
   @After
   fun tearDown() { TimeZone.setDefault(savedTimeZone) }
 
-  private fun book(status: String = "TO_READ", page: Int = 0, start: String = "") =
-    Book(title = "견본", author = "", totalPages = 100, currentPage = page, bookcaseId = caseId, status = status, startDate = start)
+  private fun book(status: String = "TO_READ", page: Int = 0, start: String = "", end: String? = null) =
+    Book(title = "견본", author = "", totalPages = 100, currentPage = page, bookcaseId = caseId, status = status, startDate = start, endDate = end)
 
   // ---------- 순수 규칙 ----------
 
@@ -84,6 +90,15 @@ class ReadingStartTest {
     assertNull(ReadingStart.parse(""))
     assertNull(ReadingStart.parse("어제"))
     assertNull(ReadingStart.parse("2026-11-27 12:06 뒤에 글"))
+  }
+
+  @Test
+  fun latestAllowed_isTheEarlierOfNowAndTheEndOfTheCompletionDay() {
+    val now = ReadingStart.parse("2026-11-27 12:06")!!
+    assertEquals("완독일 없음 = 지금", now, ReadingStart.latestAllowed(now, null))
+    assertEquals("읽을 수 없는 완독일 = 지금", now, ReadingStart.latestAllowed(now, "모름"))
+    assertEquals("완독일 그날 끝", ReadingStart.parse("2026-11-21")!! + 86_400_000L - 1, ReadingStart.latestAllowed(now, "2026-11-21"))
+    assertEquals("완독일이 오늘이면 지금", now, ReadingStart.latestAllowed(now, "2026-11-27"))
   }
 
   // ---------- 화면 + ViewModel ----------
@@ -160,5 +175,60 @@ class ReadingStartTest {
     detail(id)
     pump { has("add_diary_button") }
     assertFalse(has("start_reading_button"))
+  }
+
+  @Test
+  fun updateReadingStart_refusesTheFutureAndAfterTheCompletionDate() {
+    val id = runBlocking { db.bookDao().insert(book(status = "COMPLETED", start = "2026-11-01 09:00", end = "2026-11-20")).toInt() }
+    val vm = detail(id)
+    val now = ReadingStart.parse("2026-11-27 12:06")!!
+    var result: Boolean? = null
+    composeTestRule.runOnUiThread { vm.updateReadingStart(id, ReadingStart.parse("2026-11-21 08:00")!!, now) { result = it } }
+    pump { result != null }
+    assertEquals("완독일 다음 날은 막는다", false, result)
+    assertEquals("2026-11-01 09:00", stored(id).startDate)
+
+    result = null
+    composeTestRule.runOnUiThread { vm.updateReadingStart(id, ReadingStart.parse("2026-11-20 23:00")!!, now) { result = it } }
+    pump { result != null }
+    assertEquals("완독일 그날은 된다", true, result)
+    assertEquals("2026-11-20 23:00", stored(id).startDate)
+
+    val openId = runBlocking { db.bookDao().insert(book(status = "READING", start = "2026-11-01 09:00")).toInt() }
+    result = null
+    composeTestRule.runOnUiThread { vm.updateReadingStart(openId, now + 60_000, now) { result = it } }
+    pump { result != null }
+    assertEquals("지금보다 늦은 시각은 막는다", false, result)
+    assertEquals("2026-11-01 09:00", stored(openId).startDate)
+  }
+
+  @Test
+  fun startCard_waitsForTheRecordList_soItDoesNotFlash() {
+    // 기록을 아직 받지 못한 동안(«아직 모름»)에는 기록 0개로 보고 시작 카드를 그리지 않는다.
+    val id = runBlocking { db.bookDao().insert(book()).toInt() }
+    val vm = detail(id)
+    pump { has("start_reading_button") }
+    composeTestRule.runOnUiThread { vm.activeBookDiariesLoadedFor.value = null }
+    pump { !has("start_reading_button") }
+    composeTestRule.runOnUiThread { vm.activeBookDiariesLoadedFor.value = id }
+    pump { has("start_reading_button") }
+  }
+
+  @Test
+  fun startEditButton_isA48dpTargetWithAKoreanName() {
+    val id = runBlocking { db.bookDao().insert(book(status = "READING", page = 3, start = "2026-11-20 09:00")).toInt() }
+    detail(id)
+    composeTestRule.onNodeWithTag("reading_start_edit").assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
+    composeTestRule.onAllNodesWithTag("reading_start_edit", useUnmergedTree = true).fetchSemanticsNodes().let { assertTrue(it.isNotEmpty()) }
+    assertTrue(composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("시작 시각 고치기")).fetchSemanticsNodes().isNotEmpty())
+  }
+
+  @Test
+  @GraphicsMode(GraphicsMode.Mode.NATIVE)
+  fun startCard_screenshot() {
+    val id = runBlocking { db.bookDao().insert(book()).toInt() }
+    detail(id)
+    pump { has("start_reading_button") }
+    composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/book_detail_start_reading.png")
   }
 }

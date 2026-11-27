@@ -48,6 +48,7 @@ fun BookDetailScreen(
     val book by viewModel.activeBook.collectAsState()
     val sampleIds by viewModel.sampleBookIds.collectAsState()
     val diaries by viewModel.activeBookDiaries.collectAsState()
+    val diariesLoadedFor by viewModel.activeBookDiariesLoadedFor.collectAsState()
     val bookcases by viewModel.bookcases.collectAsState()
 
     val diarySortNewestFirst by viewModel.diarySortNewestFirst.collectAsState()
@@ -85,20 +86,27 @@ fun BookDetailScreen(
     val currentBook = book!!
     // «읽기 시작» 전에는 진척도 · 기록 쓰기를 열지 않는다(HO-2026-1127 조건 4). 이미 있는 책의 옮김 규칙은 ReadingStart.isStarted.
     val started = ReadingStart.isStarted(currentBook, diaries.size)
+    // 기록을 아직 받지 못했으면 시작 카드를 그리지 않는다(기록이 있는 옛 책에서 카드가 잠깐 떴다 사라지지 않게).
+    val diariesLoaded = diariesLoadedFor == currentBook.id
 
     /** 시작 날짜 → 시각을 차례로 고른다. 옛 값(날짜만)은 그날 0시에서 시작한다. */
     fun editReadingStart() {
         val cal = java.util.Calendar.getInstance().apply {
             timeInMillis = ReadingStart.parse(currentBook.startDate) ?: System.currentTimeMillis()
         }
-        android.app.DatePickerDialog(context, { _, y, m, d ->
+        val dialog = android.app.DatePickerDialog(context, { _, y, m, d ->
             cal.set(y, m, d)
             android.app.TimePickerDialog(context, { _, h, min ->
                 cal.set(java.util.Calendar.HOUR_OF_DAY, h)
                 cal.set(java.util.Calendar.MINUTE, min)
-                viewModel.updateReadingStart(currentBook.id, cal.timeInMillis)
+                viewModel.updateReadingStart(currentBook.id, cal.timeInMillis) { ok ->
+                    if (!ok) Toast.makeText(context, "시작 시각은 지금이나 완독일보다 늦을 수 없어요.", Toast.LENGTH_SHORT).show()
+                }
             }, cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE), true).show()
-        }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH)).show()
+        }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH))
+        // 고를 수 있는 마지막 날 = 오늘 · 완독일 중 이른 날(시각까지는 ViewModel이 다시 막는다).
+        dialog.datePicker.maxDate = ReadingStart.latestAllowed(System.currentTimeMillis(), currentBook.endDate)
+        dialog.show()
     }
     val currentBookcase = bookcases.find { it.id == currentBook.bookcaseId }?.name ?: "기본 책장"
 
@@ -332,20 +340,25 @@ fun BookDetailScreen(
                             }
                             else -> "아직 읽지 않은 도서"
                         }
-                        Text(
-                            text = datesText,
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                            // 시작 값이 있으면 눌러서 날짜 · 시각을 고친다.
-                            modifier = if (currentBook.startDate.isNotBlank()) {
-                                Modifier.clickable(onClickLabel = "시작 날짜 · 시각 고치기") { editReadingStart() }.testTag("reading_start_text")
-                            } else Modifier.testTag("reading_start_text")
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = datesText,
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                modifier = Modifier.weight(1f, fill = false).testTag("reading_start_text")
+                            )
+                            // 시작 값이 있으면 ✎(48dp 누르는 자리 · 낭독 이름)로 날짜 · 시각을 고친다.
+                            if (currentBook.startDate.isNotBlank()) {
+                                IconButton(onClick = { editReadingStart() }, modifier = Modifier.size(48.dp).testTag("reading_start_edit")) {
+                                    Icon(Icons.Outlined.Edit, contentDescription = "시작 시각 고치기", modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        }
                     }
                 }
             }
 
-            if (!started) {
+            if (!started && diariesLoaded) {
                 item {
                     StartReadingCard(onStart = { viewModel.startReading(currentBook.id) })
                 }

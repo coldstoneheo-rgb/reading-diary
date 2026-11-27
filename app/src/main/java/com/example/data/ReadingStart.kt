@@ -40,6 +40,16 @@ object ReadingStart {
         return null
     }
 
+    /**
+     * 시작으로 고를 수 있는 가장 늦은 시각: 지금 · 완독일 그날 끝(23:59:59.999) 중 이른 것.
+     * 완독일이 없거나 읽을 수 없으면 지금.
+     */
+    fun latestAllowed(nowMillis: Long, endDate: String?): Long {
+        val end = endDate?.let { parse(it) } ?: return nowMillis
+        val endOfDay = if (hasTime(endDate)) end else end + 24L * 60 * 60 * 1000 - 1
+        return minOf(nowMillis, endOfDay)
+    }
+
     /** 시각까지 적힌 값인가(옛 날짜만 있는 값 = false). */
     fun hasTime(startDate: String): Boolean = startDate.trim().length > DATE.length && parse(startDate) != null
 }
