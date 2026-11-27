@@ -12,9 +12,10 @@ import java.util.Locale
  * - 옛 값 = `yyyy-MM-dd`(이전 앱이 진척도를 처음 움직인 날에 적은 값) — 시각 모름으로 그대로 읽는다.
  * `startDate`는 상세 화면 표시와 백업(DB 통째) 외에는 읽지 않는다(통계 · 내보내기는 쓰지 않는다) — 두 꼴이 섞여도 계산이 깨지지 않는다.
  *
- * 옮김 규칙(이미 있는 책): 아래 넷 중 하나라도 맞으면 «이미 읽기 시작한 책»으로 본다 — 사용자가 다시 누를 일이 없다.
- * 시작 날짜가 있음 · 완독 · 읽은 쪽 > 0 · 기록이 1개 이상. 넷 다 아니면(«읽고 있는 책»으로 등록만 하고 손대지 않은 책 포함)
- * 상세 화면이 «읽기 시작» 버튼을 먼저 보인다.
+ * 옮김 규칙(이미 있는 책): 아래 다섯 중 하나라도 맞으면 «이미 읽기 시작한 책»으로 본다 — 사용자가 다시 누를 일이 없다.
+ * 시작 날짜가 있음 · 상태가 «읽는 중» · 완독 · 읽은 쪽 > 0 · 기록이 1개 이상. 다섯 다 아니면 상세 화면이 «읽기 시작» 버튼을 먼저 보인다.
+ * 상태 «읽는 중»을 넣는 까닭: 서재(대시보드)는 상태 값으로 «읽는 중»을 보인다. 그 책이 상세에서 «아직 시작 전»이면 두 화면이 어긋난다
+ * («읽고 있는 책»으로 등록만 하고 손대지 않은 책). 그런 책은 시작 값이 비었으므로 상세가 «읽는 중 · 시작 기록 없음» + ✎로 보인다.
  */
 object ReadingStart {
 
@@ -22,7 +23,7 @@ object ReadingStart {
     private const val DATE = "yyyy-MM-dd"
 
     fun isStarted(book: Book, diaryCount: Int): Boolean =
-        book.startDate.isNotBlank() || book.status == "COMPLETED" || book.currentPage > 0 || diaryCount > 0
+        book.startDate.isNotBlank() || book.status == "READING" || book.status == "COMPLETED" || book.currentPage > 0 || diaryCount > 0
 
     /** 저장할 시작 값(분 단위). */
     fun format(millis: Long): String = SimpleDateFormat(DATE_TIME, Locale.US).format(Date(millis))

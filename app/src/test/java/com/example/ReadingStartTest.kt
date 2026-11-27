@@ -5,6 +5,7 @@ import android.os.Looper
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -71,7 +72,8 @@ class ReadingStartTest {
   @Test
   fun isStarted_migrationRule_forExistingBooks() {
     assertFalse("새 책(읽을 책 · 0쪽 · 기록 0)", ReadingStart.isStarted(book(), 0))
-    assertFalse("«읽고 있는 책»으로 등록만 하고 손대지 않은 책도 시작 전", ReadingStart.isStarted(book(status = "READING"), 0))
+    // 서재가 «읽는 중»으로 보이는 책(상태 값)은 상세도 시작한 책으로 본다 — 두 화면이 한 기준(R1 (h)).
+    assertTrue("«읽고 있는 책»으로 등록만 하고 손대지 않은 책 = 서재의 «읽는 중»", ReadingStart.isStarted(book(status = "READING"), 0))
     assertTrue("옛 앱이 적은 날짜만 있는 값", ReadingStart.isStarted(book(start = "2026-11-20"), 0))
     assertTrue("읽은 쪽이 있음", ReadingStart.isStarted(book(page = 3), 0))
     assertTrue("완독", ReadingStart.isStarted(book(status = "COMPLETED"), 0))
@@ -293,6 +295,17 @@ class ReadingStartTest {
     assertNoEmptyStart()
     assertTrue(has("reading_start_edit"))
     assertTrue(composeTestRule.onAllNodes(androidx.compose.ui.test.hasContentDescription("시작 시각 적기")).fetchSemanticsNodes().isNotEmpty())
+  }
+
+  /** 서재 «읽는 중»(상태 값) ↔ 상세: 등록만 한 «읽고 있는 책»(0쪽 · 기록 0 · 시작 빈칸)도 상세가 «아직 시작 전»을 보이지 않는다. */
+  @Test
+  fun readingStatusBook_withNothingYet_isNotShownAsNotStarted_matchingTheDashboard() {
+    val id = runBlocking { db.bookDao().insert(book(status = "READING")).toInt() }
+    detail(id)
+    assertFalse("서재는 «읽는 중» — 상세도 시작 카드를 보이지 않는다", has("start_reading_button"))
+    assertTrue(composeTestRule.onAllNodesWithText("아직 시작 전이에요").fetchSemanticsNodes().isEmpty())
+    assertTrue("기록 쓰기가 열려 있다", has("add_diary_button"))
+    composeTestRule.onNodeWithTag("reading_start_text").assertTextContains("읽는 중 · 시작 기록 없음")
   }
 
   @Test
