@@ -378,6 +378,8 @@ fun StatisticsScreen(
                             column.map { dateStr -> Pair(dateStr, activityMap[dateStr] ?: 0) }
                         }
                     }
+                    // 오늘 뒤 같은 주 칸은 아직 오지 않은 날이라 누름 동작(«기록이 없습니다» 토스트)을 달지 않는다.
+                    val todayStr = remember(daysGrid) { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()) }
 
                     // Render the Grass Calendar
                     Row(
@@ -434,7 +436,7 @@ fun StatisticsScreen(
                                                 .fillMaxWidth()
                                                 .clip(RoundedCornerShape(2.dp))
                                                 .background(color)
-                                                .clickable {
+                                                .then(if (isGrassDayTappable(dateStr, todayStr)) Modifier.clickable {
                                                     val formattedDate = try {
                                                         val orig = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateStr)
                                                         SimpleDateFormat("M월 d일", Locale.KOREA).format(orig)
@@ -446,7 +448,7 @@ fun StatisticsScreen(
                                                     } else {
                                                         Toast.makeText(context, "$formattedDate: 기록이 없습니다.", Toast.LENGTH_SHORT).show()
                                                     }
-                                                }
+                                                } else Modifier)
                                         )
                                     }
                                 }
@@ -694,3 +696,6 @@ internal fun grassGridDates(today: Calendar): List<List<String>> {
         List(7) { sdf.format(c.time).also { c.add(Calendar.DAY_OF_YEAR, 1) } }
     }
 }
+
+/** 잔디 칸을 누를 수 있는가: 오늘까지만(둘 다 grassGridDates와 같은 "yyyy-MM-dd" 글자라 글자 순서 = 날짜 순서). */
+internal fun isGrassDayTappable(dateStr: String, todayStr: String): Boolean = dateStr <= todayStr
