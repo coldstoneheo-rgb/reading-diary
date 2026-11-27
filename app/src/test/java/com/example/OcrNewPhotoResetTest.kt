@@ -30,7 +30,9 @@ import com.example.data.ocr.OcrOutcome
 import com.example.data.ocr.TextExtractor
 import com.example.ui.screens.OcrDiaryScreen
 import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.viewmodel.OcrState
 import com.example.ui.viewmodel.ReadingViewModel
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -135,5 +137,49 @@ class OcrNewPhotoResetTest {
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithTag("ocr_button").assertExists()
     check(errors() == 0) { "앞 사진의 실패 안내가 새 사진 아래에 남았다" }
+  }
+
+  /** 부를 때까지 끝나지 않는 인식(읽는 도중 새 사진을 고르는 상황). */
+  private class SlowExtractor : TextExtractor {
+    val gate = CompletableDeferred<Unit>()
+    @Volatile var started = false
+    override suspend fun extract(bitmap: Bitmap): OcrOutcome {
+      started = true
+      gate.await()
+      return OcrOutcome.Text("앞 사진의 글")
+    }
+  }
+
+  /** 읽는 도중 새 사진을 고르면 앞 사진의 인식은 버려진다 — 뒤늦게 끝나도 글이 새 사진의 편집창에 들어오지 않는다. */
+  @Test
+  fun pickingANewPhoto_whileReading_dropsTheOldResult() {
+    val slow = SlowExtractor()
+    val vm = ReadingViewModel(app, slow, slow, FakeDiaryPhotoStore()) { false }
+    composeTestRule.setContent {
+      CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner) {
+        MyApplicationTheme { OcrDiaryScreen(viewModel = vm, bookId = bookId, diaryId = null) }
+      }
+    }
+    composeTestRule.waitUntil(10_000) {
+      composeTestRule.onAllNodesWithTag("save_diary_submit_button").fetchSemanticsNodes().isNotEmpty()
+    }
+    fun idleMain() = org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+    fun editorText() = composeTestRule.onNodeWithTag("diary_extracted_text_input").fetchSemanticsNode()
+      .config[SemanticsProperties.EditableText].text
+
+    composeTestRule.onNodeWithText("사진 선택").performScrollTo().performClick()
+    composeTestRule.runOnUiThread { vm.processUnderlineOcr(Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)) }
+    composeTestRule.waitUntil(10_000) { idleMain(); slow.started }
+    check(vm.ocrState.value is OcrState.Processing)
+
+    composeTestRule.onNodeWithText("사진 선택").performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+    check(vm.ocrState.value == OcrState.Idle) { "새 사진을 골랐는데 앞 사진의 인식이 계속된다: ${vm.ocrState.value}" }
+
+    slow.gate.complete(Unit)
+    idleMain()
+    composeTestRule.waitForIdle()
+    check(vm.ocrState.value == OcrState.Idle)
+    check(editorText() == "") { "앞 사진의 글이 새 사진의 편집창에 들어왔다" }
   }
 }

@@ -932,9 +932,6 @@ class ReadingViewModel @JvmOverloads constructor(
         preselectJob = job
     }
 
-    /** 화면이 보여 주던 사진을 지우거나 바꿀 때 — 앞 사진의 미리 선택이 새 사진 화면에 남지 않게 비운다. */
-    fun clearUnderlinePreselect() = cancelPreselect()
-
     private fun cancelPreselect() {
         preselectJob?.cancel()
         preselectJob = null
