@@ -58,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -1388,26 +1389,27 @@ internal fun IconAction(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    checked: Boolean? = null
+    checked: Boolean? = null,
+    iconSize: Dp = 24.dp,
+    tint: Color? = null
 ) {
     TooltipBox(
         positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
         tooltip = { PlainTooltip { Text(label) } },
         state = rememberTooltipState()
     ) {
+        val drawIcon: @Composable () -> Unit = {
+            Icon(imageVector = icon, contentDescription = label, tint = tint ?: LocalContentColor.current, modifier = Modifier.size(iconSize))
+        }
         if (checked == null) {
-            IconButton(onClick = onClick, enabled = enabled, modifier = modifier.size(48.dp)) {
-                Icon(imageVector = icon, contentDescription = label)
-            }
+            IconButton(onClick = onClick, enabled = enabled, modifier = modifier.size(48.dp)) { drawIcon() }
         } else {
             // 켜고 끄는 동작(좌우 반전): 낭독기가 켜짐/꺼짐을 읽는다.
             // 켜짐 글자색 기본값(primary)은 검은 도구 줄 위에서 보이지 않는다 — 꺼짐과 같은 둘레 글자색을 쓰고 켜짐은 배경 원으로 보인다.
             IconToggleButton(
                 checked = checked, onCheckedChange = { onClick() }, enabled = enabled, modifier = modifier.size(48.dp),
                 colors = IconButtonDefaults.iconToggleButtonColors(checkedContentColor = LocalContentColor.current)
-            ) {
-                Icon(imageVector = icon, contentDescription = label)
-            }
+            ) { drawIcon() }
         }
     }
 }
