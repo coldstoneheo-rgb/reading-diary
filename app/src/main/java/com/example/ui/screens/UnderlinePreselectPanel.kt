@@ -23,6 +23,9 @@ import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,10 +49,14 @@ fun UnderlinePreselectPanel(
     chosen: List<Boolean>,
     onToggle: (Int) -> Unit,
     onApply: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** 사용자가 기본값에서 바꾼 줄 이음 자리([lineJoins]의 값). */
+    flippedJoins: Set<Int> = emptySet(),
+    onToggleJoin: (Int) -> Unit = {}
 ) {
     if (words == null || words.none { it.selected } || chosen.size != words.size) return
     val shownLines = words.filter { it.selected }.map { it.lineIndex }.distinct()
+    val joins = lineJoins(words, chosen).toSet()
     Card(
         modifier = modifier.fillMaxWidth().testTag("underline_preselect_panel"),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)),
@@ -74,6 +81,21 @@ fun UnderlinePreselectPanel(
                 ) {
                     words.forEachIndexed { i, w ->
                         if (w.lineIndex != line) return@forEachIndexed
+                        if (i in joins) {
+                            // 줄 이음 자리: 앞 줄 끝 어절과 이 어절을 붙일지(기본) 띄울지. 한 번 누르면 바뀐다.
+                            val glued = isGlued(words, i, flippedJoins)
+                            FilterChip(
+                                selected = glued,
+                                onClick = { onToggleJoin(i) },
+                                label = { Text(if (glued) "⌒ 붙임" else "␣ 띄움", fontSize = 14.sp) },
+                                modifier = Modifier
+                                    .testTag("preselect_join_$i")
+                                    .semantics {
+                                        contentDescription = "앞 줄 끝 «${words[i - 1].text.trim()}»과 «${w.text.trim()}» 사이"
+                                        stateDescription = if (glued) "붙임" else "띄움"
+                                    }
+                            )
+                        }
                         FilterChip(
                             selected = chosen[i],
                             onClick = { onToggle(i) },
@@ -88,6 +110,12 @@ fun UnderlinePreselectPanel(
                 }
             }
             Spacer(modifier = Modifier.height(4.dp))
+            // 버튼을 누르면 편집창에 들어갈 글 그대로(줄 이음 반영).
+            Text(
+                text = preselectedText(words, chosen, flippedJoins),
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp, lineHeight = 20.sp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).testTag("preselect_preview")
+            )
             OutlinedButton(
                 onClick = onApply,
                 enabled = chosen.any { it },
@@ -99,6 +127,43 @@ fun UnderlinePreselectPanel(
     }
 }
 
-/** 켜진 어절을 엔진 줄 순서 · 줄 안 순서대로 공백 하나로 잇는다. */
-fun preselectedText(words: List<UnderlinePreselect.Word>, chosen: List<Boolean>): String =
-    words.filterIndexed { i, _ -> chosen.getOrElse(i) { false } }.joinToString(" ") { it.text.trim() }.trim()
+/**
+ * 줄 이음 자리: 켜진 어절 i와 바로 앞 어절 i−1이 다른 엔진 줄에 있는 곳(앞 줄 마지막 어절 → 다음 줄 첫 어절, 둘 다 켜짐).
+ * 값 = 뒤 어절 순번 i.
+ */
+fun lineJoins(words: List<UnderlinePreselect.Word>, chosen: List<Boolean>): List<Int> =
+    (1 until words.size).filter { i ->
+        chosen.getOrElse(i) { false } && chosen.getOrElse(i - 1) { false } && words[i].lineIndex != words[i - 1].lineIndex
+    }
+
+private val CLOSERS = "\"'”’)]」』》〉"
+private val SENTENCE_END = ".?!…。,;:·"
+
+/**
+ * 줄 이음 기본값(ADR-002 Q4 개정 · 2026-11-28): 책은 낱말 중간에서 줄을 바꾸는 일이 더 많아(기준 자료 105곳 중 67) 기본은 붙임.
+ * 앞 줄 끝 어절이 문장부호(닫는 따옴표 · 괄호 뒤 포함)로 끝나면 띄움.
+ */
+fun defaultGlued(prevWord: String): Boolean {
+    val t = prevWord.trim().trimEnd { it in CLOSERS }
+    return t.isNotEmpty() && t.last() !in SENTENCE_END
+}
+
+/** 자리 i가 지금 붙는지: 기본값을 사용자가 바꿨으면([flipped]) 뒤집는다. */
+fun isGlued(words: List<UnderlinePreselect.Word>, i: Int, flipped: Set<Int>): Boolean =
+    defaultGlued(words[i - 1].text) != (i in flipped)
+
+/**
+ * 켜진 어절을 엔진 줄 순서 · 줄 안 순서대로 잇는다. 같은 줄 안 · 떨어진 조각 사이는 공백 하나,
+ * 줄 이음 자리([lineJoins])는 [isGlued]이면 공백 없이 붙인다. 그 밖의 띄어쓰기는 고치지 않는다(ADR-002 Q4).
+ */
+fun preselectedText(words: List<UnderlinePreselect.Word>, chosen: List<Boolean>, flipped: Set<Int> = emptySet()): String {
+    val joins = lineJoins(words, chosen).toSet()
+    val sb = StringBuilder()
+    words.forEachIndexed { i, w ->
+        if (!chosen.getOrElse(i) { false }) return@forEachIndexed
+        val text = w.text.trim()
+        if (sb.isNotEmpty() && !(i in joins && isGlued(words, i, flipped))) sb.append(' ')
+        sb.append(text)
+    }
+    return sb.toString().trim()
+}

@@ -127,6 +127,12 @@ fun OcrDiaryScreen(
         key = "$formKey/preselectChosen",
         saver = Saver<SnapshotStateList<Boolean>, BooleanArray>(save = { it.toBooleanArray() }, restore = { it.toMutableList().toMutableStateList() })
     ) { (preselect?.map { it.selected } ?: emptyList()).toMutableStateList() }
+    // 줄 이음 자리 중 사용자가 기본값(붙임/띄움)에서 바꾼 자리(뒤 어절 순번). 새 미리 선택 값이 오면 비운다.
+    val preselectFlipped = rememberSaveable(
+        preselect,
+        key = "$formKey/preselectFlipped",
+        saver = Saver<SnapshotStateList<Int>, IntArray>(save = { it.toIntArray() }, restore = { it.toMutableList().toMutableStateList() })
+    ) { mutableStateListOf<Int>() }
 
     // Date & Time picker state: default to current or diary's historic time
     var selectedTimestamp by rememberSaveable(key = "$formKey/time") { mutableStateOf(System.currentTimeMillis()) }
@@ -1184,8 +1190,10 @@ fun OcrDiaryScreen(
                     words = preselect,
                     chosen = preselectChosen,
                     onToggle = { i -> preselectChosen[i] = !preselectChosen[i] },
-                    onApply = { preselect?.let { extractedText = preselectedText(it, preselectChosen) } },
-                    modifier = Modifier.padding(top = 8.dp)
+                    onApply = { preselect?.let { extractedText = preselectedText(it, preselectChosen, preselectFlipped.toSet()) } },
+                    modifier = Modifier.padding(top = 8.dp),
+                    flippedJoins = preselectFlipped.toSet(),
+                    onToggleJoin = { i -> if (!preselectFlipped.remove(i)) preselectFlipped.add(i) }
                 )
 
                 // 원문 전체(접힘): 편집창 글이 마지막 인식의 전체 글과 다를 때(밑줄 어절로 시작 · 사용자가 고침). 펼쳐 읽거나 편집창을 전체 글로 되돌린다.
