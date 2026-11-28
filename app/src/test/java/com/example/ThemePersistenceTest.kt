@@ -2,8 +2,11 @@ package com.example
 
 import android.app.Application
 import android.content.Context
+import android.graphics.Bitmap
 import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
+import com.example.data.ocr.OcrOutcome
+import com.example.data.ocr.TextExtractor
 import com.example.ui.viewmodel.ReadingViewModel
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -14,7 +17,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
-/** 고른 테마가 앱을 완전히 껐다 켜도 남는다(새 ViewModel = 새 프로세스의 첫 읽기). 저장값이 없거나 범위 밖이면 1. */
+/**
+ * 고른 테마가 앱을 완전히 껐다 켜도 남는다: 새 ViewModel이 저장값을 읽는다(디스크 반영은 SharedPreferences.apply에 맡긴다).
+ * 저장값이 없거나 범위 밖이면 1.
+ */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class ThemePersistenceTest {
@@ -31,7 +37,11 @@ class ThemePersistenceTest {
         shadowOf(Looper.getMainLooper()).idle()
     }
 
-    private fun freshViewModel() = ReadingViewModel(app)
+    private object NoCallExtractor : TextExtractor {
+        override suspend fun extract(bitmap: Bitmap): OcrOutcome = error("not used")
+    }
+
+    private fun freshViewModel() = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, FakeDiaryPhotoStore()) { false }
 
     @Test
     fun noStoredValue_opensDefaultTheme() {

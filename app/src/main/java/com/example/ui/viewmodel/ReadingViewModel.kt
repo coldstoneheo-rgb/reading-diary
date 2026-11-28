@@ -224,7 +224,7 @@ class ReadingViewModel @JvmOverloads constructor(
     val diarySortNewestFirst = MutableStateFlow(prefs.getBoolean("diary_sort_newest_first", true))
     val diaryFontSize = MutableStateFlow(prefs.getFloat("diary_font_size", 14f))
     val readingGoalYearly = MutableStateFlow(prefs.getInt("reading_goal_yearly", 30))
-    /** 고른 테마(1..9). 앱을 완전히 껐다 켜도 남는다. 저장값이 없거나 범위 밖이면 1(따뜻한 서점). */
+    /** 고른 테마(1..9). 앱을 완전히 껐다 켜도 남는다. 저장값이 없거나 범위 밖이면 1(설정의 «올리브그린»). */
     val currentThemeId = MutableStateFlow(themeIdOrDefault(prefs.getInt(KEY_THEME_ID, DEFAULT_THEME_ID)))
 
     // 예시 2권(ADR-003-1). 표식은 "id|title" 집합, 판정은 SampleBooks.isSample(id·제목 둘 다 일치).
@@ -1196,6 +1196,7 @@ class ReadingViewModel @JvmOverloads constructor(
 
         internal const val KEY_THEME_ID = "theme_id"
         internal const val DEFAULT_THEME_ID = 1
+        // Theme.kt `appColorScheme`의 when · SettingsScreen 테마 목록과 같이 바꾼다(빠뜨리면 새 테마가 재시작 때 1로 돌아간다).
         private val THEME_IDS = 1..9
 
         /** 저장된 테마 id가 지금 있는 테마(1..9)가 아니면 기본 테마로 연다. */
