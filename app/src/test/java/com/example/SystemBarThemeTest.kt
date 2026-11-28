@@ -46,13 +46,15 @@ class AppThemeDarknessTest {
 class SystemBarFollowsAppThemeTest {
     @get:Rule val composeTestRule = createEmptyComposeRule()
     private var controller: ActivityController<MainActivity>? = null
+    /** ViewModel이 실제로 받은 Application(전역 팩토리 싱글턴 때문에 앞 시험의 것일 수 있다 · SystemBarColdStartTest 주석). */
+    private var vmApp: android.app.Application? = null
 
     @After
     fun tearDown() {
-        val app = controller?.get()?.application
+        val app = vmApp ?: controller?.get()?.application
         controller?.pause()?.stop()?.destroy()
         shadowOf(Looper.getMainLooper()).idle()
-        // selectTheme은 이제 저장한다 — 뒤 시험이 이 테마로 시작하지 않게 지운다.
+        // selectTheme은 이제 저장한다 — VM이 쓴 그 prefs를 지워 뒤 시험이 이 테마로 시작하지 않게 한다.
         app?.getSharedPreferences("diary_general_settings", android.content.Context.MODE_PRIVATE)?.edit()?.clear()?.commit()
     }
 
@@ -67,6 +69,7 @@ class SystemBarFollowsAppThemeTest {
         val c = Robolectric.buildActivity(MainActivity::class.java).setup().also { controller = it }
         val activity = c.get()
         val vm = ViewModelProvider(activity)[ReadingViewModel::class.java]
+        vmApp = vm.getApplication()
         composeTestRule.waitForIdle()
 
         // 시스템 어두운 + 앱 밝은 테마(기본 1): 밝은 바탕이므로 어두운 아이콘(= light appearance).
