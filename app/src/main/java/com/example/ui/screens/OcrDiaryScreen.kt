@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.os.Build
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.view.WindowManager
@@ -47,6 +48,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
@@ -729,7 +731,7 @@ fun OcrDiaryScreen(
                 }
             }
 
-            // 자르기 단계(REDESIGN §2-3 · R2): 사진 상자 = 카드 폭 · 사진 비 유지(최대 화면 높이 60%) · 사진 위 도구 줄(아이콘만) ·
+            // 자르기 단계(REDESIGN §2-3 · R2): 사진 상자 = 카드 폭 · 사진 비 유지(최대 = 바를 뺀 높이의 58%) · 사진 위 도구 줄(아이콘만) ·
             // 접힌 «틀 조정»(접혀도 지금 틀은 사진 위에 늘 보인다, 보정 3) · 한 줄 동작(자르기 확정 → 틀 안 글자 읽기).
             if (isImageTaken && activeImageUrl != null) {
                 var showCropAdjust by rememberSaveable(key = "$formKey/cropAdjustOpen") { mutableStateOf(false) }
@@ -765,7 +767,13 @@ fun OcrDiaryScreen(
                             withContext(Dispatchers.IO) { BitmapDecoding.orientedSize(context, Uri.parse(url)) }
                         }?.takeIf { it.first > 0 && it.second > 0 }
                     }
-                    val maxPhotoHeight = (LocalConfiguration.current.screenHeightDp * 0.6f).dp
+                    // 사진 상자 최대 높이 = 쓸 수 있는 높이의 58%(60%면 411×914dp 폰에서 버튼 아래 4dp가 바에 가렸다). API 35+에서 screenHeightDp는 상태 표시줄 · 내비게이션 바를
+                    // 포함하므로 그만큼 빼야 세로로 긴 사진에서도 «자르기 확정»이 첫 화면 안에 든다(1080×2400에서 아래가 잘리던 결함).
+                    val systemBarsDp = if (Build.VERSION.SDK_INT >= 35) {
+                        val bars = WindowInsets.systemBars
+                        with(LocalDensity.current) { (bars.getTop(this) + bars.getBottom(this)).toDp() }
+                    } else 0.dp
+                    val maxPhotoHeight = (LocalConfiguration.current.screenHeightDp.dp - systemBarsDp) * 0.58f
                     Column(modifier = Modifier.fillMaxWidth().background(Color.Black)) {
                         // 사진 위 도구 줄: 아이콘만(48dp · 낭독 이름 = 툴팁). 검은 사진 상자 위라 흰 그림.
                         CompositionLocalProvider(LocalContentColor provides Color.White) {
@@ -799,7 +807,7 @@ fun OcrDiaryScreen(
                                 )
                             }
                         }
-                        // 사진 상자: 폭 = 카드 폭, 높이 = 사진 비(회전 반영) · 최대 화면 높이 60%. 크기를 모르면 3:4(책 쪽).
+                        // 사진 상자: 폭 = 카드 폭, 높이 = 사진 비(회전 반영) · 최대 = 바를 뺀 높이의 58%(maxPhotoHeight). 크기를 모르면 3:4(책 쪽).
                         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                             val heightPerWidth = orientedImageSize?.let { (w, h) ->
                                 if (CropGeometry.isQuarterTurn(imageRotation)) w.toFloat() / h else h.toFloat() / w
