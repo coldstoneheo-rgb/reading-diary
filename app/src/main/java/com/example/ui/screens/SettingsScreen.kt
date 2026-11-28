@@ -660,6 +660,7 @@ fun SettingsScreen(viewModel: ReadingViewModel) {
                                     Text("• 휜 쪽에서 밑줄 친 줄을 놓치던 문제 수정", style = MaterialTheme.typography.bodySmall)
                                     Text("• 화면 낭독기가 «기록하기»·사진 전송 동의·독서 잔디를 읽음", style = MaterialTheme.typography.bodySmall)
                                     Text("• 독서 잔디에서 오늘 칸이 빠지던 문제 수정", style = MaterialTheme.typography.bodySmall)
+                                    Text("• 상태 표시줄·내비게이션 바 아이콘이 시스템 모드가 아니라 앱 테마를 따름", style = MaterialTheme.typography.bodySmall)
                                     // 첫 빌드
                                     Text("• 기억 서랍을 정직한 이름과 동작으로 정리 — 검색 결과에 일치 근거 표시", style = MaterialTheme.typography.bodySmall)
                                     Text("• 실제 동작이 없던 클라우드 백업·복원 버튼 제거, 데이터 저장 위치를 사실대로 안내", style = MaterialTheme.typography.bodySmall)
