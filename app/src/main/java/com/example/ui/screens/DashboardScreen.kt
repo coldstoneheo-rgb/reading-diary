@@ -8,8 +8,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -352,7 +350,7 @@ internal val FilterChipEdgeDp = 16
 internal val FilterChipGapDp = 8
 private val chipStyles = listOf(ChipStyle(true, 12), ChipStyle(true, 6), ChipStyle(false, 8))
 private const val CHIP_ICON_DP = 15 + 6 // 아이콘 + 사이 간격
-private const val CHIP_BORDER_DP = 2
+private const val CHIP_SLACK_DP = 2 // dp→px 반올림 · 가중치 분배 오차 여유(Surface 테두리는 폭을 먹지 않는다)
 
 /**
  * 캡슐 배치 고르기(순수 함수): 한 줄 네 칸 같은 폭이 들어가는 가장 꾸민 단계를 고른다.
@@ -360,8 +358,9 @@ private const val CHIP_BORDER_DP = 2
  * [labelWidthsDp]는 굵은 글씨로 잰 글 폭(선택되면 굵어지므로 굵은 쪽으로 잰다).
  */
 internal fun chooseChipLayout(availableDp: Float, labelWidthsDp: List<Float>): Pair<ChipStyle, Int> {
+    require(labelWidthsDp.isNotEmpty()) { "캡슐 0개" }
     val widest = labelWidthsDp.maxOrNull() ?: 0f
-    fun need(s: ChipStyle) = widest + 2 * s.padH + (if (s.showIcon) CHIP_ICON_DP else 0) + CHIP_BORDER_DP
+    fun need(s: ChipStyle) = widest + 2 * s.padH + (if (s.showIcon) CHIP_ICON_DP else 0) + CHIP_SLACK_DP
     for (columns in listOf(labelWidthsDp.size, 2)) {
         val cell = (availableDp - FilterChipGapDp * (columns - 1)) / columns
         chipStyles.firstOrNull { need(it) <= cell }?.let { return it to columns }
@@ -405,7 +404,7 @@ fun FilterChipRow(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     rowFilters.forEach { (tag, label, icon) ->
-                        FilterChip(
+                        LibraryFilterChip(
                             tag = tag, label = label, icon = icon, style = style, textStyle = labelStyle,
                             isSelected = currentFilter == tag,
                             onClick = { onFilterSelected(tag) },
@@ -419,7 +418,7 @@ fun FilterChipRow(
 }
 
 @Composable
-private fun FilterChip(
+private fun LibraryFilterChip(
     tag: String,
     label: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -461,7 +460,8 @@ private fun FilterChip(
             Text(
                 text = label,
                 style = textStyle.copy(fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal),
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

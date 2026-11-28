@@ -13,17 +13,21 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import com.example.ui.screens.FilterChipRow
+import com.example.ui.screens.ChipStyle
 import com.example.ui.screens.chooseChipLayout
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Assert.assertEquals
@@ -92,6 +96,19 @@ class FilterChipRowBalanceTest {
       assertEquals("$where: ${labels[i]} 글", labels[i], text)
       assertTrue("$where: ${labels[i]} 아이콘 이름이 남았다 $desc", desc.isNullOrEmpty())
     }
+    // 글 잘림 0: 캡슐 안 글 노드의 배치 결과가 넘치지 않고 말줄임도 없다(critic #110 중요 1).
+    val texts = rule.onAllNodes(SemanticsMatcher("text") { SemanticsActions.GetTextLayoutResult in it.config }, useUnmergedTree = true)
+      .fetchSemanticsNodes()
+    assertEquals("$where: 글 노드 4개", 4, texts.size)
+    for (t in texts) {
+      val out = mutableListOf<TextLayoutResult>()
+      t.config[SemanticsActions.GetTextLayoutResult].action?.invoke(out)
+      val l = out.single()
+      // hasVisualOverflow는 쓰지 않는다: 문단을 칸 최대 폭으로 배치한 뒤 상자를 글 폭으로 줄여 들어가도 «넘침»이 된다(411×1.0 · 글 110.5 / 상자 111 / 문단 132px).
+      assertTrue("$where: «${l.layoutInput.text}» 글 ${l.multiParagraph.maxIntrinsicWidth}px > 놓인 폭 ${l.size.width}px", l.multiParagraph.maxIntrinsicWidth <= l.size.width + 0.5f)
+      assertEquals("$where: «${l.layoutInput.text}» 한 줄", 1, l.lineCount)
+      assertTrue("$where: «${l.layoutInput.text}» 말줄임", !l.isLineEllipsized(0))
+    }
   }
 
   @Test @Config(qualifiers = "w360dp-h800dp-xxhdpi") fun w360_font100() = checkBalanced("360dp × 1.0", 1f)
@@ -129,11 +146,18 @@ class FilterChipRowBalanceTest {
 
   @Test
   fun chooser_fallsBackInOrder() {
-    // 넉넉함 → 아이콘 + 12dp · 네 칸
-    assertEquals(4, chooseChipLayout(400f, listOf(40f, 40f, 40f, 40f)).second)
-    assertTrue(chooseChipLayout(400f, listOf(40f, 40f, 40f, 40f)).first.showIcon)
-    // 매우 좁음 → 두 칸
-    assertEquals(2, chooseChipLayout(200f, listOf(60f, 60f, 60f, 60f)).second)
+    // 글 40dp · 네 칸 · 간격 8 × 3 = 24 · 여유 2. 단계별 필요 폭: 아이콘+12 → 40+24+21+2=87 · 아이콘+6 → 75 · 아이콘 없음+8 → 58.
+    val w = listOf(40f, 40f, 40f, 40f)
+    fun at(cell: Float) = chooseChipLayout(cell * 4 + 24, w)
+    assertEquals(ChipStyle(true, 12) to 4, at(87f))
+    assertEquals(ChipStyle(true, 6) to 4, at(86.9f))
+    assertEquals(ChipStyle(true, 6) to 4, at(75f))
+    assertEquals(ChipStyle(false, 8) to 4, at(74.9f))
+    assertEquals(ChipStyle(false, 8) to 4, at(58f))
+    // 네 칸이 안 되면 두 칸(아이콘+12부터 다시): 칸 = (전체 − 8) / 2
+    assertEquals(ChipStyle(true, 12) to 2, chooseChipLayout(57.9f * 4 + 24, w))
+    // 두 칸도 안 되면 한 칸(아이콘 없음)
+    assertEquals(ChipStyle(false, 8) to 1, chooseChipLayout(60f, listOf(200f, 40f, 40f, 40f)))
   }
 
   @Test @Config(qualifiers = "w360dp-h800dp-xxhdpi")
