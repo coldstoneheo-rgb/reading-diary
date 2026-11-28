@@ -1,10 +1,12 @@
 package com.example.ui.theme
 
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 
 private val WarmBookstoreColorScheme = lightColorScheme(
     primary = BookPrimary,
@@ -186,27 +188,33 @@ private val DarkColorScheme = darkColorScheme(
     outlineVariant = DarkSecondary.copy(alpha = 0.25f)
 )
 
+/** 테마 id → 색 묶음. 범위 밖 id는 기본(따뜻한 서점). */
+internal fun appColorScheme(themeId: Int): ColorScheme = when (themeId) {
+    1 -> WarmBookstoreColorScheme
+    2 -> MidnightColorScheme
+    3 -> SwissColorScheme
+    4 -> PastelColorScheme
+    5 -> ClassicColorScheme
+    6 -> PinkColorScheme
+    7 -> GreyColorScheme
+    8 -> ForestColorScheme
+    9 -> DarkColorScheme
+    else -> WarmBookstoreColorScheme
+}
+
+/**
+ * 앱 테마의 바탕이 어두운가. 상태 표시줄 · 내비게이션 바 아이콘 밝기를 시스템 모드가 아니라 이 값으로 정한다
+ * (시스템 어두운 + 앱 밝은 테마에서 흰 시계가 밝은 바탕에 묻히던 결함).
+ */
+fun isDarkAppTheme(themeId: Int): Boolean = appColorScheme(themeId).background.luminance() < 0.5f
+
 @Composable
 fun MyApplicationTheme(
     themeId: Int = 1,
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = when (themeId) {
-        1 -> WarmBookstoreColorScheme
-        2 -> MidnightColorScheme
-        3 -> SwissColorScheme
-        4 -> PastelColorScheme
-        5 -> ClassicColorScheme
-        6 -> PinkColorScheme
-        7 -> GreyColorScheme
-        8 -> ForestColorScheme
-        9 -> DarkColorScheme
-        else -> WarmBookstoreColorScheme
-    }
-
-
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = appColorScheme(themeId),
         typography = Typography,
         content = content
     )
