@@ -29,7 +29,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -343,66 +345,124 @@ fun StatItem(label: String, count: Int, imageVector: androidx.compose.ui.graphic
     }
 }
 
+/** 필터 캡슐 한 개의 꾸밈 단계. 폭이 모자라면 앞에서부터 차례로 줄인다. */
+internal data class ChipStyle(val showIcon: Boolean, val padH: Int)
+
+internal val FilterChipEdgeDp = 16
+internal val FilterChipGapDp = 8
+private val chipStyles = listOf(ChipStyle(true, 12), ChipStyle(true, 6), ChipStyle(false, 8))
+private const val CHIP_ICON_DP = 15 + 6 // 아이콘 + 사이 간격
+private const val CHIP_BORDER_DP = 2
+
+/**
+ * 캡슐 배치 고르기(순수 함수): 한 줄 네 칸 같은 폭이 들어가는 가장 꾸민 단계를 고른다.
+ * 어느 단계로도 안 들어가면(큰 글꼴) 두 줄 × 두 칸으로 놓는다. 어느 쪽이든 좌우 바깥 여백은 [FilterChipEdgeDp]로 같다.
+ * [labelWidthsDp]는 굵은 글씨로 잰 글 폭(선택되면 굵어지므로 굵은 쪽으로 잰다).
+ */
+internal fun chooseChipLayout(availableDp: Float, labelWidthsDp: List<Float>): Pair<ChipStyle, Int> {
+    val widest = labelWidthsDp.maxOrNull() ?: 0f
+    fun need(s: ChipStyle) = widest + 2 * s.padH + (if (s.showIcon) CHIP_ICON_DP else 0) + CHIP_BORDER_DP
+    for (columns in listOf(labelWidthsDp.size, 2)) {
+        val cell = (availableDp - FilterChipGapDp * (columns - 1)) / columns
+        chipStyles.firstOrNull { need(it) <= cell }?.let { return it to columns }
+    }
+    return chipStyles.last() to 1
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FilterChipRow(
     currentFilter: String,
     onFilterSelected: (String) -> Unit
 ) {
-    Row(
+    val filters = listOf(
+        Triple("ALL", "전체 책", Icons.Outlined.FormatListBulleted),
+        Triple("READING", "읽는 중", Icons.Outlined.ChromeReaderMode),
+        Triple("TO_READ", "읽을 책", Icons.Outlined.BookmarkBorder),
+        Triple("COMPLETED", "읽은 책", Icons.Outlined.TaskAlt)
+    )
+    val labelStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp)
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = FilterChipEdgeDp.dp)
+            .testTag("filter_chip_row")
     ) {
-        val filters = listOf(
-            Triple("ALL", "전체 책", Icons.Outlined.FormatListBulleted),
-            Triple("READING", "읽는 중", Icons.Outlined.ChromeReaderMode),
-            Triple("TO_READ", "읽을 책", Icons.Outlined.BookmarkBorder),
-            Triple("COMPLETED", "읽은 책", Icons.Outlined.TaskAlt)
-        )
-
-        filters.forEach { (tag, label, icon) ->
-            val isSelected = currentFilter == tag
-            
-            val backgroundColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
-            val contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-            val iconColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-            val borderColor = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
-
-            Surface(
-                onClick = { onFilterSelected(tag) },
-                shape = RoundedCornerShape(20.dp),
-                color = backgroundColor,
-                contentColor = contentColor,
-                border = if (isSelected) null else BorderStroke(1.dp, borderColor),
-                modifier = Modifier
-                    .testTag("filter_chip_$tag")
-            ) {
+        val availableDp = with(density) { constraints.maxWidth.toDp().value }
+        val labelWidths = filters.map { (_, label, _) ->
+            with(density) {
+                measurer.measure(label, labelStyle.copy(fontWeight = FontWeight.Bold), maxLines = 1).size.width.toDp().value
+            }
+        }
+        val (style, columns) = chooseChipLayout(availableDp, labelWidths)
+        Column(verticalArrangement = Arrangement.spacedBy(FilterChipGapDp.dp)) {
+            filters.chunked(columns).forEach { rowFilters ->
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(FilterChipGapDp.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = label,
-                        modifier = Modifier.size(15.dp),
-                        tint = iconColor
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                        ),
-                        maxLines = 1
-                    )
+                    rowFilters.forEach { (tag, label, icon) ->
+                        FilterChip(
+                            tag = tag, label = label, icon = icon, style = style, textStyle = labelStyle,
+                            isSelected = currentFilter == tag,
+                            onClick = { onFilterSelected(tag) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun FilterChip(
+    tag: String,
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    style: ChipStyle,
+    textStyle: androidx.compose.ui.text.TextStyle,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val backgroundColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+    val contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+    val iconColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+    val borderColor = if (isSelected) Color.Transparent else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
+
+    // selected = 낭독기가 «선택됨»을 읽는다. 아이콘은 꾸밈이라 이름을 두지 않는다(낭독 이름 = 글 하나).
+    Surface(
+        selected = isSelected,
+        onClick = onClick,
+        shape = RoundedCornerShape(20.dp),
+        color = backgroundColor,
+        contentColor = contentColor,
+        border = if (isSelected) null else BorderStroke(1.dp, borderColor),
+        modifier = modifier.testTag("filter_chip_$tag")
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = style.padH.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            if (style.showIcon) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(15.dp).testTag("filter_chip_icon"),
+                    tint = iconColor
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+            }
+            Text(
+                text = label,
+                style = textStyle.copy(fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal),
+                maxLines = 1
+            )
         }
     }
 }
