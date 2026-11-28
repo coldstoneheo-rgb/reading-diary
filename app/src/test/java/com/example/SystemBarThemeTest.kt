@@ -55,7 +55,7 @@ class SystemBarFollowsAppThemeTest {
         controller?.pause()?.stop()?.destroy()
         shadowOf(Looper.getMainLooper()).idle()
         // selectTheme은 이제 저장한다 — VM이 쓴 그 prefs를 지워 뒤 시험이 이 테마로 시작하지 않게 한다.
-        app?.getSharedPreferences("diary_general_settings", android.content.Context.MODE_PRIVATE)?.edit()?.clear()?.commit()
+        app?.getSharedPreferences("diary_general_settings", android.content.Context.MODE_PRIVATE)?.edit()?.remove("theme_id")?.commit()
     }
 
     private fun lightIcons(activity: MainActivity): Pair<Boolean, Boolean> {
@@ -100,7 +100,7 @@ class SystemBarColdStartTest {
         val app = controller?.get()?.application
         controller?.destroy()
         shadowOf(Looper.getMainLooper()).idle()
-        app?.getSharedPreferences("diary_general_settings", android.content.Context.MODE_PRIVATE)?.edit()?.clear()?.commit()
+        app?.getSharedPreferences("diary_general_settings", android.content.Context.MODE_PRIVATE)?.edit()?.remove("theme_id")?.commit()
     }
 
     /**
