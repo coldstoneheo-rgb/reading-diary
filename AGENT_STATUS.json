@@ -1,22 +1,23 @@
 {
-  "as_of": "2026-11-28T05:40:00+09:00",
+  "as_of": "2026-11-28T16:15:00+09:00",
   "phase": "2번째 빌드 — 실기기 지적 4건(HO-2026-1127)",
-  "current_task": "2번째 빌드 «준비 끝» 보류(후보 main 1ca4191) — 다음 창이 상태 표시줄 수리 뒤 재선언 · 순회 41장 · 문서 PR #104",
+  "current_task": "2번째 빌드 «준비 끝» — main 876a631(#105 · #106 · #107 · #108) · r8Debug 9 + 1항 ✔ · 서명 대기",
   "waiting_on": [
-    "사용자(다음 창의 상태 표시줄 수리 · «준비 끝» 재선언 뒤): 서명 번들 · 콘솔 업로드 · 출시 노트 · 검토 보내기 · 실기기 확인(낭독기 «기록하기» 포함)",
-    "사용자: 검색 화면 제목 문안 «도서 검색해서 추가» 확인(LC 통보)",
-    "LC: 순회 발견 ②·③은 후속 · ④ 큰 화면 적응형 배치는 범위 확대라 아침 사용자 목록"
+    "사용자: 서명 번들 bash scripts/sign-release.sh(main 876a631) → «올려» · 출시 노트 · 검토 보내기 → 실기기 확인",
+    "LC: 에뮬레이터의 실제 책 사진 · 기록 정리 여부",
+    "문서 PR(이 REPORT)은 서명 뒤 머지 — «준비 끝» 뒤 main을 움직이지 않음"
   ],
   "next_actions": [
-    "다음 창 첫 일: 상태 표시줄 · 내비게이션 바 아이콘 밝기를 앱 테마에 맞춤(MainActivity.kt:56) → 새 head r8Debug 세 조합 캡처 → «준비 끝» 갱신",
-    "순회 p11 견본 이름이 실재 책과 겹침 → 겹치지 않는 이름으로 재촬영"
+    "3번째 빌드: 폭 393dp 이하 자르기 확정 잘림 → 자르기 단계 배치",
+    "공용 TestRule(전역 ViewModel 팩토리 격리 · VM 코루틴 · prefs 정리)",
+    "시작 창 테마(시스템 어두운에서 검은 시작 창)"
   ],
   "metrics": {
-    "unit_tests_after_round": "main 1ca4191 직전(#103 같은 동작 코드) verifyRoborazziDebug 568/0/1 exit 0",
+    "unit_tests_after_round": "main 876a631 직전 head(d439133) verifyRoborazziDebug 577/0/1 exit 0",
     "unit_test_classes": 67,
     "screenshot_baselines": 19,
     "room_schema_version": 3,
-    "prs_merged_this_round": 5,
+    "prs_merged_this_round": 4,
     "prs_ready_unmerged": 0,
     "critic_first_pass_rate": "[2026-11-11 이전 라운드 값] 3/12 (누적. R4 1차 6/10 NEEDS_REVISION → 2차 7/10 PASS → 보정 3차 6/10 NEEDS_REVISION → 4차 7/10 PASS · 도서 검색 1차 6/10 NEEDS_REVISION → 8/10 PASS · #36 1차 6/10 NEEDS_REVISION → PASS · #37 8/10 PASS · #39 8/10 PASS · P3 1차 8/10 조건부 PASS · P4 1차 7/10 PASS, 발주서 ≥8 미달 → 수정 뒤 8/10) · #47 1차 6.5 NEEDS_REVISION → 8/10 PASS · #48 사전 6/10 NEEDS_REVISION → 8/10 PASS",
     "gradle_runs": "[2026-11-11 이전 라운드 값] 64 (이번 라운드 19: ② 필터 1 · verify 1 · A~M 1 · N~S 1(PhotoSave 멈춤, 강제 종료) · N~S 재시도 1(메모리 보호 회수) · N·O·Ph·Po 1(순서 의존 10실패) · OcrDiary 단독 1 · RVM·S* 1 · PhotoSave 단독 1 | P5 컴파일 실패 1(테스트 호출부) · 대상 1(1실패) · Backup 재실행 1 · verify A~M 1 · verify O·Ph·Po 1 · verify N·RVM·S* 2(1차 2실패) · N·O·PhotoSave 1 · verify A~M+Ph·Po 1 · assembleDebug 1 — 묶음 세부는 REPORT) | 이전: (도서 검색 교체: 11 — 옛 경로 스텁 red 1 · 전체 test 1(간헐 실패 1) · 실패분 재실행 1 · record 2 · verify 2 · assembleDebug 2 · 보정 필터 1 · 변이 확인 1(의도된 실패) |#40 head 재검증 1 · P4: 11 — 메모리 부족 강제 종료 2 · 테스트 실패 3(테스트 방식 문제) · record 1 · verify 재사용 1 · 옛 동작 재현 1(의도된 실패) · 전체 test 1 · verify 1 · assembleDebug 1 | P3: 8 — kspDebugKotlin 1 · 필터 실행 1차 실패(MigrationTestHelper assets 미발견) · 필터 2차 15/15 · HEAD cbc3f9f testDebugUnitTest·verifyRoborazziDebug exit 0 · M5 red 변형 실행 1(의도된 실패) · HEAD 2e53c9c testDebugUnitTest 195(통과 194·건너뜀 1)·verifyRoborazziDebug 195(통과 194·건너뜀 1) · P2: 4 · #36: 8 · #37: 2 · #35·#38: 0)",
@@ -24,6 +25,6 @@
     "kakao_real_call": "사용자 실기기 검색 성공(11-05 18:2x 사용자 보고)",
     "underline_product_numbers": "앱 해상도(근사) · 앱 어절 판정, 정답 271: 205/3/66(#69 be99f50) · 정밀도 98.6% · 재현율 75.6% · 비침 0 · 본문 밖 선택 2 · 정답 밖 선택 3 · 직전 190/5/81"
   },
-  "head": "1ca4191 (main, #103)",
-  "last_commit": "origin/main 1ca4191 (#103)"
+  "head": "876a631",
+  "last_commit": "876a631 fix: in-app changelog lists the second build (#108)"
 }
