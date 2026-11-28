@@ -217,7 +217,6 @@ class ReadingViewModel @JvmOverloads constructor(
     private val backStack = mutableListOf<Screen>()
     val selectedFilter = MutableStateFlow("ALL") // "ALL", "READING", "TO_READ", "COMPLETED"
     val selectedBookcaseId = MutableStateFlow<Int?>(null) // null = all bookcases
-    val currentThemeId = MutableStateFlow(1) // 1: Warm, 2: Midnight, 3: Swiss, 4: Pastel, 5: Classic
 
     // On-device persistent general settings (SharedPreferences backed)
     private val prefs = application.getSharedPreferences("diary_general_settings", android.content.Context.MODE_PRIVATE)
@@ -225,6 +224,8 @@ class ReadingViewModel @JvmOverloads constructor(
     val diarySortNewestFirst = MutableStateFlow(prefs.getBoolean("diary_sort_newest_first", true))
     val diaryFontSize = MutableStateFlow(prefs.getFloat("diary_font_size", 14f))
     val readingGoalYearly = MutableStateFlow(prefs.getInt("reading_goal_yearly", 30))
+    /** 고른 테마(1..9). 앱을 완전히 껐다 켜도 남는다. 저장값이 없거나 범위 밖이면 1(설정의 «올리브그린»). */
+    val currentThemeId = MutableStateFlow(themeIdOrDefault(prefs.getInt(KEY_THEME_ID, DEFAULT_THEME_ID)))
 
     // 예시 2권(ADR-003-1). 표식은 "id|title" 집합, 판정은 SampleBooks.isSample(id·제목 둘 다 일치).
     private val sampleMarks = MutableStateFlow(readSampleMarks())
@@ -306,6 +307,7 @@ class ReadingViewModel @JvmOverloads constructor(
 
     fun selectTheme(id: Int) {
         currentThemeId.value = id
+        prefs.edit().putInt(KEY_THEME_ID, id).apply()
     }
 
     fun setDiarySortNewestFirst(newestFirst: Boolean) {
@@ -1191,6 +1193,14 @@ class ReadingViewModel @JvmOverloads constructor(
         const val RESTORE_READ_ERROR = "백업 파일을 읽지 못했어요. 지금 기록은 그대로입니다."
         const val RESTORE_FAILED = "복원 중 문제가 생겨 되돌렸어요. 지금 기록은 그대로입니다."
         const val CONSENT_REQUIRED_MESSAGE = "정밀 분석을 쓰려면 설정에서 Gemini API 키를 등록하고 사진 전송에 동의해야 해요."
+
+        internal const val KEY_THEME_ID = "theme_id"
+        internal const val DEFAULT_THEME_ID = 1
+        // Theme.kt `appColorScheme`의 when · SettingsScreen 테마 목록과 같이 바꾼다(빠뜨리면 새 테마가 재시작 때 1로 돌아간다).
+        private val THEME_IDS = 1..9
+
+        /** 저장된 테마 id가 지금 있는 테마(1..9)가 아니면 기본 테마로 연다. */
+        internal fun themeIdOrDefault(stored: Int): Int = if (stored in THEME_IDS) stored else DEFAULT_THEME_ID
     }
 
     /** 실패 안내만 지운다(진행 중 인식 · 성공 결과 · 미리 선택은 그대로). */
