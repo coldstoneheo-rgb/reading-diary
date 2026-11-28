@@ -731,7 +731,7 @@ fun OcrDiaryScreen(
                 }
             }
 
-            // 자르기 단계(REDESIGN §2-3 · R2): 사진 상자 = 카드 폭 · 사진 비 유지(최대 화면 높이 60%) · 사진 위 도구 줄(아이콘만) ·
+            // 자르기 단계(REDESIGN §2-3 · R2): 사진 상자 = 카드 폭 · 사진 비 유지(최대 = 바를 뺀 높이의 58%) · 사진 위 도구 줄(아이콘만) ·
             // 접힌 «틀 조정»(접혀도 지금 틀은 사진 위에 늘 보인다, 보정 3) · 한 줄 동작(자르기 확정 → 틀 안 글자 읽기).
             if (isImageTaken && activeImageUrl != null) {
                 var showCropAdjust by rememberSaveable(key = "$formKey/cropAdjustOpen") { mutableStateOf(false) }
