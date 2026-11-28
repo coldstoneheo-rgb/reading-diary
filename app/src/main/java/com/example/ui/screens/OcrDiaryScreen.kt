@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.os.Build
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.view.WindowManager
@@ -47,6 +48,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
@@ -765,7 +767,13 @@ fun OcrDiaryScreen(
                             withContext(Dispatchers.IO) { BitmapDecoding.orientedSize(context, Uri.parse(url)) }
                         }?.takeIf { it.first > 0 && it.second > 0 }
                     }
-                    val maxPhotoHeight = (LocalConfiguration.current.screenHeightDp * 0.6f).dp
+                    // 사진 상자 최대 높이 = 쓸 수 있는 높이의 58%(60%면 411×914dp 폰에서 버튼 아래 4dp가 바에 가렸다). API 35+에서 screenHeightDp는 상태 표시줄 · 내비게이션 바를
+                    // 포함하므로 그만큼 빼야 세로로 긴 사진에서도 «자르기 확정»이 첫 화면 안에 든다(1080×2400에서 아래가 잘리던 결함).
+                    val systemBarsDp = if (Build.VERSION.SDK_INT >= 35) {
+                        val bars = WindowInsets.systemBars
+                        with(LocalDensity.current) { (bars.getTop(this) + bars.getBottom(this)).toDp() }
+                    } else 0.dp
+                    val maxPhotoHeight = (LocalConfiguration.current.screenHeightDp.dp - systemBarsDp) * 0.58f
                     Column(modifier = Modifier.fillMaxWidth().background(Color.Black)) {
                         // 사진 위 도구 줄: 아이콘만(48dp · 낭독 이름 = 툴팁). 검은 사진 상자 위라 흰 그림.
                         CompositionLocalProvider(LocalContentColor provides Color.White) {

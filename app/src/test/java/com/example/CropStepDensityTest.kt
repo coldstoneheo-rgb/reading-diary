@@ -6,6 +6,10 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.net.Uri
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.ViewCompat
+import androidx.core.graphics.Insets
+import android.view.View
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivityResultRegistryOwner
@@ -90,25 +94,30 @@ class CropStepDensityTest {
   private fun has(tag: String) = composeTestRule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
 
   /** 견본 쪽 그림(세로 3:4, 회색 바탕에 글줄 막대). 실제 책 사진이 아니다. */
-  private fun pagePhoto(): Uri {
-    val bmp = Bitmap.createBitmap(900, 1200, Bitmap.Config.ARGB_8888)
+  private fun pagePhoto(w: Int = 900, h: Int = 1200): Uri {
+    val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
     val c = Canvas(bmp)
     c.drawColor(Color.rgb(225, 225, 220))
     val p = Paint().apply { color = Color.rgb(60, 60, 60) }
     for (i in 0 until 22) c.drawRect(80f, 120f + i * 46f, if (i % 5 == 4) 520f else 820f, 140f + i * 46f, p)
-    val f = File(app.cacheDir, "crop-density-page.png")
+    val f = File(app.cacheDir, "crop-density-page-${w}x$h.png")
     f.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
     return Uri.fromFile(f)
   }
 
   /** 새 기록 화면을 열고 상단 바 «사진 선택»으로 견본 사진을 골라 자르기 단계까지. */
-  private fun openCropStep(themeId: Int = RecordScreenHarness.LIGHT, fontScale: Float = 1f) {
+  private fun openCropStep(
+    themeId: Int = RecordScreenHarness.LIGHT,
+    fontScale: Float = 1f,
+    photo: Pair<Int, Int> = 900 to 1200,
+    onView: (View) -> Unit = {},
+  ) {
     val id = runBlocking {
       val caseId = db.bookcaseDao().insert(Bookcase(name = "견본 책장")).toInt()
       db.bookDao().insert(Book(title = "지어낸 책", author = "지은이", totalPages = 320, currentPage = 96, bookcaseId = caseId, status = "READING", startDate = "2026-11-20 09:00")).toInt()
     }
     val vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, FakeDiaryPhotoStore()) { false }
-    val uri = pagePhoto()
+    val uri = pagePhoto(photo.first, photo.second)
     val registryOwner = object : ActivityResultRegistryOwner {
       override val activityResultRegistry = object : ActivityResultRegistry() {
         override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
@@ -118,7 +127,7 @@ class CropStepDensityTest {
     }
     composeTestRule.setContent {
       CompositionLocalProvider(LocalActivityResultRegistryOwner provides registryOwner) {
-        RecordScreenHarness.Frame(themeId, fontScale) { OcrDiaryScreen(viewModel = vm, bookId = id, diaryId = null) }
+        RecordScreenHarness.Frame(themeId, fontScale, onView = onView) { OcrDiaryScreen(viewModel = vm, bookId = id, diaryId = null) }
       }
     }
     pump { has("diary_page_input") }
@@ -268,9 +277,9 @@ class CropStepDensityTest {
     println("사진 상자 ${photo.width / density}×${photo.height / density}dp (화면 ${screenW / density}×${screenH / density}dp)")
     assertEquals("사진 상자 폭 = 카드 폭", card.width, photo.width, 1f)
     assertEquals("카드 = 화면 폭 - 좌우 12dp", screenW - 24 * density, card.width, 2f)
-    // 견본 사진 3:4 → 높이 = 폭 × 4/3(최대 화면 높이 60% 이하)
-    val expectedH = minOf(photo.width * 4f / 3f, screenH * 0.6f)
-    assertEquals("사진 상자 높이 = 사진 비(최대 화면 60%)", expectedH, photo.height, 2f)
+    // 견본 사진 3:4 → 높이 = 폭 × 4/3(최대 쓸 수 있는 높이 58% 이하 · 이 화면에서는 한계에 닿지 않음)
+    val expectedH = minOf(photo.width * 4f / 3f, screenH * 0.58f)
+    assertEquals("사진 상자 높이 = 사진 비(최대 화면 58%)", expectedH, photo.height, 2f)
 
     fun onScreen(name: String, n: SemanticsNode) {
       val r = n.rect()
@@ -290,6 +299,36 @@ class CropStepDensityTest {
     assertAtLeast48("틀 안 글자 읽기", byTag("ocr_button"))
     assertAtLeast48("틀 다시 조정", byTag("crop_readjust_button"))
     assertTrue(frameText().endsWith("고정됨"))
+  }
+
+  /**
+   * 1080×2400 폰(411×914dp)처럼 상태 표시줄 45dp · 내비게이션 바 24dp가 있고 사진이 세로로 길면(1:2),
+   * 사진 상자가 높이 한계에 닿아도 «자르기 확정»이 스크롤 없이 바 위에 온전히 보인다(심사용 순회 p05에서 잘림).
+   */
+  @Test
+  @Config(qualifiers = "w411dp-h914dp-xxhdpi")
+  fun tallPhoto_withSystemBars_confirmFullyVisibleWithoutScrolling() {
+    var view: View? = null
+    openCropStep(photo = 900 to 1800, onView = { view = it })
+    val topPx = (45 * density).toInt()
+    val bottomPx = (24 * density).toInt()
+    composeTestRule.runOnUiThread {
+      ViewCompat.dispatchApplyWindowInsets(
+        view!!,
+        WindowInsetsCompat.Builder()
+          .setInsets(WindowInsetsCompat.Type.statusBars(), Insets.of(0, topPx, 0, 0))
+          .setInsets(WindowInsetsCompat.Type.navigationBars(), Insets.of(0, 0, 0, bottomPx))
+          .build()
+      )
+    }
+    idle()
+    val screenH = composeTestRule.onRoot().fetchSemanticsNode().size.height
+    val photo = byTag("crop_photo_box").rect()
+    val confirm = byTag("crop_confirm_button").rect()
+    println("세로 긴 사진: 사진 상자 ${photo.height / density}dp · 확정 아래 끝 ${confirm.bottom / density}dp · 보이는 아래 끝 ${(screenH - bottomPx) / density}dp")
+    assertTrue("사진 상자가 높이 한계에 닿아야 이 시험이 뜻이 있다", photo.height < photo.width * 2f - 2f)
+    assertTrue("자르기 확정 위 끝이 상태 표시줄 아래", confirm.top >= topPx)
+    assertTrue("자르기 확정 아래 끝 ${confirm.bottom} > 내비게이션 바 위 ${screenH - bottomPx}", confirm.bottom <= screenH - bottomPx)
   }
 
   // ── 12sp 이하 글자 0(자르기 카드 · 틀 조정 열림 · 확정 뒤) ──
