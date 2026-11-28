@@ -347,7 +347,9 @@ class FirstRunSafetyTest {
     composeTestRule.onNodeWithTag("preselect_word_1").performScrollTo().performClick()
     composeTestRule.onNodeWithTag("preselect_word_3").performScrollTo().performClick()
     composeTestRule.waitForIdle()
-    assertTrue(shown("바람이 부는 언덕에") && !shown("바람이 언덕에 나무가"))
+    // 편집창은 버튼 전까지 그대로 · 판의 미리보기만 고친 글을 보인다(줄 이음 미리보기 · ADR-002 Q4 개정).
+    composeTestRule.onNodeWithTag("diary_extracted_text_input").assertTextContains("바람이 부는 언덕에")
+    composeTestRule.onNodeWithTag("preselect_preview").assertTextContains("바람이 언덕에 나무가")
     composeTestRule.onNodeWithTag("preselect_apply_button").performScrollTo().performClick()
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithTag("diary_extracted_text_input").assertTextContains("바람이 언덕에 나무가")

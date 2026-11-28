@@ -13,6 +13,8 @@ import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.onNodeWithText
 import androidx.core.app.ActivityOptionsCompat
 import org.junit.Assert.assertTrue
+import androidx.compose.ui.semantics.SemanticsProperties
+import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -36,6 +38,8 @@ import com.example.data.ocr.TextExtractor
 import com.example.data.ocr.UnderlinePreselect.Word
 import com.example.ui.screens.OcrDiaryScreen
 import com.example.ui.screens.UnderlinePreselectPanel
+import com.example.ui.screens.defaultGlued
+import com.example.ui.screens.lineJoins
 import com.example.ui.screens.preselectedText
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.ReadingViewModel
@@ -221,5 +225,80 @@ class UnderlinePreselectPanelTest {
 
     composeTestRule.onNodeWithTag("preselect_apply_button").performScrollTo().performClick()
     input.assertTextEquals("작은 아침마다 창가에", includeEditableText = true)
+  }
+
+  // ── 줄 이음(ADR-002 Q4 개정 · 2026-11-28): 기본 붙임 · 앞 줄 끝이 문장부호면 띄움 · 자리마다 사람이 바꾼다 ──
+
+  /** 지어낸 견본: 줄 0 «푸른 하늘» / 줄 1 «을 보았다,» / 줄 2 «바람이 분다.» / 줄 3 «나는» — 모두 켜짐. */
+  private val joined = listOf(
+    Word("푸른", 0, true), Word("하늘", 0, true), Word("을", 1, true), Word("보았다,", 1, true),
+    Word("바람이", 2, true), Word("분다.", 2, true), Word("나는", 3, true)
+  )
+
+  @Test
+  fun lineJoin_defaultGlues_unlessPrevEndsWithPunctuation() {
+    val all = joined.map { true }
+    assertEquals(listOf(2, 4, 6), lineJoins(joined, all))
+    assertEquals("푸른 하늘을 보았다, 바람이 분다. 나는", preselectedText(joined, all))
+    // 사람이 바꾼 자리만 뒤집힌다.
+    assertEquals("푸른 하늘 을 보았다, 바람이 분다. 나는", preselectedText(joined, all, setOf(2)))
+    assertEquals("푸른 하늘을 보았다,바람이 분다. 나는", preselectedText(joined, all, setOf(4)))
+    // 앞 줄 끝 어절이 꺼져 있으면 이음 자리가 아니다(떨어진 조각 = 공백).
+    val gap = all.toMutableList().also { it[1] = false }
+    assertEquals(listOf(4, 6), lineJoins(joined, gap))
+    assertEquals("푸른 을 보았다, 바람이 분다. 나는", preselectedText(joined, gap))
+    // 닫는 따옴표 · 괄호 뒤의 문장부호도 띄움.
+    assertTrue(!defaultGlued("말했다.”"))
+    assertTrue(!defaultGlued("(그렇다)."))
+    assertTrue(defaultGlued("하늘"))
+  }
+
+  @Test
+  fun screen_lineJoin_visibleTogglable_andSavedTextIsThePreview() {
+    val vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, FakeDiaryPhotoStore()) { false }
+    screen(vm)
+    vm.underlinePreselect.value = joined
+    composeTestRule.waitForIdle()
+    val join = composeTestRule.onNodeWithTag("preselect_join_2", useUnmergedTree = false)
+    join.performScrollTo()
+    val node = join.fetchSemanticsNode()
+    assertEquals("붙임", node.config[SemanticsProperties.StateDescription])
+    assertEquals("줄 이음: 앞 줄 끝 «하늘», 다음 줄 «을»", node.config[SemanticsProperties.ContentDescription].joinToString())
+    val d = app.resources.displayMetrics.density
+    assertTrue("이음 표시 누름 높이 ${node.touchBoundsInRoot.height / d}dp < 48", node.touchBoundsInRoot.height / d >= 47.5f)
+    composeTestRule.onNodeWithTag("preselect_join_4").assertExists()
+    assertEquals("띄움", composeTestRule.onNodeWithTag("preselect_join_4").fetchSemanticsNode().config[SemanticsProperties.StateDescription])
+    composeTestRule.onNodeWithTag("preselect_preview").assertTextEquals("푸른 하늘을 보았다, 바람이 분다. 나는")
+    composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/preselect_line_join.png")
+
+    join.performClick()
+    composeTestRule.waitForIdle()
+    assertEquals("띄움", composeTestRule.onNodeWithTag("preselect_join_2").fetchSemanticsNode().config[SemanticsProperties.StateDescription])
+    val preview = "푸른 하늘 을 보았다, 바람이 분다. 나는"
+    composeTestRule.onNodeWithTag("preselect_preview").assertTextEquals(preview)
+
+    composeTestRule.onNodeWithTag("preselect_apply_button").performScrollTo().performClick()
+    composeTestRule.onNodeWithTag("diary_extracted_text_input").assertTextEquals(preview, includeEditableText = true)
+    composeTestRule.onNodeWithTag("save_diary_submit_button").performClick()
+    composeTestRule.waitUntil(10_000) {
+      runBlocking { db.diaryDao().getAllDiaries().first() }.any { it.id == diaryId && it.selectedText == preview }
+    }
+  }
+
+  @Test
+  fun screen_newPreselectValue_resetsFlippedJoins() {
+    val vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, FakeDiaryPhotoStore()) { false }
+    screen(vm)
+    vm.underlinePreselect.value = joined
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag("preselect_join_2").performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+    assertEquals("띄움", composeTestRule.onNodeWithTag("preselect_join_2").fetchSemanticsNode().config[SemanticsProperties.StateDescription])
+    // 다른 인식 결과가 왔다가 같은 견본이 다시 오면(새 인식) 바꾼 자리는 기본값으로 돌아간다.
+    vm.underlinePreselect.value = sample
+    composeTestRule.waitForIdle()
+    vm.underlinePreselect.value = joined.map { it.copy() }
+    composeTestRule.waitForIdle()
+    assertEquals("붙임", composeTestRule.onNodeWithTag("preselect_join_2").fetchSemanticsNode().config[SemanticsProperties.StateDescription])
   }
 }
