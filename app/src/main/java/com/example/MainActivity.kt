@@ -86,7 +86,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private companion object {
-        // androidx.activity enableEdgeToEdge() 기본 내비게이션 막과 같은 값(3버튼 내비게이션에서만 보인다).
+        // androidx.activity enableEdgeToEdge() 기본 내비게이션 막과 같은 값. API 26-28에서만 쓰인다(29 이상은 시스템이 막을 그린다).
         val LIGHT_NAV_SCRIM = AndroidColor.argb(0xe6, 0xFF, 0xFF, 0xFF)
         val DARK_NAV_SCRIM = AndroidColor.argb(0x80, 0x1b, 0x1b, 0x1b)
         const val KEY_NAVIGATION = "reading_diary_navigation"
