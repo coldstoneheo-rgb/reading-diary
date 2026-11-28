@@ -1,8 +1,10 @@
 package com.example
 
+import android.graphics.Color as AndroidColor
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -38,6 +40,7 @@ import com.example.ui.screens.StatisticsScreen
 import com.example.ui.screens.KnowledgeDrawerScreen
 import com.example.ui.screens.PhraseRecallScreen
 import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.theme.isDarkAppTheme
 import com.example.ui.viewmodel.ReadingViewModel
 import com.example.ui.viewmodel.Screen
 import kotlinx.coroutines.launch
@@ -53,9 +56,15 @@ class MainActivity : ComponentActivity() {
         )
         // 돌아오지 못한 촬영의 임시 파일(책 페이지 사진)을 새 시작에서 지운다. 복원 시작이면 카메라 결과가 아직 쓸 수 있어 남겨 둔다.
         if (savedInstanceState == null) viewModel.releaseCameraTempFiles(cacheDir)
-        enableEdgeToEdge()
+        // 첫 프레임 전에 edge-to-edge를 켜고, 아이콘 밝기는 시스템 모드가 아니라 앱 테마를 따른다.
+        applySystemBarStyle(viewModel.currentThemeId.value)
         setContent {
             val currentThemeId by viewModel.currentThemeId.collectAsState()
+            // 설정에서 테마를 바꾸면 다시 켜지 않아도 상태 표시줄 · 내비게이션 바 아이콘이 따라온다.
+            DisposableEffect(currentThemeId) {
+                applySystemBarStyle(currentThemeId)
+                onDispose {}
+            }
             MyApplicationTheme(themeId = currentThemeId) {
                 MainAppEntry(viewModel)
             }
@@ -68,7 +77,18 @@ class MainActivity : ComponentActivity() {
         outState.putString(KEY_DIARY_FORM_TOKEN, viewModel.diaryFormToken.value)
     }
 
+    private fun applySystemBarStyle(themeId: Int) {
+        val dark = isDarkAppTheme(themeId)
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.auto(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT) { dark },
+            navigationBarStyle = SystemBarStyle.auto(LIGHT_NAV_SCRIM, DARK_NAV_SCRIM) { dark },
+        )
+    }
+
     private companion object {
+        // androidx.activity enableEdgeToEdge() 기본 내비게이션 막과 같은 값. API 26-28에서만 쓰인다(29 이상은 시스템이 막을 그린다).
+        val LIGHT_NAV_SCRIM = AndroidColor.argb(0xe6, 0xFF, 0xFF, 0xFF)
+        val DARK_NAV_SCRIM = AndroidColor.argb(0x80, 0x1b, 0x1b, 0x1b)
         const val KEY_NAVIGATION = "reading_diary_navigation"
         const val KEY_DIARY_FORM_TOKEN = "reading_diary_form_token"
     }
