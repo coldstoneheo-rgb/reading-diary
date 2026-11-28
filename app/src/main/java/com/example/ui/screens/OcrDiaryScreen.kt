@@ -807,7 +807,7 @@ fun OcrDiaryScreen(
                                 )
                             }
                         }
-                        // 사진 상자: 폭 = 카드 폭, 높이 = 사진 비(회전 반영) · 최대 화면 높이 60%. 크기를 모르면 3:4(책 쪽).
+                        // 사진 상자: 폭 = 카드 폭, 높이 = 사진 비(회전 반영) · 최대 = 바를 뺀 높이의 58%(maxPhotoHeight). 크기를 모르면 3:4(책 쪽).
                         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                             val heightPerWidth = orientedImageSize?.let { (w, h) ->
                                 if (CropGeometry.isQuarterTurn(imageRotation)) w.toFloat() / h else h.toFloat() / w

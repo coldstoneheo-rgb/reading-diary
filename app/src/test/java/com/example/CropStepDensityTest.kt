@@ -277,7 +277,8 @@ class CropStepDensityTest {
     println("사진 상자 ${photo.width / density}×${photo.height / density}dp (화면 ${screenW / density}×${screenH / density}dp)")
     assertEquals("사진 상자 폭 = 카드 폭", card.width, photo.width, 1f)
     assertEquals("카드 = 화면 폭 - 좌우 12dp", screenW - 24 * density, card.width, 2f)
-    // 견본 사진 3:4 → 높이 = 폭 × 4/3(최대 쓸 수 있는 높이 58% 이하 · 이 화면에서는 한계에 닿지 않음)
+    // 견본 사진 3:4 → 높이 = 폭 × 4/3(최대 쓸 수 있는 높이 58% 이하). 이 하네스는 시스템 바 인셋 0이 전제이고,
+    // 516dp는 한계 516.8dp보다 0.8dp 낮아 닿지 않는다 — 카드 여백 · 인셋이 바뀌면 기준 이미지가 움직일 수 있다.
     val expectedH = minOf(photo.width * 4f / 3f, screenH * 0.58f)
     assertEquals("사진 상자 높이 = 사진 비(최대 화면 58%)", expectedH, photo.height, 2f)
 
@@ -329,6 +330,11 @@ class CropStepDensityTest {
     assertTrue("사진 상자가 높이 한계에 닿아야 이 시험이 뜻이 있다", photo.height < photo.width * 2f - 2f)
     assertTrue("자르기 확정 위 끝이 상태 표시줄 아래", confirm.top >= topPx)
     assertTrue("자르기 확정 아래 끝 ${confirm.bottom} > 내비게이션 바 위 ${screenH - bottomPx}", confirm.bottom <= screenH - bottomPx)
+
+    composeTestRule.onNodeWithTag("crop_confirm_button").performClick()
+    pump { has("ocr_button") }
+    val read = byTag("ocr_button").rect()
+    assertTrue("틀 안 글자 읽기 아래 끝 ${read.bottom} > 내비게이션 바 위 ${screenH - bottomPx}", read.bottom <= screenH - bottomPx)
   }
 
   // ── 12sp 이하 글자 0(자르기 카드 · 틀 조정 열림 · 확정 뒤) ──
