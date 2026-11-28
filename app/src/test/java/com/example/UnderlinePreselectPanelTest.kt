@@ -255,7 +255,7 @@ class UnderlinePreselectPanelTest {
     assertTrue(!defaultGlued("그렇다.)"))
     assertTrue(!defaultGlued("그렇다.\""))
     // 전각 부호 · 말줄임도 문장부호.
-    listOf("정말？", "정말！", "하나，", "그렇다．", "그런데⋯", "그런데‥").forEach { assertTrue(it, !defaultGlued(it)) }
+    listOf("정말？", "정말！", "하나，", "그렇다．", "그런데⋯", "그런데‥", "같다：", "같다；", "그렇다．）", "그렇다．＂").forEach { assertTrue(it, !defaultGlued(it)) }
     // 가운뎃점은 앞뒤를 붙여 쓰는 부호 → 줄을 넘어도 붙임.
     assertTrue(defaultGlued("봄·"))
   }
