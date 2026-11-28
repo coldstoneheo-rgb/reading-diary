@@ -8,6 +8,7 @@ import com.example.ui.theme.isDarkAppTheme
 import com.example.ui.viewmodel.ReadingViewModel
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -48,8 +49,11 @@ class SystemBarFollowsAppThemeTest {
 
     @After
     fun tearDown() {
+        val app = controller?.get()?.application
         controller?.pause()?.stop()?.destroy()
         shadowOf(Looper.getMainLooper()).idle()
+        // selectTheme은 이제 저장한다 — 뒤 시험이 이 테마로 시작하지 않게 지운다.
+        app?.getSharedPreferences("diary_general_settings", android.content.Context.MODE_PRIVATE)?.edit()?.clear()?.commit()
     }
 
     private fun lightIcons(activity: MainActivity): Pair<Boolean, Boolean> {
@@ -90,16 +94,40 @@ class SystemBarColdStartTest {
 
     @After
     fun tearDown() {
+        val app = controller?.get()?.application
         controller?.destroy()
         shadowOf(Looper.getMainLooper()).idle()
-        androidx.test.core.app.ApplicationProvider.getApplicationContext<android.app.Application>()
-            .getSharedPreferences("diary_general_settings", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        app?.getSharedPreferences("diary_general_settings", android.content.Context.MODE_PRIVATE)?.edit()?.clear()?.commit()
+    }
+
+    /**
+     * `ViewModelProvider.AndroidViewModelFactory.getInstance(app)`는 프로세스 전역 싱글턴이라 처음 받은 Application을 계속 쓴다.
+     * 실제 앱은 프로세스당 Application이 하나라 문제가 없지만, Robolectric은 시험마다 Application을 새로 만들어서
+     * 앞 시험의 Application(다른 데이터 폴더 · 다른 prefs)이 ViewModel에 들어간다(전체 묶음에서만 저장값 대신 1을 읽던 까닭 ·
+     * 진단: VM의 Application이 앞서 돈 DiaryDraftRestoreTest의 것이었다). 이 시험은 저장값을 읽는 길을 보므로 싱글턴을 비운다.
+     */
+    private val factoryFields = ViewModelProvider.AndroidViewModelFactory::class.java.let { cls ->
+        cls.declaredFields.filter { java.lang.reflect.Modifier.isStatic(it.modifiers) && it.type == cls }.onEach { it.isAccessible = true }
+    }
+    private var savedFactories: List<Any?> = emptyList()
+
+    @Before
+    fun resetGlobalViewModelFactory() {
+        check(factoryFields.isNotEmpty()) { "AndroidViewModelFactory 싱글턴 필드를 찾지 못함(lifecycle 판 변경?)" }
+        savedFactories = factoryFields.map { it.get(null) }
+        factoryFields.forEach { it.set(null, null) }
+    }
+
+    /** 뒤 시험들이 보던 전역 상태를 그대로 되돌린다(이 시험만 바꾸고 끝낸다). */
+    @After
+    fun restoreGlobalViewModelFactory() {
+        factoryFields.zip(savedFactories).forEach { (f, v) -> f.set(null, v) }
     }
 
     @Test
     fun systemLight_savedDarkTheme_iconsLightFromOnCreate() {
         val c = Robolectric.buildActivity(MainActivity::class.java).also { controller = it }
-        // ViewModel이 받는 것과 같은 Application에 저장값을 둔다(앞 시험이 남긴 전역 상태와 섞이지 않게).
+        // 이 시험의 Application에 저장값을 둔다(위 @Before로 ViewModel도 같은 Application을 받는다).
         c.get().application.getSharedPreferences("diary_general_settings", android.content.Context.MODE_PRIVATE)
             .edit().putInt("theme_id", 9).commit()
         c.create()
@@ -111,3 +139,4 @@ class SystemBarColdStartTest {
         assertFalse("내비게이션 바 아이콘이 흰색이어야 한다", insets.isAppearanceLightNavigationBars)
     }
 }
+
