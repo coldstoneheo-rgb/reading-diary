@@ -91,7 +91,7 @@ fun UnderlinePreselectPanel(
                                 modifier = Modifier
                                     .testTag("preselect_join_$i")
                                     .semantics {
-                                        contentDescription = "앞 줄 끝 «${words[i - 1].text.trim()}»과 «${w.text.trim()}» 사이"
+                                        contentDescription = "줄 이음: 앞 줄 끝 «${words[i - 1].text.trim()}», 다음 줄 «${w.text.trim()}»"
                                         stateDescription = if (glued) "붙임" else "띄움"
                                     }
                             )
@@ -111,6 +111,11 @@ fun UnderlinePreselectPanel(
             }
             Spacer(modifier = Modifier.height(4.dp))
             // 버튼을 누르면 편집창에 들어갈 글 그대로(줄 이음 반영).
+            Text(
+                text = "버튼을 누르면 들어갈 문장",
+                style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Text(
                 text = preselectedText(words, chosen, flippedJoins),
                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp, lineHeight = 20.sp),

@@ -263,7 +263,7 @@ class UnderlinePreselectPanelTest {
     join.performScrollTo()
     val node = join.fetchSemanticsNode()
     assertEquals("붙임", node.config[SemanticsProperties.StateDescription])
-    assertTrue(node.config[SemanticsProperties.ContentDescription].joinToString().contains("하늘"))
+    assertEquals("줄 이음: 앞 줄 끝 «하늘», 다음 줄 «을»", node.config[SemanticsProperties.ContentDescription].joinToString())
     val d = app.resources.displayMetrics.density
     assertTrue("이음 표시 누름 높이 ${node.touchBoundsInRoot.height / d}dp < 48", node.touchBoundsInRoot.height / d >= 47.5f)
     composeTestRule.onNodeWithTag("preselect_join_4").assertExists()
@@ -283,5 +283,22 @@ class UnderlinePreselectPanelTest {
     composeTestRule.waitUntil(10_000) {
       runBlocking { db.diaryDao().getAllDiaries().first() }.any { it.id == diaryId && it.selectedText == preview }
     }
+  }
+
+  @Test
+  fun screen_newPreselectValue_resetsFlippedJoins() {
+    val vm = ReadingViewModel(app, NoCallExtractor, NoCallExtractor, FakeDiaryPhotoStore()) { false }
+    screen(vm)
+    vm.underlinePreselect.value = joined
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag("preselect_join_2").performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+    assertEquals("띄움", composeTestRule.onNodeWithTag("preselect_join_2").fetchSemanticsNode().config[SemanticsProperties.StateDescription])
+    // 다른 인식 결과가 왔다가 같은 견본이 다시 오면(새 인식) 바꾼 자리는 기본값으로 돌아간다.
+    vm.underlinePreselect.value = sample
+    composeTestRule.waitForIdle()
+    vm.underlinePreselect.value = joined.map { it.copy() }
+    composeTestRule.waitForIdle()
+    assertEquals("붙임", composeTestRule.onNodeWithTag("preselect_join_2").fetchSemanticsNode().config[SemanticsProperties.StateDescription])
   }
 }
