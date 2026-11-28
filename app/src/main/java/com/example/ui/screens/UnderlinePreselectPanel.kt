@@ -142,7 +142,8 @@ fun lineJoins(words: List<UnderlinePreselect.Word>, chosen: List<Boolean>): List
     }
 
 private val CLOSERS = "\"'”’)]」』》〉"
-private val SENTENCE_END = ".?!…。,;:·"
+// 가운뎃점 «·»은 앞뒤를 붙여 쓰는 부호라 넣지 않는다(줄을 넘어도 붙임).
+private val SENTENCE_END = ".?!…。,;:？！，．⋯‥"
 
 /**
  * 줄 이음 기본값(ADR-002 Q4 개정 · 2026-11-28): 책은 낱말 중간에서 줄을 바꾸는 일이 더 많아(기준 자료 105곳 중 67) 기본은 붙임.

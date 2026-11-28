@@ -251,6 +251,13 @@ class UnderlinePreselectPanelTest {
     assertTrue(!defaultGlued("말했다.”"))
     assertTrue(!defaultGlued("(그렇다)."))
     assertTrue(defaultGlued("하늘"))
+    // 닫는 괄호 · 곧은 따옴표가 마침표 뒤에 올 때도 띄움.
+    assertTrue(!defaultGlued("그렇다.)"))
+    assertTrue(!defaultGlued("그렇다.\""))
+    // 전각 부호 · 말줄임도 문장부호.
+    listOf("정말？", "정말！", "하나，", "그렇다．", "그런데⋯", "그런데‥").forEach { assertTrue(it, !defaultGlued(it)) }
+    // 가운뎃점은 앞뒤를 붙여 쓰는 부호 → 줄을 넘어도 붙임.
+    assertTrue(defaultGlued("봄·"))
   }
 
   @Test
