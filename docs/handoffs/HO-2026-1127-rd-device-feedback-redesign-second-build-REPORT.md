@@ -66,10 +66,12 @@
 - 내비게이션 바 밑 실제 색이 화면마다 `surface`일 수 있음(수치 안 잼)
 - 변경 이력의 «도서 검색을 카카오·Google로 교체» 줄이 CLAUDE.md(네이버 책 검색)와 어긋나 보임(사실 확인 필요)
 
-### 다음 창 인계(8번째 창 · 15:4x · 이 절이 정본)
-main = f6bcd2c(#105 · #107 · #106). 열린 것: **C #108**(가지 `fix/changelog-second-build` · worktree `changelog` · head d439133 · LC 직독 PASS-관찰 · 새 head 한 줄 diff 판정 대기). 머지 뒤 → 본 폴더 main ff → 위 «r8Debug 실행 점검(8번째 창)» 표를 채움 → 구성표 · 출시 노트 갱신 → LC에 «2번째 빌드 준비 끝».
-- B 흔들림 원인(확정): 전역 `AndroidViewModelFactory` 싱글턴이 앞 시험의 Application을 쥠 → 시험에서만. 공용 TestRule은 3번째 빌드 후속.
-- 규칙: gradle 잠금 · 에뮬레이터와 동시 0 · 에뮬레이터는 `-gpu swiftshader_indirect`(없으면 부팅 첫 단계에서 멈춤) · Git Bash에서 adb `/sdcard` 경로는 `MSYS_NO_PATHCONV=1` · 반복 실행 기록에 RUN마다 `git rev-parse HEAD` · face-fate 창과 무거운 작업 1줄 교환.
+### 다음 창 인계(8번째 창 · 16:3x · 이 절이 정본)
+**2번째 빌드 «준비 끝» = main 876a631**(#105 · #106 · #107 · #108 · r8Debug 9 + 1항 ✔). main은 움직이지 않는다 — 문서 PR #109는 서명 · 업로드 뒤 머지.
+- 사용자 손 순서: ① 서명 번들 `bash scripts/sign-release.sh`(876a631) → ② «올려»(LC가 사용자 원문 인용으로 전달하면 이 레포 CLAUDE.md «배포 위임»대로 콘솔 업로드 · 출시 노트 = 위 «2번째 빌드 구성표(8번째 창 확정)»의 초안) → ③ 실기기 확인(낭독기로 «기록하기» · 키보드 · 밑줄 결과 · 테마 바꾸고 다시 켜기).
+- 3번째 빌드 후속: 폭 393dp 이하 자르기 확정 잘림(배치) · 공용 TestRule(전역 ViewModel 팩토리 격리 · VM 코루틴 · prefs 정리) · 시작 창 테마 · `AccessibleNamesTest` 10초 대기 간헐 초과 · 위 «후속 추가(8번째 창)».
+- **에뮬레이터 주의(PUBLIC 금지선): 갤러리 `t01.png` · `u01.jpg`와 앱 데이터의 기록 1건이 실제 책 쪽 사진 · 문장이다 — 지우지 않는다(사용자 결정). 캡처 전에 가리거나 지어낸 견본(`/sdcard/Pictures/zz-sample-*.png`)으로 바꾼다.**
+- 규칙: gradle 잠금 · 에뮬레이터와 동시 0 · 에뮬레이터는 `-gpu swiftshader_indirect` · 가로는 화면이 떠 있는 상태에서 `settings put system user_rotation 1`(accelerometer 0) · Git Bash adb `/sdcard`는 `MSYS_NO_PATHCONV=1` · 반복 실행 기록에 RUN마다 `git rev-parse HEAD` · face-fate 창과 무거운 작업 1줄 교환 · `gradlew --stop` 금지.
 
 ## 7번째 창 체크리스트(LC `life-coordinator-65` · 2026-11-28 03:07 발주 · 새벽 무인)
 
