@@ -78,3 +78,36 @@ class SystemBarFollowsAppThemeTest {
         assertTrue(lightIcons(activity).second)
     }
 }
+
+/**
+ * 차가운 시작: 시스템 밝은 + 저장된 앱 테마 9(심플블랙). setContent가 그리기 전, onCreate 직후부터 흰 아이콘이다
+ * (onCreate 선적용 · 저장값 동기 로드 — 밝은 → 어두운 깜빡임 없음).
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(qualifiers = RobolectricDeviceQualifiers.Pixel8, sdk = [36])
+class SystemBarColdStartTest {
+    private var controller: ActivityController<MainActivity>? = null
+
+    @After
+    fun tearDown() {
+        controller?.destroy()
+        shadowOf(Looper.getMainLooper()).idle()
+        androidx.test.core.app.ApplicationProvider.getApplicationContext<android.app.Application>()
+            .getSharedPreferences("diary_general_settings", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+    }
+
+    @Test
+    fun systemLight_savedDarkTheme_iconsLightFromOnCreate() {
+        val c = Robolectric.buildActivity(MainActivity::class.java).also { controller = it }
+        // ViewModel이 받는 것과 같은 Application에 저장값을 둔다(앞 시험이 남긴 전역 상태와 섞이지 않게).
+        c.get().application.getSharedPreferences("diary_general_settings", android.content.Context.MODE_PRIVATE)
+            .edit().putInt("theme_id", 9).commit()
+        c.create()
+        val activity = c.get()
+        val insets = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+        val vmTheme = ViewModelProvider(activity)[ReadingViewModel::class.java].currentThemeId.value
+        assertEquals(9, vmTheme)
+        assertFalse("상태 표시줄 아이콘이 흰색이어야 한다", insets.isAppearanceLightStatusBars)
+        assertFalse("내비게이션 바 아이콘이 흰색이어야 한다", insets.isAppearanceLightNavigationBars)
+    }
+}
